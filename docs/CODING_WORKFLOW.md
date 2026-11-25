@@ -11,3 +11,6 @@ Manager checks PR diff, actual CI status, acceptance criteria and compatibility;
 
 ## Automation
 First verify agent access and actual dispatch mechanism (#9). A scheduled management review may inspect open issues, PRs and CI and produce a short report or issue comments; it cannot be assumed to start a separate Work chat. A real dispatch integration (e.g. approved coding agent/API) needs configuration, credentials held outside repo, scoped permissions, cost caps, idempotent task claiming, concurrency limits and a stop switch. Do not enable unattended merges or deployments. No dispatch integration is installed by this documentation.
+
+## First comprehensive assignment
+See issue #1 and docs/BENCHMARKS.md. Establish CI, execute existing tests and standalone verification, add browser smoke checks, inventory all 60 provisional scenarios and record evidence-backed baseline by authoring layer. Do not implement broad new mechanics in this PR. For work too large for one focused PR, propose linked follow-up issues with clear deliverables and stop at the review gate. Issue #6 owns expanded executable fixtures and scoring improvements. The first agent run also supplies evidence for #9.
