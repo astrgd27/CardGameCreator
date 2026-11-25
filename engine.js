@@ -1,3 +1,4 @@
+import { upgrade, checkStructure } from "./structure.js";
 export const effects = {
   strike: "Deal damage",
   mend: "Restore life",
@@ -201,6 +202,8 @@ export function validate(m) {
     )
   )
     fail();
+  upgrade(m);
+  checkStructure(m);
   return m;
 }
 function shuffled(deck, rng) {
@@ -218,6 +221,7 @@ export function start(m, seed = Date.now()) {
   let a = seed >>> 0;
   const rng = () =>
     (a = (Math.imul(a, 1664525) + 1013904223) >>> 0) / 4294967296;
+  const shared = {};
   const players = [0, 1].map((i) => {
     const deck = shuffled(
       m.cards.flatMap((c) => Array(copies(m, i, c)).fill(c.id)),
@@ -232,10 +236,21 @@ export function start(m, seed = Date.now()) {
       life: m.rules.life,
       energy: m.rules.energy,
     };
+    p.zones = {};
+    for (const z of m.table.filter(z => z.kind === "cards" && z.owner === "player")) {
+      p.zones[z.id] = p.deck.splice(0, z.start);
+    }
+    if (i === 0) {
+      for (const z of m.table.filter(z => z.kind === "cards" && z.owner === "shared")) {
+        shared[z.id] = p.deck.splice(0, z.start);
+      }
+    }
     draw(p, m.rules.hand);
     return p;
   });
   return {
+    shared,
+    phase: 0,
     players,
     turn: 0,
     round: 1,
@@ -250,6 +265,11 @@ export function reason(m, s, who, index) {
   if (s.actor !== who) return "Wait for priority.";
   const c = m.cards.find((c) => c.id === s.players[who].hand[index]);
   if (!c) return "No card.";
+  if (!s.pending && !m.phases[s.phase || 0].play) return "Cards cannot be played during " + m.phases[s.phase || 0].name + ".";
+  if (c.kind === "unit") {
+    const zone = m.table.find(z => z.id === c.zone);
+    if (s.players[who].field.filter(u => (u.zone || "field") === c.zone).length >= zone.capacity) return zone.name + " is full.";
+  }
   if ((c.timing === "reaction") !== Boolean(s.pending))
     return s.pending
       ? "Only a reaction can interrupt."
@@ -289,7 +309,7 @@ function applyEffects(m, s, id, who) {
 function resolve(m,s,id,who) {
   const c=m.cards.find(c=>c.id===id),p=s.players[who];
   applyEffects(m,s,id,who);
-  if (c.kind === "unit") p.field.push({ id, hp: c.health, ready: false });
+  if (c.kind === "unit") p.field.push({ id, zone: c.zone, hp: c.health, ready: false });
   else p.discard.push(id);
 }
 export function act(m, s, who, index) {
@@ -300,7 +320,7 @@ export function act(m, s, who, index) {
     c = m.cards.find((c) => c.id === id);
   p.energy -= c.cost;
   if(c.kind==="unit" && c.entry==="hidden" && c.timing==="main" && !s.pending){
-    p.field.push({id,hp:2,ready:false,hidden:true});
+    p.field.push({id,zone:c.zone,hp:2,ready:false,hidden:true});
     s.visual={type:"set",who,index:p.field.length-1};s.log.push(side(who)+" set a unit face-down.");return;
   }
   s.visual={type:"play",who,id};
@@ -328,6 +348,12 @@ export function pass(m, s, who) {
     finishPending(m, s);
     return;
   }
+  if ((s.phase || 0) < m.phases.length - 1) {
+    s.phase++;
+    s.log.push(side(who) + " entered " + m.phases[s.phase].name + ".");
+    return;
+  }
+  s.phase = 0;
   s.turn = 1 - who;
   s.actor = s.turn;
   s.round++;
@@ -364,7 +390,7 @@ export function attack(m, s, who, index, move, target = -1) {
     s.actor !== who ||
     s.turn !== who ||
     s.pending ||
-    u?.hidden || !u?.ready
+    !m.phases[s.phase || 0].attack || u?.hidden || !u?.ready
   )
     throw Error("Unit must be ready during your main turn.");
   const c = m.cards.find((c) => c.id === u.id),
@@ -395,6 +421,7 @@ export function bot(m, s) {
   for (const [i, u] of p.field.entries()) {
     if (!u.ready || s.pending) continue;
     if(u.hidden){reveal(m,s,1,i);return}
+    if (!m.phases[s.phase || 0].attack) continue;
     const attacks = m.cards.find((c) => c.id === u.id).attacks;
     const best = attacks
       .map((a, j) => ({ a, j }))

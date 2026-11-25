@@ -108,3 +108,60 @@ test("concealed units reveal once, carry damage, and enforce Guard for both seat
   assert.throws(()=>attack(m,s,1,0,0,-1),/Guard/);
   attack(m,s,1,0,0,0);assert.equal(s.players[0].field.length,0);
 });
+
+test("legacy modules retain deck counts and stable identities", async () => {
+  const {upgrade, activateDecks}=await import("../structure.js");
+  const m=moduleData();
+  m.decks[0][m.cards[0].id]=0;
+  upgrade(m);
+  assert.equal(m.savedDecks[0].counts[m.cards[0].id],0);
+  const ids=m.savedDecks.map(d=>d.id);
+  activateDecks(m);
+  assert.equal(m.decks[0][m.cards[0].id],0);
+  validate(m);
+  assert.deepEqual(m.savedDecks.map(d=>d.id),ids);
+});
+test("custom capacity rejects payments atomically and phases restrict attacks", () => {
+  const m=moduleData();
+  validate(m);m.table[0].capacity=1;
+  m.phases=[{id:"deploy",name:"Deploy",play:true,attack:false},{id:"battle",name:"Battle",play:false,attack:true}];
+  const s=start(m,14),c=m.cards[2];
+  s.players[0].hand=[c.id,c.id];
+  act(m,s,0,0);
+  const before=structuredClone(s);
+  assert.throws(()=>act(m,s,0,0),/full/);
+  assert.deepEqual(s,before);
+  s.players[0].field[0].ready=true;
+  assert.throws(()=>attack(m,s,0,0,0));
+  pass(m,s,0);
+  assert.equal(s.phase,1);
+  assert.match(reason(m,s,0,0),/cannot be played/);
+  attack(m,s,0,0,0);
+  pass(m,s,0);
+  assert.equal(s.turn,1);assert.equal(s.phase,0);
+});
+test("setup piles and card metadata survive serialization", () => {
+  const m=moduleData();validate(m);
+  m.table.push({id:"prizes",name:"Prizes",owner:"player",visibility:"hidden",capacity:6,start:3,kind:"cards",x:0,y:0,w:20,h:20});
+  m.attributes.push({id:"level",name:"Level",type:"number"});
+  m.cards[0].values.level=4;
+  const restored=JSON.parse(JSON.stringify(m)),s=start(restored,3);
+  assert.equal(s.players[0].zones.prizes.length,3);
+  assert.equal(s.players[1].zones.prizes.length,3);
+  assert.equal(s.players[0].deck.length,18-3-m.rules.hand);
+  assert.equal(restored.cards[0].values.level,4);
+});
+test("deck limits and invalid metadata fail clearly", async () => {
+  const {deckIssues}=await import("../structure.js");
+  const m=moduleData();validate(m);m.deckRules.copies=1;
+  assert.ok(deckIssues(m,{[m.cards[0].id]:4}).some(x=>x.includes("copy limit")));
+  m.phases=[{id:"none",name:"No play",play:false,attack:true}];
+  assert.throws(()=>validate(m),/phase/);
+});
+test("shared setup is taken only from the first player's deck", () => {
+  const m=moduleData();validate(m);
+  m.table.push({id:"market",name:"Market",owner:"shared",visibility:"public",capacity:5,start:2,kind:"cards",x:0,y:0,w:20,h:20});
+  const s=start(m,44);
+  assert.equal(s.shared.market.length,2);
+  assert.equal(s.players[0].deck.length,s.players[1].deck.length-2);
+});
