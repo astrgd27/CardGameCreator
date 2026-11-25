@@ -15,3 +15,6 @@ Deterministic seeded behavior; atomic illegal moves; explicit player choices; ve
 
 ## Benchmark contract
 Read docs/BENCHMARKS.md. Do not count a scenario as supported until an original module can be authored at the claimed layer, loaded, played with automated enforcement, exported/imported and reverified. Keep unsupported and pending cases visible. Do not silently change the denominator, claim theoretical coverage or hardcode a reference game. Preserve reproducible evidence and report coverage per game/category. Follow the milestone dependencies in ROADMAP.md.
+
+## Minimize specialist-agent usage
+Management chat may implement focused changes directly. Work should inspect only the relevant issue, contracts and files, use existing CI results, avoid duplicate broad audits, and return concise evidence and blockers. Prefer deterministic scripts and tests over repeated AI reasoning.
