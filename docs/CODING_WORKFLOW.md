@@ -14,3 +14,6 @@ First verify agent access and actual dispatch mechanism (#9). A scheduled manage
 
 ## First comprehensive assignment
 See issue #1 and docs/BENCHMARKS.md. Establish CI, execute existing tests and standalone verification, add browser smoke checks, inventory all 60 provisional scenarios and record evidence-backed baseline by authoring layer. Do not implement broad new mechanics in this PR. For work too large for one focused PR, propose linked follow-up issues with clear deliverables and stop at the review gate. Issue #6 owns expanded executable fixtures and scoring improvements. The first agent run also supplies evidence for #9.
+
+## Low-usage operating model
+The management chat is also the default implementer for focused code changes, tests, CI, benchmark tooling, and documentation. Use GitHub Actions for repeatable execution. Work remains the specialist environment for interactive debugging, difficult changes, and real browser investigation when CI or direct edits are insufficient. Give Work one narrowly scoped issue with files, observed failures, and acceptance criteria; do not duplicate completed work or require broad repository audits. Codex is optional, not required. No automatic dispatch or merge.
