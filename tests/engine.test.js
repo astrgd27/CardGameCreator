@@ -92,3 +92,19 @@ test("reject unknown instructions, unsupported schemas, malformed deck counts", 
   m.version = 7;
   assert.throws(() => validate(m));
 });
+test("concealed units reveal once, carry damage, and enforce Guard for both seats", async () => {
+  const {reveal,legalTargets}=await import("../engine.js");
+  const m=moduleData(),c=m.cards[1],s=start(m,12);
+  c.script="strike 2";s.players[0].hand=[c.id];act(m,s,0,0);
+  assert.equal(s.players[1].life,m.rules.life);
+  assert.ok(!JSON.stringify(s.log).includes(c.name));
+  assert.throws(()=>reveal(m,s,0,0));
+  assert.deepEqual(legalTargets(m,s,1),[-1,0]);
+  pass(m,s,0);pass(m,s,1);s.players[0].field[0].hp--;
+  reveal(m,s,0,0);assert.equal(s.players[0].field[0].hp,c.health-1);
+  assert.equal(s.players[1].life,m.rules.life-2);
+  assert.throws(()=>reveal(m,s,0,0));assert.deepEqual(legalTargets(m,s,1),[0]);
+  pass(m,s,0);s.players[1].field.push({id:m.cards[2].id,hp:3,ready:true});
+  assert.throws(()=>attack(m,s,1,0,0,-1),/Guard/);
+  attack(m,s,1,0,0,0);assert.equal(s.players[0].field.length,0);
+});

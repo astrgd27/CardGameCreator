@@ -17,6 +17,9 @@ for filename in ["engine.js", "storage.js", "benchmarks.js", "app.js"]:
     code = re.sub(r'^import\s+[^;]+;\s*', '', code, flags=re.MULTILINE)
     modules.append(re.sub(r'^export ', '', code, flags=re.MULTILINE))
 code = "\n".join(modules)
+import json
+art = ["data:image/webp;base64," + base64.b64encode((root / "assets" / f"art{i}.webp").read_bytes()).decode() for i in range(6)]
+code = re.sub(r"const builtinArt\s*=.*?;", lambda _: "const builtinArt=" + json.dumps(art) + ";", code, count=1, flags=re.S)
 # A Blob URL allows local handbook navigation in browsers that block data URL tabs.
 code = "const handbookURL=URL.createObjectURL(await (await fetch('" + help_url + "')).blob());\n" + code
 code += "\ndocument.addEventListener('click',e=>{const a=e.target.closest('a[href=\"help.html\"]');if(a)a.href=handbookURL},true);"

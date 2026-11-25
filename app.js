@@ -14,7 +14,7 @@ import {
   act,
   pass,
   bot,
-  attack,
+  attack, reveal, legalTargets,
 } from "./engine.js";
 import { collection, saveModule, pack, unpack } from "./storage.js";
 import { benchmarks } from "./benchmarks.js";
@@ -77,6 +77,7 @@ const choose = (label, key, options, v) =>
     )
     .join("") +
   "</select></label>";
+const builtinArt=Array.from({length:6},(_,i)=>"assets/art"+i+".webp");
 const options = (a) => a.map((x) => [x, x]);
 let m = moduleData(),
   selected = m.cards[0].id,
@@ -127,13 +128,13 @@ function cardView(c) {
       '<div class="art"><b>' +
       glyphs[c.glyph] +
       "</b>" +
-      (c.art ? '<img alt="" src="' + c.art + '">' : "") +
+      '<img alt="" src="' + (c.art || builtinArt[c.glyph]) + '">' +
       "</div>",
     cost:
-      '<div class="cost">◈ ' + c.cost + " energy · " + esc(c.timing) + "</div>",
+      '<div class="cost">◈ ' + c.cost + " energy · " + esc(c.kind) + (c.timing==="reaction"?" · Reaction":"") + "</div>",
     effect:
       "<p>" +
-      esc(describe(c)) +
+      (c.guard?"<b>Guard</b> · ":"")+(c.kind==="unit"&&c.entry==="hidden"?"Set face-down. ":"")+esc(describe(c)) +
       (c.kind === "unit"
         ? "<br><b>" +
           c.health +
@@ -147,7 +148,7 @@ function cardView(c) {
       "</p>",
   };
   return (
-    '<article class="card" style="--ink:' +
+    '<article class="card" data-card="'+esc(c.id)+'" style="--ink:' +
     colors[c.glyph] +
     '">' +
     m.layout.map((k) => parts[k]).join("") +
@@ -234,6 +235,8 @@ function workshop() {
         ) + num("Minimum available energy", "threshold", c.threshold, 0, 20);
       if (c.kind === "unit")
         panel +=
+          choose("Deployment","entry",[["open","Face-up"],["hidden","Set face-down · reveal next turn"]],c.entry||"open")+
+          choose("Defense","guard",[["no","Normal"],["yes","Guard · must be targeted first"]],c.guard?"yes":"no")+
           num("Unit health", "health", c.health, 1, 99) +
           c.attacks
             .map(
@@ -301,7 +304,7 @@ function workshop() {
           '" class="item ' +
           (x === c ? "on" : "") +
           '"><span class="mini" style="--ink:' +
-          colors[x.glyph] +
+          colors[x.glyph] + ';background-image:url('+(x.art||builtinArt[x.glyph])+')' +
           '">' +
           glyphs[x.glyph] +
           "</span>" +
@@ -382,60 +385,52 @@ function setup() {
     "</section></div>"
   );
 }
-function zones(p, enemy) {
-  return (
-    '<div class="zones">' +
-    m.zones
-      .map((z) =>
-        z === "field"
-          ? '<div class="unitzone"><small>UNIT FIELD</small>' +
-            units(p, enemy) +
-            "</div>"
-          : '<span class="zone">' + z + " · " + p[z].length + "</span>",
-      )
-      .join("") +
-    "</div>"
-  );
+const paceMs = {Slow: 2400, Normal: 1250, Fast: 470, Step: 0};
+let pace = "Slow", logOpen=false, botTimer=0, animated=null;
+try { const saved=localStorage.getItem("cgc-pace"); if(Object.hasOwn(paceMs,saved))pace=saved; } catch {}
+const byId=id=>m.cards.find(c=>c.id===id);
+function inspect(id){
+  const c=byId(id);if(!c)return;
+  modal('<div class="inspectCard">'+cardView(c)+'</div>');
 }
-function units(p, enemy) {
-  return (
-    '<div class="hand">' +
-    p.field
-      .map((u, i) => {
-        const c = m.cards.find((c) => c.id === u.id);
-        return (
-          '<div class="box"><b>' +
-          esc(c.name) +
-          "</b> · " +
-          u.hp +
-          ' HP<br><span class="muted">' +
-          (u.ready ? "Ready" : "Resting") +
-          "</span>" +
-          (!enemy && u.ready && !s.pending && s.winner === null
-            ? '<div class="pieces">' +
-              c.attacks
-                .map((a, j) =>
-                  button(
-                    "target",
-                    a.name + " · " + a.cost + " energy",
-                    "chip",
-                    i + ":" + j,
-                  ),
-                )
-                .join("") +
-              "</div>"
-            : "") +
-          "</div>"
-        );
-      })
-      .join("") +
-    "</div>"
-  );
+function faceBack(label){return '<div class="cardback" aria-label="'+esc(label)+'"><span>✣</span></div>'}
+function cardTile(c,action,value,cls="",contents=""){
+  return '<button class="tablecard '+cls+'" data-action="'+action+'" data-v="'+esc(value)+'" data-card="'+esc(c.id)+'">'+cardView(c)+contents+'</button>';
 }
-function runBot() {
-  let n = 0;
-  while (s.winner === null && s.actor === 1 && n++ < 100) bot(m, s);
-  if (s.actor === 1 && s.winner === null) pass(m, s, 1);
+function animateClass(type,who,i){
+  const v=s.visual;
+  return animated!==v && v?.who===who && v?.index===i && v.type===type?' motion-'+type:'';
+}
+function rowUnits(p,who){
+  return '<div class="fieldcards">'+p.field.map((u,i)=>{
+    const c=byId(u.id),cls=(u.ready?'':' resting')+['set','flip','attack'].map(t=>animateClass(t,who,i)).join('');
+    if(u.hidden)return '<button class="tablecard hiddenunit '+cls+'" data-action="'+(who?'unknown':'unit')+'" data-v="'+i+'" '+(who?'':'data-card="'+c.id+'"')+'>'+faceBack('Face-down unit')+'<b class="unitstat">'+u.hp+' HP · '+(u.ready?'Ready':'Resting')+'</b></button>';
+    return cardTile(c,who?'inspect':'unit',who?c.id:i,cls+(animated!==s.visual&&s.visual?.type==="play"&&s.visual.who===who&&s.visual.id===u.id&&i===p.field.length-1?' motion-play':''),'<b class="unitstat">'+u.hp+' HP · '+(u.ready?'Ready':'Resting')+'</b>');
+  }).join('')+'</div>';
+}
+function seat(who){
+  const p=s.players[who],rail=m.zones.filter(z=>z!=='field').map(z=>z==='discard'?button('pile','Discard '+p.discard.length,'pile',who):'<span>'+z+' <b>'+p[z].length+'</b></span>').join('');
+  return '<div class="seat seat'+who+'"><div class="portrait"><span class="avatar">'+(who?'♜':'✦')+'</span><div><strong>'+(who?'George Card':'You')+'</strong><div class="vitals">♥ '+p.life+' &nbsp; ◈ '+p.energy+'</div></div></div>'+rowUnits(p,who)+'<div class="rail">'+rail+'</div></div>';
+}
+function syncBot(){
+  clearTimeout(botTimer);
+  if(mode!=="Playtest"||!s||s.actor!==1||s.winner!==null||pace==="Step"||$("dialog").open)return;
+  botTimer=setTimeout(nextBot,paceMs[pace]);
+}
+function nextBot(){
+  if(mode!=="Playtest"||!s||s.actor!==1||s.winner!==null||$("dialog").open)return;
+  bot(m,s);render();
+}
+$("dialog").addEventListener("close",syncBot);
+function battle(){
+  if(!s)return '<section class="duelLobby"><div><small>PLAYTEST</small><h2>'+esc(m.name)+'</h2><p>Your deck against George Card.</p>'+button('duel','Start duel','primary')+'</div><div class="lobbyCards">'+m.cards.slice(0,3).map(c=>cardView(c)).join('')+'</div></section>';
+  const p=s.players[0],v=s.visual;
+  const phase=s.winner!==null?(s.winner===0?'Victory':'Defeat'):s.pending?'Response window':s.actor===1?'George’s turn':'Your turn';
+  const recent=s.log.at(-1);
+  const spotlight=v?.id?'<div class="spotlight '+(animated!==v?'motion-play':'')+'">'+cardTile(byId(v.id),'inspect',v.id)+'</div>':'';
+  const caption=v?.type==='play'?(v.who?'George plays ':'You play ')+byId(v.id).name+' · '+describe(byId(v.id)):recent;
+  const styles=m.fieldArt?' style="--field-image:url('+m.fieldArt+')"':'';
+  return '<section class="arena"'+styles+'><div class="arenaTools"><div><small>TURN '+s.round+'</small> <strong>'+phase+'</strong></div><div class="controls"><label>Speed <select id="pace">'+Object.keys(paceMs).map(k=>'<option '+(k===pace?'selected':'')+'>'+k+'</option>').join('')+'</select></label>'+button('log',logOpen?'Hide log':'Match log')+button('replay','Replay deal')+button('duel','New duel')+'</div></div>'+spotlight+seat(1)+'<div class="resolution" aria-live="polite">'+(v?.id?button('inspect',byId(v.id).name,'resolveCard',v.id):'')+'<span>'+esc(caption)+'</span></div>'+seat(0)+'<div class="handbar"><strong>Your hand · '+p.hand.length+'</strong><div>'+ (history.length?button('rewind','↶ Rewind'):'')+(s.winner===null?(s.actor===0?button('pass',s.pending?'Pass reaction':'End turn','primary'):pace==='Step'?button('step','Next opponent move','primary'):'<span class="thinking">George is playing…</span>'):'')+'</div></div><div class="cardhand">'+p.hand.map((id,i)=>cardTile(byId(id),'use',i,reason(m,s,0,i)?'unavailable':'playable')).join('')+'</div>'+(logOpen?'<aside class="logDrawer"><div class="line"><h2>Match log</h2>'+button('log','Close')+'</div><ol reversed>'+s.log.slice().reverse().map(l=>'<li>'+esc(l)+'</li>').join('')+'</ol></aside>':'')+'</section>';
 }
 function launch(practice = false, newSeed = true) {
   if (newSeed) seed = Math.floor(Math.random() * 2 ** 32);
@@ -466,82 +461,6 @@ function launch(practice = false, newSeed = true) {
   mode = "Playtest";
   render();
 }
-function battle() {
-  if (!s)
-    return (
-      '<div class="box stack"><h2>Playtest your decks</h2><p>Shuffle both decks and face George Card.</p>' +
-      button("duel", "Start duel", "primary") +
-      "</div>"
-    );
-  const [p, q] = s.players;
-  const awaiting = s.pending
-    ? "React to " + m.cards.find((c) => c.id === s.pending.id).name
-    : "Your turn";
-  return (
-    '<section class="battle" ' +
-    (m.fieldArt
-      ? 'style="background-image:linear-gradient(#edf2e2cc,#edf2e2cc),url(' +
-        m.fieldArt +
-        ');background-size:cover"'
-      : "") +
-    '><div class="line"><h2>George Card</h2><b>' +
-    q.life +
-    " life · " +
-    q.energy +
-    " energy</b></div>" +
-    zones(q, true) +
-    "<hr><small>TURN " +
-    s.round +
-    "</small><h2>" +
-    esc(
-      s.winner === null ? awaiting : s.winner === 0 ? "You won" : "George won",
-    ) +
-    '</h2><hr><div class="line"><h2>Your table</h2><b>' +
-    p.life +
-    " life · " +
-    p.energy +
-    " energy</b></div>" +
-    zones(p, false) +
-    '<div class="hand">' +
-    p.hand
-      .map((id, i) => {
-        const c = m.cards.find((x) => x.id === id),
-          why = reason(m, s, 0, i);
-        return (
-          '<button style="--ink:' +
-          colors[c.glyph] +
-          '" class="' +
-          (why ? "dim" : "") +
-          '" data-action="use" data-v="' +
-          i +
-          '">' +
-          glyphs[c.glyph] +
-          " " +
-          esc(c.name) +
-          "<span>" +
-          c.cost +
-          " energy · " +
-          esc(describe(c)) +
-          "</span></button>"
-        );
-      })
-      .join("") +
-    '</div><div class="actions">' +
-    (s.winner === null
-      ? button("pass", s.pending ? "Pass reaction" : "End turn", "primary")
-      : "") +
-    (history.length ? button("rewind", "↶ Rewind") : "") +
-    button("replay", "Replay deal") +
-    button("duel", "New duel") +
-    '</div></section><details open><summary>Match log</summary><ol class="log" reversed>' +
-    s.log
-      .slice()
-      .reverse()
-      .map((l) => "<li>" + esc(l) + "</li>")
-      .join("") +
-    "</ol></details>"
-  );
-}
 function scorecard() {
   return (
     '<section class="box"><h2>Compatibility benchmarks</h2><p>Targets for each game and each category: 80% through Place and Customize, 95% including Script. These are initial acceptance scenarios. Coverage percentages require a complete catalog.</p>' +
@@ -568,6 +487,7 @@ function scorecard() {
   );
 }
 function render() {
+  document.body.dataset.mode=mode;
   $("title").textContent = m.name;
   $("modes").innerHTML = ["Workshop", "Game setup", "Playtest", "Benchmarks"]
     .map((x) => button("mode", x, mode === x ? "on" : "", x))
@@ -580,6 +500,7 @@ function render() {
         : mode === "Benchmarks"
           ? scorecard()
           : battle();
+  animated=s?.visual; syncBot();
 }
 function onboarding() {
   const hasCard = !!m.cards.length,
@@ -717,29 +638,33 @@ async function dispatch(action, v) {
         c.attacks.push({ name: "Heavy hit", cost: 2, power: 4 });
       edited();
       return;
-    case "target":
-      modal(
-        '<h2>Choose attack target</h2><div class="stack">' +
-          button("attack", "George Card", "", v + ":-1") +
-          s.players[1].field
-            .map((u, i) =>
-              button(
-                "attack",
-                m.cards.find((c) => c.id === u.id).name + " · " + u.hp + " HP",
-                "",
-                v + ":" + i,
-              ),
-            )
-            .join("") +
-          "</div>",
-      );
-      return;
+    case "inspect":inspect(v);return;
+    case "unknown":status("George’s face-down unit has 2 base HP. Its identity is hidden.");return;
+    case "log":logOpen=!logOpen;break;
+    case "step":nextBot();return;
+    case "pile":modal('<h2>Discard pile</h2><div class="stack">'+(s.players[+v].discard.map(id=>button('inspect',byId(id).name,'',id)).join('')||'Empty')+'</div>');return;
+    case "unit":{
+      const u=s.players[0].field[+v],card=byId(u.id);
+      const can=u.ready&&!s.pending&&s.actor===0&&s.turn===0&&s.winner===null;
+      modal('<h2>'+esc(card.name)+'</h2><p>'+u.hp+' HP · '+(u.ready?'Ready':'Resting')+'</p><div class="stack">'+button('inspect','Inspect card','',card.id)+(can?(u.hidden?button('flip','Reveal unit','primary',v):card.attacks.map((a,j)=>button('target',a.name+' · '+a.power+' damage · '+a.cost+' energy','',''+v+':'+j)).join('')):'')+'</div>');return;
+    }
+    case "flip":{const prev=structuredClone(s);reveal(m,s,0,+v);history.push(prev);$("dialog").close();break;}
+    case "target":{
+      const [i,j]=v.split(":").map(Number),a=byId(s.players[0].field[i].id).attacks[j];
+      if(a.cost>s.players[0].energy){modal("<h2>Insufficient energy</h2><p>This attack costs "+a.cost+" energy.</p>");return}
+      const q=s.players[1],targets=legalTargets(m,s,0);
+      modal('<h2>'+esc(a.name)+'</h2><p>Choose a target · '+a.power+' damage</p><div class="stack">'+targets.map(t=>{
+        const hp=t===-1?q.life:q.field[t].hp;
+        const name=t===-1?"George Card":q.field[t].hidden?"Face-down unit":byId(q.field[t].id).name;
+        return button("attack",name+" · "+hp+" → "+Math.max(0,hp-a.power)+(t===-1?" life":" HP"),"",v+":"+t);
+      }).join("")+'</div>');return;
+    }
     case "attack": {
       const prev = structuredClone(s);
       $("dialog").close();
       attack(m, s, 0, ...v.split(":").map(Number));
       history.push(prev);
-      runBot();
+
       break;
     }
     case "append":
@@ -790,7 +715,7 @@ async function dispatch(action, v) {
       history.push(structuredClone(s));
       if (action === "use") act(m, s, 0, +v);
       else pass(m, s, 0);
-      runBot();
+
       break;
     }
     case "rewind":
@@ -815,7 +740,14 @@ async function dispatch(action, v) {
   }
   render();
 }
+let pressTimer=0,suppressClick=0,pressStart=null;
+function clearPress(){clearTimeout(pressTimer);pressStart=null}
+root.addEventListener("contextmenu",e=>{const el=e.target.closest("[data-card]");if(el){e.preventDefault();inspect(el.dataset.card)}});
+root.addEventListener("pointerdown",e=>{const el=e.target.closest("[data-card]");if(!el||e.pointerType==="mouse")return;clearPress();pressStart=[e.clientX,e.clientY];pressTimer=setTimeout(()=>{suppressClick=performance.now()+1000;inspect(el.dataset.card)},500)});
+root.addEventListener("pointermove",e=>{if(pressStart&&Math.hypot(e.clientX-pressStart[0],e.clientY-pressStart[1])>10)clearPress()});
+for(const event of ["pointerup","pointercancel"])document.addEventListener(event,clearPress);
 document.addEventListener("click", (e) => {
+  if(performance.now()<suppressClick){e.preventDefault();return}
   const b = e.target.closest("[data-action]");
   if (b) {
     status();
@@ -835,6 +767,7 @@ root.oninput = (e) => {
   }
 };
 root.onchange = async (e) => {
+  if(e.target.id==="pace"){pace=e.target.value;try{localStorage.setItem("cgc-pace",pace)}catch{} render();return;}
   const el = e.target,
     k = el.dataset.key,
     backup = structuredClone(m);
@@ -870,6 +803,7 @@ root.onchange = async (e) => {
       c = current();
     if (k === "module") m.name = value;
     else if (Object.hasOwn(m.rules, k)) m.rules[k] = value;
+    else if(k==="guard") c.guard=value==="yes";
     else if (k.startsWith("attack:")) {
       const [, i, prop] = k.split(":");
       c.attacks[i][prop] = value;

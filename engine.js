@@ -23,6 +23,8 @@ export function card(name = "Untitled card", i = 0) {
     glyph: i % glyphs.length,
     art: "",
     kind: "event",
+    entry: "open",
+    guard: false,
     health: 3,
     attacks: [{ name: "Quick hit", cost: 1, power: 2 }],
     timing: "main",
@@ -57,6 +59,9 @@ export function moduleData(blank = false) {
   if (cards.length) {
     cards[2].kind = "unit";
     cards[2].name = "Waxwing Scout";
+    cards[1].kind = "unit";
+    cards[1].entry = "hidden";
+    cards[1].guard = true;
     cards[2].attacks.push({ name: "Dive", cost: 2, power: 4 });
   }
   return {
@@ -180,6 +185,7 @@ export function validate(m) {
       )
     )
       fail();
+    if (c.entry !== undefined && !["open","hidden"].includes(c.entry) || c.guard !== undefined && typeof c.guard !== "boolean") fail();
     ids.add(c.id);
     parse(c.script);
   }
@@ -259,7 +265,7 @@ export function moves(m, s, who) {
     .filter((i) => !reason(m, s, who, i));
 }
 const side = (i) => (i ? "George" : "You");
-function resolve(m, s, id, who) {
+function applyEffects(m, s, id, who) {
   const c = m.cards.find((c) => c.id === id),
     p = s.players[who],
     q = s.players[1 - who];
@@ -279,6 +285,10 @@ function resolve(m, s, id, who) {
       break;
     }
   }
+}
+function resolve(m,s,id,who) {
+  const c=m.cards.find(c=>c.id===id),p=s.players[who];
+  applyEffects(m,s,id,who);
   if (c.kind === "unit") p.field.push({ id, hp: c.health, ready: false });
   else p.discard.push(id);
 }
@@ -289,6 +299,11 @@ export function act(m, s, who, index) {
     id = p.hand.splice(index, 1)[0],
     c = m.cards.find((c) => c.id === id);
   p.energy -= c.cost;
+  if(c.kind==="unit" && c.entry==="hidden" && c.timing==="main" && !s.pending){
+    p.field.push({id,hp:2,ready:false,hidden:true});
+    s.visual={type:"set",who,index:p.field.length-1};s.log.push(side(who)+" set a unit face-down.");return;
+  }
+  s.visual={type:"play",who,id};
   s.log.push(side(who) + " played " + c.name + ".");
   if (s.pending) {
     resolve(m, s, id, who);
@@ -308,6 +323,7 @@ function finishPending(m, s) {
 }
 export function pass(m, s, who) {
   if (s.actor !== who || s.winner !== null) throw Error("Cannot pass now.");
+  s.visual={type:"pass",who};
   if (s.pending) {
     finishPending(m, s);
     return;
@@ -326,6 +342,19 @@ export function pass(m, s, who) {
   draw(p, m.rules.draw);
   s.log.push(side(s.turn) + " started turn " + s.round + ".");
 }
+export function reveal(m,s,who,index){
+  const u=s.players[who].field[index];
+  if(s.actor!==who || s.turn!==who || s.pending || s.winner!==null || !u?.ready || !u.hidden)throw Error("Reveal a ready face-down unit on your turn.");
+  const c=m.cards.find(c=>c.id===u.id);
+  u.hidden=false;u.hp=Math.max(1,c.health-(2-u.hp));
+  s.visual={type:"flip",who,id:c.id,index};s.log.push(side(who)+" revealed "+c.name+".");
+  applyEffects(m,s,c.id,who);
+}
+export function legalTargets(m,s,who){
+  const field=s.players[1-who].field;
+  const guards=field.flatMap((u,i)=>!u.hidden&&m.cards.find(c=>c.id===u.id).guard?[i]:[]);
+  return guards.length?guards:[-1,...field.map((_,i)=>i)];
+}
 export function attack(m, s, who, index, move, target = -1) {
   const p = s.players[who],
     q = s.players[1 - who],
@@ -335,7 +364,7 @@ export function attack(m, s, who, index, move, target = -1) {
     s.actor !== who ||
     s.turn !== who ||
     s.pending ||
-    !u?.ready
+    u?.hidden || !u?.ready
   )
     throw Error("Unit must be ready during your main turn.");
   const c = m.cards.find((c) => c.id === u.id),
@@ -343,8 +372,10 @@ export function attack(m, s, who, index, move, target = -1) {
   if (!a || p.energy < a.cost) throw Error("Insufficient attack energy.");
   if (target !== -1 && !q.field[target])
     throw Error("Select an opposing target.");
-  p.energy -= a.cost;
+  if(!legalTargets(m,s,who).includes(target))throw Error("An opposing Guard must be attacked first.");
+  s.visual={type:"attack",who,id:c.id,index,target};p.energy -= a.cost;
   u.ready = false;
+  const targetName=target===-1?"":q.field[target].hidden?"a face-down unit":m.cards.find(c=>c.id===q.field[target].id).name;
   if (target === -1) {
     q.life = Math.max(0, q.life - a.power);
     if (q.life === 0 && m.rules.win === "damage") s.winner = who;
@@ -356,13 +387,14 @@ export function attack(m, s, who, index, move, target = -1) {
       q.field.splice(target, 1);
     }
   }
-  s.log.push(c.name + " used " + a.name + " for " + a.power + " damage.");
+  s.log.push(c.name + " used " + a.name + " for " + a.power + " damage to " + (target===-1?(who?"you":"George"):targetName) + ".");
 }
 export function bot(m, s) {
   const p = s.players[1],
     options = moves(m, s, 1);
   for (const [i, u] of p.field.entries()) {
     if (!u.ready || s.pending) continue;
+    if(u.hidden){reveal(m,s,1,i);return}
     const attacks = m.cards.find((c) => c.id === u.id).attacks;
     const best = attacks
       .map((a, j) => ({ a, j }))
@@ -374,7 +406,7 @@ export function bot(m, s) {
         q.life <= best.a.power
           ? -1
           : q.field.findIndex((t) => t.hp <= best.a.power);
-      attack(m, s, 1, i, best.j, target);
+      const allowed=legalTargets(m,s,1);attack(m, s, 1, i, best.j, allowed.includes(target)?target:allowed[0]);
       return;
     }
   }
