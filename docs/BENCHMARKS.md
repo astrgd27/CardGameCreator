@@ -20,3 +20,6 @@ For each game/category, denominator = all applicable cases in a frozen catalog v
 
 ## Baseline assignment
 Inventory all current IDs and classify pending, partial, fail or verified pass. Only claim passes with the evidence above. Where no execution evidence exists mark pending, not unsupported by assumption. Identify the missing primitive and linked roadmap milestone for each known gap. Separate current support from target. Issue #1 establishes baseline and CI; #6 grows executable fixtures and dashboard.
+
+## Scoring implementation
+Run `node scripts/benchmark-report.mjs` for a JSON inventory and per-game/category score. Evidence is stored in `benchmarks/evidence.json`; absent cases are pending. The scorer validates required metadata and counts reviewed N/A separately; it does not independently prove the accuracy of submitted evidence. Review fixture and actual test results before accepting a pass. `npm test` includes scoring regression tests.
