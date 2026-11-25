@@ -13,3 +13,6 @@ Typed action/choice interfaces, deterministic event queue, explicit timing and p
 
 ## Validation gates
 Engine unit/regression tests; module ZIP round-trip and migration; illegal action atomicity; hidden information checks; browser smoke and responsive checks; reproducible standalone build. Report exact commands and results. Benchmarks count only executed assertions; never advertise theoretical coverage as verified.
+
+## Benchmark-driven contracts
+Design independent policies for setup/mulligans, turn/phase/action limits, typed resources and attachment graphs, object identity and zone transitions, visibility projections, priority/chain/stack resolution, configurable combat and targeting, continuous/replacement effects, spatial locations and scoring, and victory. Card frames must bind typed data per card type, including multiple attacks and resource symbols. Rules, design and logic are independent benchmark categories; no game-name conditionals in the host engine. Use the versioned authoring-layer evidence contract in docs/BENCHMARKS.md. Benchmark goals are 80% Basic + Advanced and 95% including Script per game/category, not aggregate averages.
