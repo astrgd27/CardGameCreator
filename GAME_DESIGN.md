@@ -10,3 +10,6 @@ Author card types, attributes, effects, timing, card frames, table zones, phases
 
 ## Long-term scope
 Generalize physical TCG mechanics: arbitrary zones, payments, triggers, priority and stacks, continuous/replacement effects, combat models, alternate wins, hidden information and token generation. Support scripted encounters, campaign progression and AI policies. Benchmark against documented mechanics with original test fixtures, not copied commercial card assets. Full coverage is a goal, not a verified capability.
+
+## Original acceptance targets
+Primary benchmark games: Pokémon TCG, Magic: The Gathering, Yu-Gi-Oh!, One Piece Card Game, Riftbound. For each game and each applicable category (rules, design, logic), achieve at least 80% via Basic + Advanced visual authoring and at least 95% via all layers including scripting. These are release targets, not current results. See docs/BENCHMARKS.md for measurement. Use the broader research across 50 physical TCGs as secondary coverage input when available; do not assume the research file is in this repository. Fully automated enforcement is mandatory; manual referee workarounds do not count. Modules should be authorable by humans and AI agents, with portable versioned schemas, diagnostics, deterministic tests and scripted campaigns.
