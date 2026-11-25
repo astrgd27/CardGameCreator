@@ -1,13 +1,18 @@
 # Roadmap
 
-Priorities P0 (unblock), P1 (next milestone), P2 (core expansion), P3 (advanced). Issue numbers are live backlog references. Scope changes require product director approval when they change gameplay fundamentals or compatibility. Parallel work only on disjoint files/contracts.
+Priorities P0 (unblock), P1 (next), P2 (core), P3 (advanced). Engine and UI tracks proceed in parallel only when interfaces and files are disjoint. Each milestone requires verified acceptance, not estimates. Existing issues are epics where broad; split into focused tasks before implementation.
 
-| Phase | Engine / QA | UI / product | Gate |
+| Milestone | Engine / QA | UI / product | Gate |
 |---|---|---|---|
-| 0 | #1 CI and baseline | #9 coding-agent handoff | verified test run and reviewed PR |
-| 1 | #3 rules architecture | #2 arena presentation | architecture ADR and desktop/tablet review |
-| 2 | #5 zones/actions/events; #6 executable benchmarks | #4 workshop and decks | legacy modules and fixtures pass |
-| 3 | #7 payments/stack/effects/victory | corresponding editors and feedback | deterministic fixtures and editor support |
-| 4 | scripted scenario engine and AI policy | #8 campaigns and publishing | original sample campaign and persistence |
+| 0 | #1 CI, benchmark baseline; #9 agent handoff | navigation and visual audit | reproducible tests and first reviewed PR |
+| 1 | #3 architecture ADR; #5 object identity, zones, actions | #2 full-screen arena, inspection, animations and pacing | compatibility ADR, desktop/tablet evidence |
+| 2 | typed resources, payments, attachments, movement (#7/#5) | resource and zone editors | atomic payment, visibility and round-trip fixtures |
+| 3 | events/triggers, priority, stacks/chains (#5/#7) | timing editor, response UI | deterministic ordering and legal choices |
+| 4 | configurable combat, targeting, setup, victory (#7) | combat editor and feedback | game-specific rules expressible without host forks |
+| 5 | continuous/replacement effects and modifiers (#7) | advanced visual rules builder | duration/order/layer fixtures |
+| 6 | scripting, diagnostics, automated playtest; #6 executable benchmarks | script editor and evidence dashboard | per-game/category authoring scores |
+| 7 | AI policy and module compatibility | #4 advanced deck/workshop and module management | migration, strategy and persistence tests |
+| 8 | scripted encounters and campaigns (#8) | campaign/scenario editor | original sample campaign and save/load |
+| 9 | coverage verification and optimization | polish and release | >=80% Basic+Advanced and >=95% all layers per game/category |
 
-#1 is the first coding task; #9 requires bootstrap merge and connected agent. #2/#3 follow baseline; #5 requires approved ADR. #6 begins with current capabilities. #7 follows foundation; split before implementation. #8 follows core foundation. Review backlog after each milestone; avoid claiming a completion percentage without measured acceptance.
+#1 first coding assignment; #9 verification uses its PR. #2 and #3 follow baseline; #5 requires approved ADR; #6 can start on baseline fixtures without waiting for new mechanics. #4 incremental UX improvements may start earlier where independent. #7 and #8 split before implementation. See docs/BENCHMARKS.md. Review backlog after each milestone; no automatic merges. Major architecture and compatibility changes require product director approval.
