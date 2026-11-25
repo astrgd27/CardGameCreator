@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#162d29" />
+    <title>Card Game Creator · Workshop</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="mark" aria-hidden="true">✣</div>
+      <strong>Card Game Creator</strong>
+      <nav id="modes"></nav>
+      <button id="help">? &nbsp; Help</button>
+    </header>
+    <main>
+      <section class="top">
+        <div>
+          <small>MODULE WORKSHOP</small>
+          <h1 id="title"></h1>
+        </div>
+        <div class="actions">
+          <button id="new">＋ New</button><button id="open">Import ZIP</button
+          ><button id="save">Export ZIP ↓</button>
+        </div>
+      </section>
+      <div id="status" role="status"></div>
+      <div id="root"></div>
+    </main>
+    <dialog id="dialog">
+      <button id="close" aria-label="Close dialog">×</button>
+      <div id="inside"></div>
+    </dialog>
+    <input type="file" accept=".zip" hidden id="zip" />
+    <script src="vendor/jszip.min.js"></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

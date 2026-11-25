@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Workshop handbook</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <small>CARD GAME CREATOR</small>
+      <h1>Workshop handbook</h1>
+      <div class="stack box">
+        <h2>Your first duel</h2>
+        <p>
+          Open New → Blank module. Add a card, give it a name and choose Deal
+          damage. In Game setup set its deck count to six for each player. Set
+          life to six, opening hand to two, energy to three, and draw to one.
+          Start Playtest and click cards in your hand to play them. End turn
+          passes play to George. Return to the workshop and add a second card
+          that restores life. Try the matchup again.
+        </p>
+        <h2>Cards and frames</h2>
+        <p>
+          Place an effect by tapping its tile or dragging it onto the preview.
+          Place replaces the card’s current behavior. Customize changes amounts
+          and adds instructions in order. Script edits the same instructions as
+          text. Try card opens a practice duel with the selected card available
+          immediately. Frame settings reorder the fields on every card. Choose a
+          built-in illustration or upload PNG, JPEG or WebP art.
+        </p>
+        <h2>Units and attacks</h2>
+        <p>
+          Choose Unit in Place to keep the card on the table after its effect
+          resolves. Units start resting and become ready at the beginning of
+          your next turn. Customize sets health and up to four named attacks,
+          each with an energy cost and damage. Choose an attack and target the
+          opponent or an opposing unit. Attacking rests the unit. A unit reduced
+          to zero health goes to its owner’s discard pile.
+        </p>
+        <h2>Table and decks</h2>
+        <p>
+          Choose life, opening hand size, energy per turn, cards drawn, and
+          victory condition in Game setup. Energy refreshes to the set amount at
+          the start of each turn. Reorder the deck, hand, discard and unit field
+          to change how each player's area is displayed. Set each deck’s counts
+          independently. The practice opponent uses the cards in George’s deck.
+          In either victory mode a player who begins a turn with an empty deck
+          loses. Outlast mode disables life-based victory.
+        </p>
+        <h2>Timing and scripts</h2>
+        <p>
+          Main cards are played during their owner’s turn. The opponent may play
+          one affordable reaction before the main card resolves. The threshold
+          checks available energy before payment. Effects run from top to
+          bottom. Life restoration stops at starting life. Drawing from an empty
+          deck during an effect draws zero cards.
+        </p>
+        <p>
+          Write one instruction per line. The four commands are
+          <code>strike 2</code> (damage opponent), <code>mend 2</code> (heal
+          yourself), <code>draw 1</code>, and <code>charge 1</code> (gain
+          energy). Prefix a command with <code>if_life_below 5</code> or
+          <code>if_energy_at_least 2</code> to check your current state at
+          resolution. Amounts are integers 0–99. A card can contain up to 24
+          instructions.
+        </p>
+        <h2>Rewind and replay</h2>
+        <p>
+          Rewind restores the position before your last action, including
+          George’s replies. Replay deal restarts the current module with the
+          same shuffle seed. Editing the rules or decks ends the old session. An
+          unchanged deck list and seed reproduce the same opening hands.
+        </p>
+        <h2>Saving and sharing</h2>
+        <p>
+          The workshop saves modules in this browser. Open New to switch between
+          saved modules. Export ZIP includes the rules, frame, card catalog,
+          deck lists and art. Import ZIP creates an independent local module.
+          Keep an exported copy when moving devices or clearing browser storage.
+        </p>
+      </div>
+    </main>
+  </body>
+</html>
