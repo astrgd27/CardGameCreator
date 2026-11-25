@@ -10,3 +10,6 @@ Date / issue / PR / status / verified test commands and results / preview and sc
 
 ## Requirements reconciliation
 The management PR adds explicit per-game/per-category targets (80% Basic + Advanced; 95% including Script), a versioned benchmark evidence contract, and ten parallel milestones. Catalog 0.2 names all five requested games and uses rules/design/logic categories; no measured scores yet. Next implementation remains #1 (CI and benchmark baseline), with #9 handoff verification. Broader 50-game research corpus not verified in this repository. Management merge is authorized; verify main before starting coding.
+
+## Issue #1 baseline infrastructure
+Initial implementation on issue-1-ci-baseline: CI workflow (Node 22, Python 3.12, Chromium and WebKit), benchmark evidence/scoring CLI and regression tests, browser smoke test with ZIP import/export and duel, standalone reproducibility check. All benchmark cases remain pending until verified. CI and browser checks not yet observed; do not claim success. Work is reserved for targeted execution/debugging blockers. Management PR #10 was merged and core documents verified on main.
