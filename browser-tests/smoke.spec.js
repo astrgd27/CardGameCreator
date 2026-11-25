@@ -1,0 +1,25 @@
+import {test,expect} from '@playwright/test';
+test('workshop, deck editor, duel and ZIP round trip',async({page},testInfo)=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/');
+ await expect(page.locator('#modes')).toContainText('Modules');
+ await page.locator('#modes').getByRole('button',{name:'Modules',exact:true}).click();
+ await expect(page.getByText('Module details',{exact:true})).toBeVisible();
+ await page.locator('#modes').getByRole('button',{name:'Create',exact:true}).click();
+ await expect(page.locator('.createNav')).toContainText('Cards');
+ await page.locator('#modes').getByRole('button',{name:'Decks',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Current deck'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Card browser'})).toBeVisible();
+ const downloadPromise=page.waitForEvent('download');
+ await page.locator('#save').click();
+ const download=await downloadPromise;
+ const path=testInfo.outputPath('module.zip');await download.saveAs(path);
+ await page.locator('#zip').setInputFiles(path);
+ await expect(page.locator('#status')).toContainText('Module imported');
+ await page.locator('#modes').getByRole('button',{name:'Play',exact:true}).click();
+ await page.getByRole('button',{name:'Start duel'}).click();
+ await expect(page.locator('.arena')).toBeVisible();
+ await expect(page.locator('.cardhand .tablecard').first()).toBeVisible();
+ await page.screenshot({path:testInfo.outputPath('arena.png')});
+ expect(errors).toEqual([]);
+});
