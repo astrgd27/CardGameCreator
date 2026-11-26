@@ -45,6 +45,12 @@ export function validateModuleV2(m){
    else if(op.type==="skipUnlessChoice")require(choices.has(op.choice)&&key(op.value)&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"effect: invalid choice condition "+id);
    else if(op.type==="skipUnless"){require(record(op.selector)&&integer(op.minimum)&&op.minimum<=100&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"effect: invalid condition "+id)}
    else if(op.type==="target"){const q=op.selector;require(key(op.name)&&!choices.has(op.name)&&record(q)&&Object.keys(q).every(k=>["zones","owner","controller","face","orientation","definition","limit"].includes(k))&&(!q.zones||(Array.isArray(q.zones)&&q.zones.every(z=>zids.has(z))))&&["owner","controller"].every(k=>q[k]===undefined||["self","opponent","any"].includes(q[k]))&&(q.definition===undefined||defs.includes(q.definition))&&(q.face===undefined||["up","down"].includes(q.face))&&(q.orientation===undefined||["ready","resting","tapped"].includes(q.orientation))&&(q.limit===undefined||(integer(q.limit)&&q.limit<=100)),"effect: invalid selector "+id);choices.add(op.name)}
+   else if(op.type==="token")require(defs.includes(op.definition)&&zids.has(op.zone)&&integer(op.count)&&op.count>=1&&op.count<=20&&["up","down"].includes(op.face??"up"),"effect: invalid token "+id);
+   else if(["counter","status","transform","flip","control","orient"].includes(op.type)){
+    require((key(op.id)&&op.choice===undefined)||(op.id===undefined&&choices.has(op.choice)),"effect: invalid state target "+id);
+    const ok=op.type==="counter"?key(op.counter)&&Number.isSafeInteger(op.delta)&&Math.abs(op.delta)<=10000:op.type==="status"?key(op.status)&&["add","remove"].includes(op.operation):op.type==="transform"?defs.includes(op.definition):op.type==="flip"?["up","down","toggle"].includes(op.face):op.type==="control"?op.player==="self"||players.includes(op.player):["ready","resting","tapped"].includes(op.orientation);
+    require(ok,"effect: invalid state operation "+id);
+   }
    else if(op.type==="draw")require(zids.has(op.from)&&zids.has(op.to)&&op.from!==op.to&&integer(op.count)&&op.count<=100,"effect: invalid draw "+id);
    else if(op.type==="move")require(zids.has(op.from)&&zids.has(op.to)&&((key(op.id)&&op.choice===undefined)||(op.id===undefined&&choices.has(op.choice))),"effect: invalid move "+id);
    else if(op.type==="resource")require(resources.has(op.resource)&&Number.isSafeInteger(op.delta)&&(op.overflow===undefined||["reject","clamp"].includes(op.overflow)),"effect: invalid resource operation "+id);
