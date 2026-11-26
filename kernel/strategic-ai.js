@@ -118,4 +118,4 @@ export function chooseStrategicAction(match,actor,input={}){
  if(p.difficulty==="hard"&&ranked.length){ranked.sort((a,b)=>b.score-a.score||actionKey(a.action).localeCompare(actionKey(b.action)));let top=null,topScore=-Infinity;for(const r of ranked.slice(0,8)){const score=r.score+(r.next?tacticalContinuation(match,actor,v,r.action,r.next,p):0);if(score>topScore){top=r.action;topScore=score}}return top}
  return best;
 }
-export function decisionActor(m){return m.openingQueue?.[0]?.player??m.triggerOrderPending?.actor??(m.battle?.stage==="assign"?m.battle.actor:m.battle?.defender)??m.pending?.actor??m.timing.priority}
+export function decisionActor(m){return m.promotion?.actor??m.openingQueue?.[0]?.player??m.triggerOrderPending?.actor??(m.battle?.stage==="assign"?m.battle.actor:m.battle?.defender)??m.pending?.actor??m.timing.priority}
