@@ -1,5 +1,5 @@
 import {benchmarkAI} from "./kernel/ai-benchmark.js";
-import {validateDeck,appendDeckToSetup} from "./kernel/decks.js";
+import {validateDeck,appendDeckToSetup,validateDeckGroup,appendDeckGroup} from "./kernel/decks.js";
 import {validateCampaign} from "./kernel/campaign.js";
 import {demoModule} from "./kernel/demo-module.js";
 import {validateModuleV2} from "./kernel/module-v2.js";
@@ -240,6 +240,7 @@ function deckEditor(section){
  section.append(node("p","Decks can be saved with the module. Append a deck to starting setup explicitly; this preserves existing card instance IDs and order."));
  listEditor(section,module.decks,"Deck",()=>({name:"New deck",player:first("players"),zone:module.zones.find(z=>z.owner===first("players"))?.id??"",cards:[]}),(p,d)=>{
   field(p,"Deck name",d.name,"text",v=>d.name=v);
+  if(module.deckRoles?.length)field(p,"Deck role",d.role??"",["",...module.deckRoles.map(r=>r.id)],v=>{d.role=v;render("decks")});
   field(p,"Deck player",d.player,"players",v=>{d.player=v;d.zone=module.zones.find(z=>z.owner===v)?.id??"";render("decks")});
   field(p,"Deck destination",d.zone,module.zones.filter(z=>z.owner===d.player).map(z=>z.id),v=>d.zone=v);
   d.cards??=[];
@@ -248,6 +249,7 @@ function deckEditor(section){
   },"decks");
   const result=node("p");result.setAttribute("role","status");p.append(result);
   p.append(actionButton("Validate deck",()=>{const errors=validateDeck(module,d);result.textContent=errors.length?errors.join(" · "):"Deck is legal."}));
+  if(module.deckRoles?.length){p.append(actionButton("Validate linked deck group",()=>{const errors=validateDeckGroup(module,module.decks,d.player);result.textContent=errors.length?errors.join(" · "):"Deck group is legal."}),actionButton("Append linked deck group",()=>{try{const next=appendDeckGroup(module,module.decks,d.player);createMatch(next);module=next;render("decks");status("Deck group appended.")}catch(e){status(e.message)}}))}
   p.append(actionButton("Append deck to starting setup",()=>{try{const next=appendDeckToSetup(module,d);createMatch(next);module=next;render("decks");status("Deck appended to starting setup.")}catch(e){status(e.message)}}));
  },"decks");
 }
