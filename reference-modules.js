@@ -30,5 +30,34 @@ function expand(m,i){
  if(i===3){for(const p of m.resourceDrawPolicies)p.returnAssigned="momentum-card";m.attachment={zones:["field",...m.players.map(p=>"momentum-pool-"+p)],definitions:["momentum-card"],hostDefinitions:["sentinel","raider"],onHostMove:"detach",max:5};m.combat.modifiers=[{id:"momentum-bonus",attachmentDefinition:"momentum-card",stat:"attack",op:"add",value:1}]}
  return m;
 }
-export function referenceModules(){return [creatures(),spells(),chains(),crews(),domains()].map((m,i)=>{m.cardPresentation=structuredClone(skins[i]);return expand(m,i)})}
+
+const recruits=[
+ [["Mossnook","Spore creature","verdant"],["Voltkit","Spark creature","gold"]],
+ [["Jade Surveyor","Bionic scout","verdant"],["Obsidian Marauder","Bionic assault unit","neutral"]],
+ [["Tempura Knight","Dish monster","gold"],["Pepper Kraken","Dish monster","crimson"]],
+ [["Comet Kid","Wrestler · Hero","steel"],["The Iron Heel","Wrestler · Heel","crimson"]],
+ [["The Pension Oracle","Boomer champion","gold"],["The Mixtape Mystic","Gen X champion","steel"]]
+];
+function buildDecks(m,i){
+ for(const [j,p] of m.players.entries()){
+  const base=j===0?"sentinel":"raider",support=j===0?"blade":"ward",id="recruit-"+p;
+  const [name,type,frame]=recruits[i][j];m.definitions.push(id);m.cardPresentation[id]=card(name,type,frame,"A recruit ready to join the contest.",["recruit"]);m.combat.stats[id]={attack:2+j,health:4};
+  const deck="deck-"+p,hand="hand-"+p,discard="discard-"+p;
+  m.zones.find(z=>z.id===discard).capacity=80;m.zones.find(z=>z.id===hand).capacity=12;
+  m.zones.push({id:deck,owner:p,visibility:"hidden",capacity:60});
+  const cards=i===0?[base,id,support,j===0?"puffbloom":"zibbolt"]:[base,id,support];
+  for(let k=0;k<20;k++)m.setup.push({definition:cards[k%cards.length],owner:p,zone:deck,face:"down"});
+  m.drawPolicies??=[];m.drawPolicies.push({player:p,deck,hand,opening:4,perTurn:1,shuffle:true,exhaustion:"lose"});
+  const destination=i===0?"bench-"+p:"field",resource=i===1?(j===0?"azure":"ruby"):i===3?"momentum":i===4?"rune":"energy";
+  for(const d of [id,...(i===0?[base]:[])])m.effects["recruit-"+d+"-"+p]={available:true,actors:[p],sourceDefinition:d,sourceZones:[hand],costs:[{kind:"spend",resource,amount:1}],program:[{type:"move",choice:"source",from:hand,to:destination}]};
+  if(i===0){m.combat.attackerDefinitions.push(id);m.combat.defenderDefinitions.push(id);m.attachment.hostDefinitions.push(id);m.combat.attachedCosts[id]={[support]:1};m.attachment.zones.push(hand,"bench-"+p);m.effects["retreat"+p].dynamicPayment.targets[0].selector={zones:["bench-"+p],controller:"self",face:"up"};m.effects["retreat"+p].program[0].selector={zones:["bench-"+p],controller:"self",face:"up"}}
+  if(i===1){m.effects["channel-"+p]={available:true,actors:[p],sourceDefinition:support,sourceZones:[hand],program:[{type:"move",choice:"source",from:hand,to:"field"}]}}
+  if(i===2){m.chain.speedByEffect["recruit-"+id+"-"+p]=1}
+  if(i===3)m.attachment.hostDefinitions.push(id);
+ }
+ m.deckRoles=[{id:"main",zones:m.players.map(p=>"deck-"+p),required:true,rules:{min:20,max:20,copies:10}}];
+ return m;
+}
+
+export function referenceModules(){return [creatures(),spells(),chains(),crews(),domains()].map((m,i)=>{m.cardPresentation=structuredClone(skins[i]);return buildDecks(expand(m,i),i)})}
 
