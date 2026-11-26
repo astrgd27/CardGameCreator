@@ -34,6 +34,7 @@ export function validateModuleV2(m){
  require(Object.keys(effects).length<=100,"effects: limit exceeded");
  for(const [id,e] of Object.entries(effects)){
   if(!key(id)||!record(e)){errors.push("effect: invalid definition");continue}
+  if(e.requiresCard!==undefined)require(record(e.requiresCard)&&key(e.requiresCard.id)&&zids.has(e.requiresCard.zone),"effect: invalid activation source "+id);
   if(e.actors!==undefined)require(Array.isArray(e.actors)&&e.actors.every(p=>players.includes(p)),"effect: invalid actors "+id);
   for(const c of list(e.costs??[],"costs "+id))require(record(c)&&resources.has(c.resource)&&integer(c.amount)&&["spend","threshold"].includes(c.kind),"effect: invalid cost "+id);
   const choices=new Set();
