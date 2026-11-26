@@ -121,11 +121,29 @@ function advancedEditor(key,section){
  }
 }
 
+
+function cardDesigner(section){
+ module.cardPresentation??={};
+ for(const id of module.definitions??[]){
+  const p=panel(section,id),data=module.cardPresentation[id]??={};
+  field(p,"Display name "+id,data.name??id,"text",v=>data.name=v);
+  field(p,"Card type "+id,data.type??"","text",v=>data.type=v);
+  const text=node("textarea");text.setAttribute("aria-label","Rules text "+id);text.value=data.text??"";text.rows=3;text.style.width="100%";text.oninput=()=>{data.text=text.value;sync()};p.append(text);
+  const art=node("input");art.type="file";art.accept="image/png,image/jpeg,image/webp";art.setAttribute("aria-label","Artwork "+id);
+  const preview=node("img");preview.alt="Card artwork "+id;preview.style.cssText="display:block;max-width:180px;max-height:240px;object-fit:contain";
+  if(/^data:image\/(png|jpeg|webp);base64,/.test(data.art??""))preview.src=data.art;else preview.hidden=true;
+  art.onchange=async()=>{try{const file=art.files[0];if(!file)return;if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>400000)throw Error("Choose a PNG, JPEG or WebP under 400 KB.");const reader=new FileReader();reader.onload=()=>{data.art=String(reader.result);preview.src=data.art;preview.hidden=false;sync()};reader.onerror=()=>status("Artwork read failed");reader.readAsDataURL(file)}catch(e){status(e.message)}};
+  p.append(art,preview,actionButton("Remove artwork",()=>{delete data.art;preview.removeAttribute("src");preview.hidden=true;sync()}));
+  const stats=module.combat?.stats?.[id];
+  if(stats){field(p,"Card attack "+id,stats.attack,"number",v=>stats.attack=v);field(p,"Card health "+id,stats.health,"number",v=>stats.health=v)}
+ }
+}
+
 function render(openKey){
  const root=$("editor-fields");root.replaceChildren();
  const label=node("label","Module name ");const input=node("input");input.value=module.name??"";input.addEventListener("input",()=>{module.name=input.value;sync()});label.append(input);root.append(label);
- for(const [key,title] of [["players","Players"],["definitions","Card definitions"],["zones","Zones"],["setup","Starting cards"],["resources","Resources"],["effects","Effects"],["triggers","Triggers"],["combat","Combat"],["attachment","Attachments"],["timing","Timing"],["chain","Chains"],["victory","Victory conditions"]]){
-  const section=node("details");section.open=key===openKey;section.append(node("summary",title));if(fields[key]){tableEditor(key,section);root.append(section);continue}if(["effects","triggers","combat","victory"].includes(key)){advancedEditor(key,section);root.append(section);continue}const area=node("textarea");area.rows=8;area.style.width="100%";area.setAttribute("aria-label",title);area.value=JSON.stringify(module[key]??null,null,2);
+ for(const [key,title] of [["players","Players"],["definitions","Card definitions"],["cardPresentation","Card designer"],["zones","Zones"],["setup","Starting cards"],["resources","Resources"],["effects","Effects"],["triggers","Triggers"],["combat","Combat"],["attachment","Attachments"],["timing","Timing"],["chain","Chains"],["victory","Victory conditions"]]){
+  const section=node("details");section.open=key===openKey;section.append(node("summary",title));if(key==="cardPresentation"){cardDesigner(section);root.append(section);continue}if(fields[key]){tableEditor(key,section);root.append(section);continue}if(["effects","triggers","combat","victory"].includes(key)){advancedEditor(key,section);root.append(section);continue}const area=node("textarea");area.rows=8;area.style.width="100%";area.setAttribute("aria-label",title);area.value=JSON.stringify(module[key]??null,null,2);
   const apply=node("button","Apply "+title.toLowerCase());apply.type="button";apply.onclick=()=>{try{const v=JSON.parse(area.value);if(v===null)delete module[key];else module[key]=v;sync();status(title+" updated; validate before exporting.")}catch(e){status("Invalid JSON: "+e.message)}};section.append(area,apply);root.append(section);
  }sync();
 }
