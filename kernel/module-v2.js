@@ -60,8 +60,16 @@ export function validateModuleV2(m){
  const drawPlayers=new Set();
  for(const p of list(m.drawPolicies??[],"drawPolicies",8)){
   const deck=zones.find(z=>z?.id===p?.deck),hand=zones.find(z=>z?.id===p?.hand);
-  require(record(p)&&players.includes(p.player)&&!drawPlayers.has(p.player)&&deck?.owner===p.player&&hand?.owner===p.player&&deck?.visibility==="hidden"&&p.deck!==p.hand&&integer(p.opening??0)&&(p.opening??0)<=100&&integer(p.perTurn??0)&&(p.perTurn??0)<=100&&(p.shuffle===undefined||typeof p.shuffle==="boolean"),"drawPolicies: invalid configuration");
+  require(record(p)&&players.includes(p.player)&&!drawPlayers.has(p.player)&&deck?.owner===p.player&&hand?.owner===p.player&&deck?.visibility==="hidden"&&hand?.visibility==="owner"&&p.deck!==p.hand&&integer(p.opening??0)&&(p.opening??0)<=100&&integer(p.perTurn??0)&&(p.perTurn??0)<=100&&(p.shuffle===undefined||typeof p.shuffle==="boolean")&&integer(p.mulligans??0)&&(p.mulligans??0)<=10&&integer(p.mulliganPenalty??0)&&(p.mulliganPenalty??0)<=100,"drawPolicies: invalid configuration");
   if(record(p))drawPlayers.add(p.player);
+ }
+ if(m.battlefield!==undefined){
+  require(record(m.battlefield)&&[1,2,3].includes(m.battlefield.columns??1),"battlefield: invalid layout");
+  const seen=new Set();
+  for(const row of list(m.battlefield?.zones??[],"battlefield zones")){
+   require(record(row)&&zids.has(row.zone)&&!seen.has(row.zone)&&typeof (row.label??"")==="string"&&["cards","count"].includes(row.display??"cards")&&[1,2,3].includes(row.span??1),"battlefield: invalid zone presentation");
+   if(record(row))seen.add(row.zone);
+  }
  }
  return errors;
 }
