@@ -19,6 +19,7 @@ export function stackCard(m,actor,action){
  const r=m.rules.stackRules.find(x=>x.id===action.rule),s=structuredClone(m.state),h=s.objects[action.host],c=s.objects[action.material];
  const z=zoneOf(s,c.id);z.cards=z.cards.filter(id=>id!==c.id);
  h.components??=[];
+ h.baseDefinition??=h.definition;
  h.components.push({id:c.id,definition:h.definition,physicalDefinition:c.definition,owner:c.owner,inherit:r.inherit===true});
  h.definition=r.resultDefinition??c.definition;
  delete s.objects[c.id];
