@@ -80,7 +80,10 @@ const choose = (label, key, options, v) =>
     )
     .join("") +
   "</select></label>";
-const builtinArt=Array.from({length:6},(_,i)=>"assets/art"+i+".webp");
+const customArt=c=>c.art&&!/^\.?\/?assets\/art[0-5]\.webp$/i.test(c.art)?c.art:null;
+const artLetters=c=>Array.from(String(c.name??"").replace(/[^\p{L}\p{N}]/gu,"")).slice(0,3).join("").toUpperCase()||"???";
+const artSymbol=c=>c.kind==="unit"?"♜":c.kind==="event"?"✦":"◆";
+const placeholderArt=c=>'<div class="art-placeholder" aria-label="Default card art"><span aria-hidden="true">'+artSymbol(c)+'</span><strong>'+esc(artLetters(c))+'</strong></div>';
 const options = (a) => a.map((x) => [x, x]);
 let m = upgrade(moduleData()),
   selected = m.cards[0].id,
@@ -136,11 +139,7 @@ function cardView(c) {
   const parts = {
     name: "<h3>" + esc(c.name) + "</h3>",
     art:
-      '<div class="art"><b>' +
-      glyphs[c.glyph] +
-      "</b>" +
-      '<img alt="" src="' + (c.art || builtinArt[c.glyph]) + '">' +
-      "</div>",
+      '<div class="art">' + (customArt(c)?'<img alt="" src="'+esc(customArt(c))+'">':placeholderArt(c)) + "</div>",
     cost:
       '<div class="cost">◈ ' + c.cost + " energy · " + esc(m.types.find(t=>t.id===c.type)?.name||c.kind) + (c.timing==="reaction"?" · Reaction":"") + "</div>",
     effect:
@@ -310,9 +309,8 @@ function workshop() {
           '" class="item ' +
           (x === c ? "on" : "") +
           '"><span class="mini" style="--ink:' +
-          colors[x.glyph] + ';background-image:url('+(x.art||builtinArt[x.glyph])+')' +
-          '">' +
-          glyphs[x.glyph] +
+          colors[x.glyph] + '">' +
+          (customArt(x)?'<img alt="" src="'+esc(customArt(x))+'">':esc(artLetters(x))) +
           "</span>" +
           esc(x.name) +
           "</button>",
