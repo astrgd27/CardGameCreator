@@ -55,7 +55,7 @@ function advance(state,timing,program,triggerRules,frame){
   else if(op.type==="lifeDamage")result=damageCards(next,op.player==="self"?actor:op.player,op,op.count);
   else if(op.type==="move"){
    const id=op.id??(Object.hasOwn(choices,op.choice)?choices[op.choice]:undefined);
-   check(key(id),"Missing card choice");
+   if(!key(id)||!next.zones[op.from]?.cards.includes(id)){const finished=finishResolution(timing,timing.resolving.id);return {state,timing:finished.timing,pending:null,fizzled:true,events:[{type:"effectFizzled",actor},...finished.events]}}
    result=moveWithAttachments(next,{id,from:op.from,to:op.to});
   }else if(op.type==="token")result=createTokens(next,actor,op);
   else if(["counter","status","transform","flip","control","orient"].includes(op.type)){const id=op.id??(Object.hasOwn(choices,op.choice)?choices[op.choice]:undefined);result=changeCardState(next,actor,id,op)}
