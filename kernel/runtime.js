@@ -1,3 +1,4 @@
+import {stabilize} from "./stabilize.js";
 import {idle,scheduleState,nextSeat,triggerGroups,scheduleView} from "./scheduler.js";
 import {stackOptions,stackCard,inheritedDefinition} from "./composites.js";
 import {hasRule,keywords} from "./keywords.js";
@@ -23,7 +24,7 @@ const own=(o,k)=>typeof k==="string"&&Object.hasOwn(o??{},k);
 export function createMatch(module,{seed=1}={}){
  if(module?.schemaVersion===2)assertModuleV2(module);
  const rules=structuredClone(module);
- let state=createState(rules);if(rules.keywordRules)state.keywordRules=structuredClone(rules.keywordRules);
+ let state=createState(rules);if(rules.attributes)state.attributes=structuredClone(rules.attributes);if(rules.permissionRules)state.permissionRules=structuredClone(rules.permissionRules);if(rules.keywordRules)state.keywordRules=structuredClone(rules.keywordRules);
  for(const card of rules.setup??[])state=addCard(state,card).state;
  state=initializeResources(state,rules.resources??[]);state.hiddenSeed=seed>>>0;
  for(const p of rules.drawPolicies??[]){if(p.shuffle){const r=shuffleZone(state,p.deck,seed);state=r.state;seed=r.seed}if(p.opening)state=drawCards(state,p.deck,p.hand,p.opening).state}
@@ -48,6 +49,7 @@ function eligible(m,actor,id,e,source){
 }
 function finish(m,events){
  if(!m.pending&&m.rules.tokenPolicy?.zones){const r=cleanupTokens(m.state,m.rules.tokenPolicy.zones);m.state=r.state;if(r.events.length)events=[...events,...(!m.timing.resolving?enqueue(m,r.events):r.events)]}
+ if(!m.pending&&!m.battle&&!m.timing.resolving&&!m.triggerOrderPending){const r=stabilize(m.state,m.rules,m.turn);m.state=r.state;if(r.events.length)events=[...events,...enqueue(m,r.events)]}
  assertInvariants(m.state);assertAttachments(m.state);
  if(!m.openingQueue?.length&&!m.battle&&!m.pending&&!m.timing.resolving&&!m.timing.queue.length&&m.state.ruleLosses?.length){const losers=[...m.state.ruleLosses],remaining=m.state.players.filter(p=>!losers.includes(p));if(remaining.length<=1)m.result={losers,winner:remaining[0]??null,draw:!remaining.length}}
  if(!m.result&&!m.openingQueue?.length&&!m.battle&&!m.pending&&!m.timing.resolving&&!m.timing.queue.length&&m.rules.victory?.length){
