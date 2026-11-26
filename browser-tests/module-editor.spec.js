@@ -227,3 +227,18 @@ test("module card frames and tabletop themes carry into gameplay",async({page})=
  await expect(page.locator("#duel")).toHaveAttribute("data-back","rune");
  await expect(page.getByRole("button",{name:"Sentinel c1",exact:true})).toHaveAttribute("data-frame","gold");
 });
+
+test("card state effects display counters, statuses and tokens in play",async({page})=>{
+ await page.goto("/module-editor.html");
+ const source=page.locator("#source"),m=JSON.parse(await source.inputValue());
+ m.effects.state={available:true,actors:["a"],program:[{type:"counter",id:"c1",counter:"charge",delta:2},{type:"status",id:"c1",status:"stunned",operation:"add"},{type:"token",definition:"blade",zone:"field",count:1}]};
+ await page.locator("summary").filter({hasText:/^Advanced module JSON$/}).click();
+ await source.fill(JSON.stringify(m));await page.getByRole("button",{name:"Apply JSON changes"}).click();
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await page.getByRole("button",{name:"state",exact:true}).click();
+ await page.getByRole("button",{name:"Pass priority"}).click();
+ await page.getByRole("button",{name:"Pass priority"}).click();
+ await expect(page.getByRole("button",{name:"Sentinel c1",exact:true})).toContainText("charge ×2");
+ await expect(page.getByRole("button",{name:"Sentinel c1",exact:true})).toContainText("stunned");
+ await expect(page.getByRole("button",{name:"Blade c7",exact:true})).toContainText("Token");
+});
