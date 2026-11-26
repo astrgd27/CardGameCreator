@@ -20,3 +20,11 @@ test("momentum assignment increases attack without modifying base stats",()=>{le
 test("Showdowns exclude home-field targets",()=>{const m=createMatch(referenceModules()[4]);assert.deepEqual(combatOptions(m,"a").targetsByAttacker.c1,[])});
 
 test("all ten reference decks shuffle and draw deterministic opening hands",()=>{for(const [i,rules] of referenceModules().entries()){const a=createMatch(rules),b=createMatch(rules),size=[60,60,40,50,40][i],opening=[6,6,4,4,3][i];for(const p of rules.players){assert.equal(rules.setup.filter(c=>c.zone==="deck-"+p).length,size);assert.equal(a.state.zones["deck-"+p].cards.length,size-opening);assert.equal(a.state.zones["hand-"+p].cards.length,opening+1);assert.deepEqual(a.state.zones["hand-"+p].cards,b.state.zones["hand-"+p].cards);assert.ok(rules.cardPresentation["recruit-"+p]);}}});
+
+test("each reference deck includes four source-bound tactical cards",()=>{for(const rules of referenceModules()){createMatch(rules);for(const p of rules.players){const id="tactic-"+p;assert.equal(rules.setup.filter(c=>c.zone==="deck-"+p&&c.definition===id).length,4);assert.equal(rules.effects[id].sourceDefinition,id);assert.equal(rules.effects[id].program[0].to,"discard-"+p);assert.ok(rules.cardPresentation[id].tags.includes("tactic"))}}});
+
+import {evaluateVictory} from "../kernel/combat.js";
+import {paymentPlans} from "../kernel/card-costs.js";
+test("reserve promotion occurs before empty active-zone defeat",()=>{const rules=referenceModules()[0];rules.setup[0].zone="discard-a";const m=createMatch(rules);assert.ok(m.state.zones["active-a"].cards.some(id=>m.state.objects[id].definition==="sentinel"));assert.equal(m.result,null)});
+test("empty prize pile awards victory to its owner",()=>{const rules=referenceModules()[0],m=createMatch(rules);const state=structuredClone(m.state);state.zones["prize-a"].cards=[];assert.equal(evaluateVictory(state,rules.victory).winner,"a")});
+test("alternate crystal payment is a distinct selectable plan",()=>{const rules=referenceModules()[1];assert.deepEqual(paymentPlans(rules.effects["tactic-a"])[1].costs.map(c=>c.resource),["jade","ivory"])});

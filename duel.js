@@ -20,7 +20,7 @@ let mode=campaignBase?"computer":"hotseat",timer=null,lastEvents=[],lastAction=n
 const inspector=document.createElement("dialog");inspector.className="duel-inspector";document.body.append(inspector);
 function presentation(o){return Object.hasOwn(rules.cardPresentation??{},o.definition)?rules.cardPresentation[o.definition]:{}}
 function cardName(o){return presentation(o).name|| (o.definition?o.definition[0].toUpperCase()+o.definition.slice(1):"Hidden card")}
-function artwork(o,cls){const data=presentation(o);if(/^data:image\/(png|jpeg|webp);base64,/.test(data.art??"")){const img=el("img",cls+" custom-art");img.src=data.art;img.alt="";return img}const type=String(data.type??"").toLowerCase(),symbol=/resource|energy|nutrient|rune|momentum/.test(type)?"◈":/spell|event|action|plot/.test(type)?"✦":/equipment|item/.test(type)?"⚒":"♜";const art=el("span",cls+" monogram-art");art.append(el("span","monogram-symbol",symbol),el("strong","monogram-letters",Array.from(cardName(o).replace(/[^\p{L}\p{N}]/gu,"")).slice(0,3).join("").toUpperCase()||"???"));return art}
+function artwork(o,cls){const data=presentation(o);if(/^data:image\/(png|jpeg|webp);base64,/.test(data.art??"")){const img=el("img",cls+" custom-art");img.src=data.art;img.alt="";return img}const type=String(data.type??"").toLowerCase(),symbol=(typeof data.symbol==="string"&&data.symbol.trim()?Array.from(data.symbol).slice(0,8).join(""):null)??((data.tags??[]).includes("azure")?"◆":(data.tags??[]).includes("ruby")?"▲":(data.tags??[]).includes("jade")?"✿":(data.tags??[]).includes("ivory")?"☀":(data.tags??[]).includes("obsidian")?"☾":/resource|energy|nutrient|rune|momentum/.test(type)?"◈":/spell|event|action|plot/.test(type)?"✦":/equipment|item/.test(type)?"⚒":"♜");const art=el("span",cls+" monogram-art");art.append(el("span","monogram-symbol",symbol),el("strong","monogram-letters",Array.from(cardName(o).replace(/[^\p{L}\p{N}]/gu,"")).slice(0,3).join("").toUpperCase()||"???"));return art}
 function inspect(o){
  if(!o.definition||inspector.open||preview)return;
  clearTimeout(timer);inspector.replaceChildren();
@@ -44,7 +44,7 @@ function act(actor,action){
 function card(o,viewer){
  const b=button("",()=>{if(preview||!o.id)return;const options=targets.filter(t=>t.id===o.id);if(options.length===1){act(viewer,options[0].action);return}selected=o.id===selected?null:o.id;render()});b.className="duel-card"+(selected===o.id?" selected":"")+(["resting","tapped"].includes(o.orientation)?" resting":"");
  const name=cardName(o);
- b.append(el("strong","",name),artwork(o,"card-symbol"),el("small","",presentation(o).type??""));
+ b.append(el("strong","",name),artwork(o,"card-symbol"),el("small","",presentation(o).type??""));const tags=presentation(o).tags??[];const symbols={azure:"◆",ruby:"▲",jade:"✿",ivory:"☀",obsidian:"☾",spore:"✿",spark:"ϟ",momentum:"★",rune:"◇",energy:"ϟ"};const marks=tags.filter(t=>Object.hasOwn(symbols,t));if(marks.length){const strip=el("span","resource-symbols");for(const t of marks){const mark=el("span","resource-mark",symbols[t]);mark.dataset.resource=t;mark.title=t;mark.setAttribute("aria-label",t);strip.append(mark)}b.append(strip)}
  const stats=match.rules.combat?.stats?.[o.definition];
  if(stats)b.append(el("span","",stats.attack+" ATK · "+Math.max(0,stats.health-o.damage)+" HP"));
  const host=match.state.attachments?.[o.id]?.host;

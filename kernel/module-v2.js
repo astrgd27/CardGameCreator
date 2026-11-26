@@ -110,6 +110,7 @@ function validateModuleStructure(m){
   require(record(m.combat.defeatZones)&&players.every(p=>zids.has(m.combat.defeatZones[p])),"combat: invalid defeat zones");
  }
  if(record(m.attachment))require(Array.isArray(m.attachment.definitions)&&m.attachment.definitions.every(d=>defs.includes(d))&&["detach","follow","reject"].includes(m.attachment.onHostMove??"detach")&&integer(m.attachment.max??1),"attachment: invalid configuration");
+ for(const p of list(m.replacementPolicies??[],"replacement policies",20)){require(record(p)&&players.includes(p.player)&&p.active!==p.reserve&&zones.some(z=>z.id===p.active&&z.owner===p.player)&&zones.some(z=>z.id===p.reserve&&z.owner===p.player)&&Array.isArray(p.definitions)&&p.definitions.length>0&&p.definitions.every(d=>defs.includes(d)),"invalid replacement policy")}
  for(const p of list(m.resourceDrawPolicies??[],"resource draw policies",20)){const from=m.zones.find(z=>z.id===p.deck),to=m.zones.find(z=>z.id===p.pool);require(record(p)&&players.includes(p.player)&&from?.owner===p.player&&from?.visibility==="hidden"&&to?.owner===p.player&&to?.visibility==="public"&&integer(p.perTurn)&&p.perTurn<=10&&(p.returnAssigned===undefined||defs.includes(p.returnAssigned)),"invalid resource draw policy")}
  const drawPlayers=new Set();
  for(const p of list(m.drawPolicies??[],"drawPolicies",8)){

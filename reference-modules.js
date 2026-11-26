@@ -61,5 +61,44 @@ function buildDecks(m,i){
  return m;
 }
 
-export function referenceModules(){return [creatures(),spells(),chains(),crews(),domains()].map((m,i)=>{m.cardPresentation=structuredClone(skins[i]);return buildDecks(expand(m,i),i)})}
+
+const tactics=[
+ [["Spore Nursery","Nutrient search"],["Static Nest","Nutrient search"]],
+ [["Emergency Reboot","Crystal technique"],["Thermal Overclock","Crystal technique"]],
+ [["Steam Basket Offering","Tribute technique"],["Chili Cauldron Offering","Tribute technique"]],
+ [["Crowd Favorite","Ring action"],["Heel's Encore","Ring action"]],
+ [["Neighborhood Coalition","Cultural action"],["Mixtape Revival","Cultural action"]]
+];
+function addTactics(m,i){
+ for(const [j,p] of m.players.entries()){
+ const id="tactic-"+p,hand="hand-"+p,deck="deck-"+p,discard="discard-"+p,base=j===0?"sentinel":"raider",support=j===0?"blade":"ward";
+ const [name,type]=tactics[i][j];m.definitions.push(id);
+ const resource=i===1?(j===0?"azure":"ruby"):i===3?"momentum":i===4?"rune":"energy";
+ const program=[{type:"move",choice:"source",from:hand,to:discard}];
+ const e={available:true,actors:[p],sourceDefinition:id,sourceZones:[hand],costs:[{kind:"spend",resource,amount:1}],program};
+ let description;
+ if(i===0){program.push({type:"draw",from:deck,to:hand,count:2});description="Spend 1 energy. Discard this card and draw two cards."}
+ if(i===1){program.push({type:"resource",resource:"life",delta:2,overflow:"clamp"});description="Spend 1 "+resource+". Restore 2 life."}
+ if(i===2){e.cardCosts=[{kind:"sacrifice",from:"field",to:discard,count:1,definition:support}];program.push({type:"target",name:"dish",selector:{zones:[hand],controller:"self",definition:base,face:"up"}},{type:"move",choice:"dish",from:hand,to:"field"});m.chain.speedByEffect[id]=1;description="Sacrifice your ingredient to summon a dish from hand."}
+ if(i===3){program.push({type:"resource",resource:"momentum",delta:3,overflow:"clamp"});description="Spend 1 momentum. Gain 3 momentum."}
+ if(i===4){program.push({type:"skipUnless",selector:{zones:["ridge","crossing"],controller:"self",definition:base},minimum:1,skip:1},{type:"awardScore",player:"self",amount:1});description="Spend 1 rune. Score 1 if your champion occupies a battlefield."}
+ m.effects[id]=e;m.cardPresentation[id]=card(name,type,j===0?"arcane":"crimson",description,["tactic",resource]);
+ const pile=m.setup.filter(c=>c.zone===deck);for(let k=0;k<Math.min(4,pile.length);k++)pile[pile.length-1-k].definition=id;
+ }
+ return m;
+}
+
+function advanced(m,i){
+ for(const [j,p] of m.players.entries()){
+ const enemy=m.players[1-j],base=j===0?"sentinel":"raider",support=j===0?"blade":"ward",hand="hand-"+p,deck="deck-"+p,discard="discard-"+p;
+ if(i===0){const prize="prize-"+p;m.replacementPolicies??=[];m.replacementPolicies.push({player:p,active:"active-"+p,reserve:"bench-"+p,definitions:[base,"recruit-"+p,j===0?"puffbloom":"zibbolt"]});m.victory.push({type:"emptyZone",player:enemy,zone:prize});m.zones.push({id:prize,owner:p,visibility:"hidden",capacity:6});for(let k=0;k<6;k++)m.setup.push({definition:support,owner:p,zone:prize,face:"down"});m.effects["prize-"+p]={program:[{type:"draw",from:prize,to:hand,count:1}]};m.triggers.push({id:"prize-"+p,actor:p,event:"combatDefeat",where:{owner:enemy,from:"active-"+enemy},effect:"prize-"+p});}
+ if(i===1){m.effects["tactic-"+p].alternatives=[{id:"mixed-crystals",costs:[{kind:"spend",resource:"jade",amount:1},{kind:"spend",resource:"ivory",amount:1}]}];}
+ if(i===2){const id="banquet-"+p;m.definitions.push(id);m.cardPresentation[id]=card(j===0?"Grand Banquet Colossus":"Volcanic Feast Dragon","Dish monster · Tribute","gold","Sacrifice a dish to summon this monster.",["monster","tribute"]);m.combat.stats[id]={attack:5,health:6};m.effects[id]={available:true,actors:[p],sourceDefinition:id,sourceZones:[hand],cardCosts:[{kind:"sacrifice",from:"field",to:discard,count:1,definition:base}],program:[{type:"move",choice:"source",from:hand,to:"field"}]};m.chain.speedByEffect[id]=1;const pile=m.setup.filter(c=>c.zone===deck&&c.definition===base);for(const c of pile.slice(0,3))c.definition=id;}
+ if(i===3){m.effects["encore-"+p]={program:[{type:"resource",resource:"momentum",delta:1,overflow:"clamp"}]};m.triggers.push({id:"encore-"+p,actor:p,event:"combatDefeat",where:{owner:enemy},effect:"encore-"+p});}
+ if(i===4){m.combat.group.reactions??=[];m.combat.group.reactions.push({id:"showdown-"+p,definition:"tactic-"+p,zones:[hand],destination:discard,amount:1});m.effects["showdown-"+p]={available:true,actors:[p],sourceDefinition:base,sourceZones:["ridge","crossing"],costs:[{kind:"spend",resource:"rune",amount:1}],program:[{type:"orient",choice:"source",orientation:"ready"}]};}
+ }
+ for(const [id,c] of Object.entries(m.cardPresentation)){if(c.tags.includes("spore"))c.symbol="✿";else if(c.tags.includes("spark"))c.symbol="ϟ";else if(c.tags.includes("momentum"))c.symbol="★";else if(c.tags.includes("rune"))c.symbol="◇";}
+ return m;
+}
+export function referenceModules(){return [creatures(),spells(),chains(),crews(),domains()].map((m,i)=>{m.cardPresentation=structuredClone(skins[i]);return advanced(addTactics(buildDecks(expand(m,i),i),i),i)})}
 
