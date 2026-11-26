@@ -136,3 +136,21 @@ test("graphical phase configuration reaches custom gameplay",async({page})=>{
  await expect(page.getByText("Phase: battle",{exact:true})).toBeVisible();
  await expect(page.getByRole("button",{name:"Play vs computer"})).toBeVisible();
 });
+
+test("campaign editor launches encounters and persists completion",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.locator("#editor-fields summary").filter({hasText:/^Campaign builder$/}).click();
+ await page.getByRole("button",{name:"Create campaign",exact:true}).click();
+ await page.getByRole("button",{name:"Add encounter",exact:true}).click();
+ await page.getByLabel("Encounter name",{exact:true}).fill("The first trial");
+ await page.getByLabel("Encounter rule overrides 1").fill(JSON.stringify({victory:[{type:"emptyZone",player:"b",zone:"discard-b"}]}));
+ await page.getByRole("button",{name:"Apply encounter overrides"}).click();
+ await page.getByRole("button",{name:"Validate campaign"}).click();
+ await expect(page.locator("#editor-status")).toContainText("Campaign passed");
+ await page.getByRole("button",{name:"Play campaign",exact:true}).click();
+ await expect(page.getByRole("heading",{name:"The first trial"})).toBeVisible();
+ await page.getByRole("button",{name:"Continue campaign"}).click();
+ await expect(page.getByRole("heading",{name:"Campaign complete"})).toBeVisible();
+ await page.reload();
+ await expect(page.getByRole("heading",{name:"Campaign complete"})).toBeVisible();
+});
