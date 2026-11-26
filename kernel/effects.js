@@ -57,7 +57,7 @@ function advance(state,timing,program,triggerRules,frame){
 export function beginEffect(state,timing,program,triggerRules=[]){
  check(timing.resolving!==null,"No effect resolving");
  validateProgram(program);
- const result=advance(state,timing,program,triggerRules,{pc:0,choices:{},events:[]});
+ const result=advance(state,timing,program,triggerRules,{pc:0,choices:timing.resolving.choices??{},events:[]});
  if(result.pending)return {state,timing,pending:{...result.pending,work:result.state,program:structuredClone(program),triggerRules:structuredClone(triggerRules)},events:[]};
  return result.fizzled?{...result,state}:result;
 }
