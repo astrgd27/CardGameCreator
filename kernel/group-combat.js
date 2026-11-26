@@ -23,7 +23,7 @@ export function combatOptions(m,actor){
  if(m.result||m.openingQueue?.length||m.triggerOrderPending||m.timing.active!==actor||m.timing.priority!==actor||m.windowClosed||m.pending||m.timing.queue.length||m.timing.resolving||m.rules.phases&&!m.rules.phases[m.phaseIndex].actions.includes("attack")||m.combatUsed===m.turn)return null;
  const targets=units(m,actor,"opponent").filter(id=>m.timing.players.includes(m.state.objects[id].controller)&&teamOf(m,m.state.objects[id].controller)!==teamOf(m,actor)).filter(id=>!hasRule(m.state,id,"cannotBeAttacked")).map(id=>({kind:"card",id}));
  if(c.lifeResource||c.lifeCards?.[enemy])targets.push({kind:"player",id:enemy});
- return {stage:"declare",attackers:units(m,actor,"self",true).filter(id=>!hasRule(m.state,id,"cannotAttack")),targets,targetsByAttacker:Object.fromEntries(units(m,actor,"self",true).map(id=>[id,targets.filter(t=>t.kind==="player"||inRange(m.state,id,t.id))])),max:c.maxAttackers??10};
+ return {stage:"declare",attackers:units(m,actor,"self",true).filter(id=>!hasRule(m.state,id,"cannotAttack")),targets,targetsByAttacker:Object.fromEntries(units(m,actor,"self",true).map(id=>[id,targets.filter(t=>t.kind==="player"||inRange(m.state,id,t.id)&&(!c.sameBattlefield||c.sameBattlefield.includes(Object.values(m.state.zones).find(z=>z.cards.includes(id))?.id)&&Object.values(m.state.zones).some(z=>z.cards.includes(id)&&z.cards.includes(t.id))))])),max:c.maxAttackers??10};
 }
 export function declareCombat(m,actor,attacks){
  const options=combatOptions(m,actor);check(options?.stage==="declare","Cannot declare attacks");

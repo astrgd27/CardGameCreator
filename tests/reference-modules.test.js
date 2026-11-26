@@ -1,0 +1,20 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {referenceModules} from "../reference-modules.js";
+import {createMatch,applyMatchAction,matchView} from "../kernel/runtime.js";
+import {chooseStrategicAction,decisionActor} from "../kernel/strategic-ai.js";
+import {packPortable,unpackPortable} from "../portable-modules.js";
+import {Zip} from "../scripts/compatibility-fixtures.mjs";
+test("five starter games validate, roundtrip and execute legal AI actions",async()=>{const modules=referenceModules();assert.equal(modules.length,5);for(const r of modules){const restored=await unpackPortable(await packPortable(r,Zip),Zip);let m=createMatch(restored);for(let i=0;i<30&&!m.result;i++){const p=decisionActor(m),a=chooseStrategicAction(m,p,{difficulty:"normal"});assert.ok(a,r.name+" stalled");m=applyMatchAction(m,p,a).match}}});
+test("turn attachment limit and host filter are authoritative",()=>{const r=referenceModules()[0];let m=createMatch(r);assert.throws(()=>applyMatchAction(m,"a",{type:"attach",id:"c3",host:"c3"}));m=applyMatchAction(m,"a",{type:"attach",id:"c3",host:"c1"}).match;assert.equal(matchView(m,"a").actionUses.attach,1);assert.ok(!matchView(m,"a").phaseActions.includes("attach"));assert.throws(()=>applyMatchAction(m,"a",{type:"attach",id:"c3",host:"c1"}))});
+
+test("attached combat requirements reject unpaid attacks atomically and preserve nutrients",()=>{const r=referenceModules()[0];let m=createMatch(r);const before=JSON.stringify(m);assert.throws(()=>applyMatchAction(m,"a",{type:"attack",attacker:"c1",defender:"c2"}),/Insufficient attached/);assert.equal(JSON.stringify(m),before);m=applyMatchAction(m,"a",{type:"attach",id:"c3",host:"c1"}).match;assert.throws(()=>applyMatchAction(m,"a",{type:"attack",attacker:"c1",defender:"c4"}),/Defender definition/);m=applyMatchAction(m,"a",{type:"attack",attacker:"c1",defender:"c2"}).match;assert.equal(m.state.attachments.c3.host,"c1");assert.equal(m.state.objects.c2.damage,2)});
+
+test("reference games expose distinct expanded mechanics",()=>{const [l,c,t,w,g]=referenceModules();assert.ok(l.definitions.includes("puffbloom"));assert.ok(l.zones.some(z=>z.id==="bench-a"));assert.deepEqual(c.effects.bolt.costs.map(x=>x.resource),["azure","ruby"]);assert.deepEqual(t.effects.fusion.cardCosts.map(x=>x.definition),["sentinel","blade"]);for(const m of [w,g]){assert.equal(m.resourceDrawPolicies.length,2);for(const p of m.resourceDrawPolicies){assert.equal(p.perTurn,1);assert.ok(m.zones.some(z=>z.id===p.deck&&z.visibility==="hidden"));assert.ok(m.zones.some(z=>z.id===p.pool&&z.visibility==="public"))}}});
+
+import {paymentOptions,payPlan} from "../kernel/card-costs.js";
+import {deriveStatistic} from "../kernel/modifiers.js";
+import {combatOptions} from "../kernel/group-combat.js";
+test("fusion requires distinct named materials and rejects substitutes",()=>{const m=createMatch(referenceModules()[2]);const plan={id:"fusion",cardCosts:m.rules.effects.fusion.cardCosts};assert.deepEqual(paymentOptions(m.state,"a",plan).example,["c1","c3"]);assert.throws(()=>payPlan(m.state,"a",plan,["c3","c1"]));const paid=payPlan(m.state,"a",plan,["c1","c3"]);assert.ok(paid.state.zones["discard-a"].cards.includes("c1"));assert.ok(paid.state.zones["discard-a"].cards.includes("c3"))});
+test("momentum assignment increases attack without modifying base stats",()=>{let m=createMatch(referenceModules()[3]);const id=m.state.zones["momentum-pool-a"].cards[0];m=applyMatchAction(m,"a",{type:"attach",id,host:"c1"}).match;assert.equal(m.state.attachments[id].host,"c1");assert.equal(deriveStatistic(m.state,"c1","attack",2,m.rules.combat.modifiers).value,3);assert.equal(deriveStatistic(m.state,"c2","attack",3,m.rules.combat.modifiers).value,3)});
+test("Showdowns exclude home-field targets",()=>{const m=createMatch(referenceModules()[4]);assert.deepEqual(combatOptions(m,"a").targetsByAttacker.c1,[])});

@@ -36,3 +36,20 @@ See [25-game audit](docs/TCG_COMPATIBILITY_AUDIT.md). Main includes PR #38; PR #
 | 13 | Gate | Primary catalog evidence audit and secondary fixture expansion | release QA and tutorials | original per-game/category gates unchanged |
 
 Implement A–D and I before broadening keywords. A and I may proceed in parallel only if interfaces and files are disjoint. No host game-name conditionals; use module policies. Each batch must include validation, tests, UI where applicable, and explicit limitations. Full support is not established by green CI alone. No automatic merges.
+
+## Accelerated reference-game program (product-approved)
+Replace serial micro-audits with five playable original reference modules. Develop engine, visual authoring and reference content together; certification runs alongside delivery, retaining the frozen 60-case denominator and original thresholds. Start with editable starter modules; expand each into complete games with real decks, end conditions, AI play, UI and ZIP replay. No starter alone establishes full compatibility.
+
+| Track | Next large batch |
+|---|---|
+| Looboo | Active/Bench exchange, attached energy costs, evolution/attachment budgets, prize events, conditions |
+| Crystal Circuit | Stack responses, replacement choices, timing, continuous effects, mana symbols |
+| Taste Dimension | Material filters, extra-deck summons, negation, positions, linked destinations |
+| Ringworld Rumble | Life trigger decisions, leader restrictions, resource assignment, counter fields |
+| Generation Wars | Location showdown, rune exhaust/recycle, battlefield and domain layout |
+| Shared authoring | Multiple rules panels, dynamic symbols, conditional fields, independent faces and frame families |
+
+Build substantive related features in larger PRs; use CI and reference matches to uncover defects. Keep workstreams disjoint where practical. No automatic merging without authorization.
+
+### Reference-game fidelity directive
+The product owner specifies original themes only: Generation Wars (Riftbound), Crystal Circuit (Magic), Looboo (Pokémon), Ringworld Rumble (One Piece), Taste Dimension (Yu-Gi-Oh!). Reproduce the mechanical architecture of each reference as closely as possible through generalized module policies and visual authoring, using independent names, writing, artwork and graphic identity. A missing or simplified mechanic is a compatibility gap, not an intentional rules redesign. Use independently written rules and original card content. Do not include commercial card images, branding, or copied card text. Current starters are deliberately incomplete.

@@ -40,7 +40,7 @@ function validateModuleStructure(m){
   for(const c of list(e.costs??[],"costs "+id))require(record(c)&&resources.has(c.resource)&&integer(c.amount)&&["spend","threshold"].includes(c.kind),"effect: invalid cost "+id);
   if(e.sourceDefinition!==undefined)require(defs.includes(e.sourceDefinition)&&Array.isArray(e.sourceZones)&&e.sourceZones.length>0&&e.sourceZones.every(z=>zids.has(z)),"effect: invalid source definition "+id);
   if(e.limit!==undefined)require(record(e.limit)&&["turn","match"].includes(e.limit.scope)&&integer(e.limit.count)&&e.limit.count>=1&&e.limit.count<=100,"effect: invalid usage limit "+id);
-  const validateCardCosts=costs=>{let total=0;for(const c of list(costs??[],"card costs "+id,10)){require(record(c)&&["discard","sacrifice"].includes(c.kind)&&zids.has(c.from)&&zids.has(c.to)&&c.from!==c.to&&integer(c.count)&&c.count>=1&&c.count<=10,"effect: invalid card cost "+id);total+=c?.count??0}require(total<=20,"effect: payment card limit "+id)};
+  const validateCardCosts=costs=>{let total=0;for(const c of list(costs??[],"card costs "+id,10)){require(record(c)&&["discard","sacrifice"].includes(c.kind)&&zids.has(c.from)&&zids.has(c.to)&&c.from!==c.to&&integer(c.count)&&c.count>=1&&c.count<=10&&(c.definition===undefined||defs.includes(c.definition)),"effect: invalid card cost "+id);total+=c?.count??0}require(total<=20,"effect: payment card limit "+id)};
   validateCardCosts(e.cardCosts);
   const planIds=new Set(["default"]);
   for(const p of list(e.alternatives??[],"alternative costs "+id,10)){
@@ -110,6 +110,7 @@ function validateModuleStructure(m){
   require(record(m.combat.defeatZones)&&players.every(p=>zids.has(m.combat.defeatZones[p])),"combat: invalid defeat zones");
  }
  if(record(m.attachment))require(Array.isArray(m.attachment.definitions)&&m.attachment.definitions.every(d=>defs.includes(d))&&["detach","follow","reject"].includes(m.attachment.onHostMove??"detach")&&integer(m.attachment.max??1),"attachment: invalid configuration");
+ for(const p of list(m.resourceDrawPolicies??[],"resource draw policies",20)){const from=m.zones.find(z=>z.id===p.deck),to=m.zones.find(z=>z.id===p.pool);require(record(p)&&players.includes(p.player)&&from?.owner===p.player&&from?.visibility==="hidden"&&to?.owner===p.player&&to?.visibility==="public"&&integer(p.perTurn)&&p.perTurn<=10&&(p.returnAssigned===undefined||defs.includes(p.returnAssigned)),"invalid resource draw policy")}
  const drawPlayers=new Set();
  for(const p of list(m.drawPolicies??[],"drawPolicies",8)){
   const deck=zones.find(z=>z?.id===p?.deck),hand=zones.find(z=>z?.id===p?.hand);
@@ -180,6 +181,11 @@ function validateModuleStructure(m){
  require((p.winScore===undefined||integer(p.winScore)&&p.winScore>=1&&p.winScore<=100000)&&(p.tie===undefined||["draw","highest"].includes(p.tie)),"invalid score victory");
  const seen=new Set();for(const r of list(p.locations??[],"location objectives",100)){require(record(r)&&m.spatial?.slots.some(x=>x.zone===r.zone)&&!seen.has(r.zone)&&["capturePoints","holdPoints"].every(k=>r[k]===undefined||integer(r[k])&&r[k]<=100)&&(r.persistent===undefined||typeof r.persistent==="boolean"),"invalid location objective");if(record(r))seen.add(r.zone)}
  }}
+ if(m.actionPolicy!==undefined){const p=m.actionPolicy;require(record(p)&&record(p.limits??{})&&Object.entries(p.limits??{}).every(([k,n])=>["activate","attack","attach","stack","generate","declareCombat","moveSpatial"].includes(k)&&integer(n)&&n<=100)&&(p.attackEndsTurn===undefined||typeof p.attackEndsTurn==="boolean"),"invalid action policy");require(!p?.attackEndsTurn||!m.combat?.group&&m.scheduler?.mode!=="alternate","attack handoff requires single combat and round scheduler")}
+ for(const k of ["attackerDefinitions","defenderDefinitions"])if(m.combat?.[k]!==undefined)require(Array.isArray(m.combat[k])&&m.combat[k].length>0&&m.combat[k].every(d=>defs.includes(d)),"invalid combat definition filter");
+ if(m.combat?.attachedCosts!==undefined)require(record(m.combat.attachedCosts)&&Object.entries(m.combat.attachedCosts).every(([d,c])=>defs.includes(d)&&record(c)&&Object.entries(c).every(([resource,n])=>defs.includes(resource)&&integer(n)&&n>0&&n<=100)),"invalid attached combat costs");
+ if(m.combat?.targetOrientation!==undefined)require(["ready","resting"].includes(m.combat.targetOrientation),"invalid combat target orientation");
+ if(m.attachment?.hostDefinitions!==undefined)require(Array.isArray(m.attachment.hostDefinitions)&&m.attachment.hostDefinitions.every(d=>defs.includes(d)),"invalid attachment host definitions");
  if(m.scheduler?.mode==="alternate")require(!m.scheduler.gauge&&!m.phases?.some(p=>p.autoAdvance),"alternate scheduler cannot combine gauge handoff or automatic phases");
  for(const e of Object.values(effects)){if(!record(e))continue;for(const t of Array.isArray(e.dynamicPayment?.targets)?e.dynamicPayment.targets:[]){const q=t?.selector;if(!record(q))continue;require(Object.keys(q).every(k=>["zones","owner","controller","face","orientation","definition","limit","keyword","targetable","near","range"].includes(k))&&(!q.zones||Array.isArray(q.zones)&&new Set(q.zones).size===q.zones.length&&q.zones.every(z=>zids.has(z)))&&["owner","controller"].every(k=>q[k]===undefined||["self","opponent","any"].includes(q[k]))&&(q.definition===undefined||defs.includes(q.definition))&&(q.face===undefined||["up","down"].includes(q.face))&&(q.orientation===undefined||["ready","resting","tapped"].includes(q.orientation))&&(q.limit===undefined||integer(q.limit)&&q.limit<=100)&&(q.targetable===undefined||typeof q.targetable==="boolean")&&(q.near===undefined||zids.has(q.near)&&integer(q.range)&&q.range<=100),"invalid dynamic target selector")}}
  return errors;

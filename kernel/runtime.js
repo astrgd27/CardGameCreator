@@ -42,6 +42,8 @@ function effect(m,id){
 }
 function phase(m){return m.rules.phases?.[m.phaseIndex??0]}
 function allows(m,type){return !phase(m)||phase(m).actions.includes(type)}
+function actionLimit(m,actor,type){const cap=m.rules.actionPolicy?.limits?.[type];return cap===undefined||(m.actionUses?.[actor]?.[type]??0)<cap}
+function countAction(m,actor,type){if(m.rules.actionPolicy?.limits?.[type]===undefined)return;m.actionUses??={};m.actionUses[actor]??={};m.actionUses[actor][type]=(m.actionUses[actor][type]??0)+1}
 function eligible(m,actor,id,e,source){
  if(e.windows&&!e.windows.includes(m.timing.queue.length?(m.rules.scheduler?.responseWindow??"response"):(phase(m)?.window??"main")))return false;
  if(source&&hasRule(m.state,source,"cannotActivate"))return false;
@@ -73,12 +75,14 @@ function resolve(m,r){
 }
 function startTurn(m,actor){let events=[];
   const next=nextSeat(m,actor);
+  const returned=[];for(const p of m.rules.resourceDrawPolicies??[])if(p.returnAssigned&&p.player===next){for(const id of Object.keys(m.state.attachments??{})){const o=m.state.objects[id];if(o.owner!==next||o.definition!==p.returnAssigned)continue;const from=Object.values(m.state.zones).find(z=>z.cards.includes(id)).id;if(from===p.pool||m.state.zones[p.pool].cards.length>=m.state.zones[p.pool].capacity)continue;const moved=moveWithAttachments(m.state,{id,from,to:p.pool});m.state=moved.state;returned.push(...moved.events)}}
   const expired=expireStatuses(m.state);m.state=expired.state;
  if(m.rules.combat?.damageCleanup==="turn")for(const o of Object.values(m.state.objects))if(o.damage){expired.events.push({type:"damageCleared",id:o.id,amount:o.damage});o.damage=0}
-  m.timing=changeActive(m.timing,next);const ss=scheduleState(m);ss.passed=[];ss.handoff=false;m.turn++;m.phaseIndex=0;m.windowClosed=false;
+  m.timing=changeActive(m.timing,next);const ss=scheduleState(m);ss.passed=[];ss.handoff=false;m.turn++;m.actionUses={};m.phaseIndex=0;m.windowClosed=false;
   for(const id of Object.values(m.state.zones).filter(z=>m.rules.combat?.zones.includes(z.id)||(m.rules.generators??[]).some(g=>g.zones.includes(z.id))).flatMap(z=>z.cards))if(m.state.objects[id].controller===next)m.state.objects[id].orientation="ready";
   const r=refreshResources(m.state,next,{includeShared:!!m.rules.refreshShared});
-  m.state=r.state;events=[...expired.events,{type:"turnStarted",actor:next},...r.events];if(phase(m))events.push({type:"phaseStarted",actor:next,phase:phase(m).id});
+  m.state=r.state;events=[...returned,...expired.events,{type:"turnStarted",actor:next},...r.events];if(phase(m))events.push({type:"phaseStarted",actor:next,phase:phase(m).id});
+  for(const p of m.rules.resourceDrawPolicies??[])if(p.player===next){const n=Math.min(p.perTurn,m.state.zones[p.deck].cards.length,m.state.zones[p.pool].capacity-m.state.zones[p.pool].cards.length);const drawn=drawCards(m.state,p.deck,p.pool,n);m.state=drawn.state;events.push(...drawn.events)}
   for(const p of m.rules.drawPolicies??[])if(p.player===next&&p.perTurn){if(p.exhaustion==="lose"&&m.state.zones[p.deck].cards.length<p.perTurn){m.state.ruleLosses??=[];if(!m.state.ruleLosses.includes(next))m.state.ruleLosses.push(next);events.push({type:"deckExhausted",actor:next})}const n=Math.min(p.perTurn,m.state.zones[p.deck].cards.length,m.state.zones[p.hand].capacity-m.state.zones[p.hand].cards.length);const drawn=drawCards(m.state,p.deck,p.hand,n);m.state=drawn.state;events.push(...drawn.events)}
  return enqueue(m,events);
 }
@@ -119,6 +123,7 @@ export function applyMatchAction(match,actor,action){
  if(m.windowClosed)check(["nextPhase","endTurn"].includes(action.type),"Priority window closed");
  const policy=m.rules.scheduler,ss=policy?scheduleState(m):null;
  if(policy?.mode==="alternate"&&["activate","attack","attach","stack","generate","declareCombat","moveSpatial"].includes(action.type)&&!m.timing.queue.length){check(actor===m.timing.active&&!ss.passed.includes(actor),"Not your action seat");ss.handoff=true}
+ check(actionLimit(m,actor,action.type),"Turn action limit reached");
  switch(action.type){
  case "claimInitiative":{check(scheduleView(m,actor)?.canClaim,"Initiative unavailable");ss.initiative=actor;if(policy.mode==="alternate"){if(!ss.passed.includes(actor))ss.passed.push(actor);ss.handoff=true}events=[{type:"initiativeClaimed",actor}];break}
  case "passOut":{check(scheduleView(m,actor)?.canPassOut,"Pass out unavailable");if(!ss.passed.includes(actor))ss.passed.push(actor);ss.handoff=true;events=[{type:"playerPassedOut",actor}];break}
@@ -149,10 +154,16 @@ export function applyMatchAction(match,actor,action){
   const c=m.rules.combat;
   check(!c?.group&&allows(m,"attack")&&c&&Array.isArray(c.zones)&&c.zones.length&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Combat unavailable");
   check(selectCards(m.state,actor,{zones:c.zones,controller:"self",face:"up",orientation:"ready"}).includes(action.attacker),"Invalid attacker");
-  check(selectCards(m.state,actor,{zones:c.zones,controller:"opponent",face:"up"}).includes(action.defender),"Invalid defender");
+  check(selectCards(m.state,actor,{zones:c.zones,controller:"opponent",face:"up",...(c.targetOrientation?{orientation:c.targetOrientation}:{})}).includes(action.defender),"Invalid defender");
   check(!m.objectives||m.timing.players.includes(m.state.objects[action.defender].controller)&&teamOf(m,actor)!==teamOf(m,m.state.objects[action.defender].controller),"Cannot attack ally or eliminated player");
   check(inRange(m.state,action.attacker,action.defender),"Target outside attack range");
   check(!hasRule(m.state,action.attacker,"cannotAttack")&&!hasRule(m.state,action.defender,"cannotBeAttacked"),"Keyword prohibits attack");
+  if(c.attackerDefinitions)check(c.attackerDefinitions.includes(m.state.objects[action.attacker].definition),"Attacker definition prohibited");
+  if(c.defenderDefinitions)check(c.defenderDefinitions.includes(m.state.objects[action.defender].definition),"Defender definition prohibited");
+  if(c.attachedCosts?.[m.state.objects[action.attacker].definition]){
+   const counts={};for(const [id,link] of Object.entries(m.state.attachments??{}))if(link.host===action.attacker){const d=m.state.objects[id].definition;counts[d]=(counts[d]??0)+1}
+   for(const [d,n] of Object.entries(c.attachedCosts[m.state.objects[action.attacker].definition]))check((counts[d]??0)>=n,"Insufficient attached resources");
+  }
   const r=resolveCombat(m.state,{...c,attacker:action.attacker,defender:action.defender,turn:m.turn});
   m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break;
  }
@@ -160,8 +171,9 @@ export function applyMatchAction(match,actor,action){
   const a=m.rules.attachment;
   check(allows(m,"attach")&&a&&Array.isArray(a.zones)&&a.zones.length&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Attachment unavailable");
   const ids=selectCards(m.state,actor,{zones:a.zones,controller:"self",face:"up"});
-  check(ids.includes(action.id)&&ids.includes(action.host)&&a.definitions.includes(m.state.objects[action.id].definition),"Invalid attachment");
-  const r=attachCard(m.state,{id:action.id,host:action.host,onHostMove:a.onHostMove,max:a.max});
+  check(ids.includes(action.id)&&ids.includes(action.host)&&a.definitions.includes(m.state.objects[action.id].definition)&&(!a.hostDefinitions||a.hostDefinitions.includes(m.state.objects[action.host].definition)),"Invalid attachment");
+  const from=Object.values(m.state.zones).find(z=>z.cards.includes(action.id)).id,to=Object.values(m.state.zones).find(z=>z.cards.includes(action.host)).id;const moved=from===to?{state:m.state,events:[]}:moveWithAttachments(m.state,{id:action.id,from,to});
+  const r=attachCard(moved.state,{id:action.id,host:action.host,onHostMove:a.onHostMove,max:a.max});r.events.unshift(...moved.events);
   m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break;
  }
  case "nextPhase":{
@@ -175,12 +187,14 @@ export function applyMatchAction(match,actor,action){
  }
  default:throw Error("Unknown action");
  }
+ countAction(m,actor,action.type);
+ if(action.type==="attack"&&m.rules.actionPolicy?.attackEndsTurn&&idle(m)){events=[...events,...startTurn(m,actor)]}
  return done(events);
 }
 export function matchView(m,viewer){
  const state=projectState(m.state,viewer);for(const z of state.zones)for(const o of z.cards??[])if(o.id&&o.definition){o.keywords=keywords(m.state,o.id)}
  const activations=[];
- if(!m.result&&!m.windowClosed&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&!m.pending&&m.timing.priority===viewer)for(const [id,e] of Object.entries(m.rules.effects)){const sources=e.sourceDefinition?selectCards(m.state,viewer,{zones:e.sourceZones,controller:"self",face:"up"}).filter(id=>inheritedDefinition(m.state.objects[id],e.sourceDefinition)):[undefined];for(const source of sources)if(eligible(m,viewer,id,e,source))for(const p of paymentPlans(e)){const option=dynamicOptions(m,viewer,e,source,p);if(option)activations.push({effect:id,source,...option})}}
+ if(actionLimit(m,viewer,"activate")&&!m.result&&!m.windowClosed&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&!m.pending&&m.timing.priority===viewer)for(const [id,e] of Object.entries(m.rules.effects)){const sources=e.sourceDefinition?selectCards(m.state,viewer,{zones:e.sourceZones,controller:"self",face:"up"}).filter(id=>inheritedDefinition(m.state.objects[id],e.sourceDefinition)):[undefined];for(const source of sources)if(eligible(m,viewer,id,e,source))for(const p of paymentPlans(e)){const option=dynamicOptions(m,viewer,e,source,p);if(option)activations.push({effect:id,source,...option})}}
  const available=[...new Set(activations.filter(a=>a.source===undefined&&a.id==="default"&&!a.groups.length&&!a.dynamic).map(a=>a.effect))];
- return {state,objectives:objectiveView(m),spatial:m.state.spatial?{slots:structuredClone(m.state.spatial.slots),control:locationControl(m.state),moves:movementOptions(m,viewer)}:null,scheduler:scheduleView(m,viewer),reveals:Object.entries(m.state.reveals??{}).filter(([id,r])=>r.viewers.includes(viewer)&&m.state.zones[r.zone]?.cards.includes(id)&&m.state.objects[id]?.definition===r.definition).map(([id,r])=>({id,zone:r.zone,definition:r.definition})),stackOptions:stackOptions(m,viewer),triggerOrder:m.triggerOrderPending?{actor:m.triggerOrderPending.actor,ids:m.triggerOrderPending.actor===viewer?m.triggerOrderPending.ids:undefined}:null,combat:combatOptions(m,viewer),combatActor:battleActor(m),phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,generators:!m.result&&!m.pending&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&m.timing.priority===viewer&&allows(m,"activate")&&!m.windowClosed?generatorOptions(m,viewer):[],windowClosed:m.windowClosed,result:structuredClone(m.result),resources:structuredClone(m.state.resourcePools)};
+ return {state,objectives:objectiveView(m),spatial:m.state.spatial?{slots:structuredClone(m.state.spatial.slots),control:locationControl(m.state),moves:movementOptions(m,viewer)}:null,scheduler:scheduleView(m,viewer),reveals:Object.entries(m.state.reveals??{}).filter(([id,r])=>r.viewers.includes(viewer)&&m.state.zones[r.zone]?.cards.includes(id)&&m.state.objects[id]?.definition===r.definition).map(([id,r])=>({id,zone:r.zone,definition:r.definition})),stackOptions:actionLimit(m,viewer,"stack")?stackOptions(m,viewer):[],triggerOrder:m.triggerOrderPending?{actor:m.triggerOrderPending.actor,ids:m.triggerOrderPending.actor===viewer?m.triggerOrderPending.ids:undefined}:null,combat:combatOptions(m,viewer),combatActor:battleActor(m),phase:phase(m)?.id??null,phaseActions:(phase(m)?.actions??["activate","attack","attach"]).filter(t=>actionLimit(m,viewer,t)),actionLimits:structuredClone(m.rules.actionPolicy?.limits??{}),actionUses:structuredClone(m.actionUses?.[viewer]??{}),hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,generators:!m.result&&!m.pending&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&m.timing.priority===viewer&&allows(m,"activate")&&!m.windowClosed?generatorOptions(m,viewer):[],windowClosed:m.windowClosed,result:structuredClone(m.result),resources:structuredClone(m.state.resourcePools)};
 }

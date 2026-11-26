@@ -10,14 +10,14 @@ export function payPlan(state,actor,plan,ids=[]){
  for(const cost of plan.cardCosts??[]){
   const chosen=ids.slice(offset,offset+cost.count);offset+=cost.count;
   check(chosen.length===cost.count,"Missing payment cards");
-  const eligible=selectCards(next,actor,{zones:[cost.from],controller:"self",...(cost.kind==="discard"?{owner:"self"}:{face:"up"})});
+  const eligible=selectCards(next,actor,{zones:[cost.from],controller:"self",...(cost.definition?{definition:cost.definition}:{}),...(cost.kind==="discard"?{owner:"self"}:{face:"up"})});
   check(chosen.every(id=>eligible.includes(id)),"Invalid payment card");
   for(const id of chosen){const r=moveWithAttachments(next,{id,from:cost.from,to:cost.to,face:"up"});next=r.state;events.push(...r.events,{type:cost.kind==="discard"?"cardDiscarded":"cardSacrificed",id,actor})}
  }
  check(offset===ids.length,"Unexpected payment cards");return {state:next,events};
 }
 export function paymentOptions(state,actor,plan){
- const groups=(plan.cardCosts??[]).map(c=>({count:c.count,kind:c.kind,ids:selectCards(state,actor,{zones:[c.from],controller:"self",...(c.kind==="discard"?{owner:"self"}:{face:"up"})})}));
+ const groups=(plan.cardCosts??[]).map(c=>({count:c.count,kind:c.kind,ids:selectCards(state,actor,{zones:[c.from],controller:"self",...(c.definition?{definition:c.definition}:{}),...(c.kind==="discard"?{owner:"self"}:{face:"up"})})}));
  if(groups.some(g=>g.ids.length<g.count))return null;
  // Bounded matching ensures at least one disjoint legal payment.
  const slots=groups.flatMap(g=>Array.from({length:g.count},()=>g.ids)),assigned=new Map();
