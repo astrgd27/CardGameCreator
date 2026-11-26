@@ -49,7 +49,7 @@ function card(o,viewer){
  const host=match.state.attachments?.[o.id]?.host;
  if(host)b.append(el("small","", "Attached to "+host));
  if(o.orientation==="resting"||o.orientation==="tapped")b.append(el("small","",o.orientation==="tapped"?"Tapped":"Rested"));
- if(o.definition){const badges=el("div","card-state-badges");if(o.token)badges.append(el("span","","Token"));for(const k of o.keywords??[])if(!o.statuses?.includes(k))badges.append(el("span","",k));for(const [k,v] of Object.entries(o.counters??{}))badges.append(el("span","",k+" ×"+v));for(const status of o.statuses??[])badges.append(el("span","",status+(o.statusDurations?.[status]?" ("+o.statusDurations[status]+")":"")));if(o.controller!==o.owner)badges.append(el("span","","Controlled by "+o.controller));if(o.face==="down")badges.append(el("span","","Face down"));if(badges.childNodes.length)b.append(badges)}
+ if(o.definition){const badges=el("div","card-state-badges");if(o.token)badges.append(el("span","","Token"));if(o.components?.length){b.classList.add("composite-card");badges.append(el("span","","Stack ×"+(o.components.length+1)));for(const c of o.components)badges.append(el("span","",c.definition+(c.inherit?" · inherited":"")))}for(const k of o.keywords??[])if(!o.statuses?.includes(k))badges.append(el("span","",k));for(const [k,v] of Object.entries(o.counters??{}))badges.append(el("span","",k+" ×"+v));for(const status of o.statuses??[])badges.append(el("span","",status+(o.statusDurations?.[status]?" ("+o.statusDurations[status]+")":"")));if(o.controller!==o.owner)badges.append(el("span","","Controlled by "+o.controller));if(o.face==="down")badges.append(el("span","","Face down"));if(badges.childNodes.length)b.append(badges)}
  if(lastEvents.some(e=>e.id===o.id&&["cardFlipped","cardTransformed"].includes(e.type)))b.classList.add("flipping");
  if(lastEvents.some(e=>e.id===o.id&&e.type==="tokenCreated"))b.classList.add("arriving");
  b.setAttribute("aria-label",name+" "+(o.id??""));
@@ -151,6 +151,7 @@ function render(schedule=true){
  else if(view.choice){for(const value of view.choice.options??[])controls.append(button("Choose "+value,()=>act(viewer,{type:"choose",value})))}
  else{
   if(view.combat?.stage==="declare")combatControls(controls,viewer,view.combat);
+  for(const o of view.stackOptions??[])controls.append(button("Stack "+cardName(match.state.objects[o.material])+" "+o.material+" on "+cardName(match.state.objects[o.host])+" "+o.host,()=>act(viewer,{type:"stack",...o})));
   for(const g of view.generators??[])controls.append(button("Generate "+g.resource+" · "+cardName(match.state.objects[g.id])+" "+g.id,()=>act(viewer,{type:"generate",id:g.id,generator:g.generator})));
   for(const a of view.activations??[]){const label=(!custom&&a.effect.startsWith("muster")?"Deploy from hand":a.effect)+(a.source?" · "+cardName(match.state.objects[a.source])+" "+a.source:"")+(a.id!=="default"?" · "+a.id:"");controls.append(button(label,()=>a.groups.length||a.dynamic?choosePayment(viewer,a):act(viewer,{type:"activate",effect:a.effect,source:a.source,plan:a.id})))}
   controls.append(button("Pass priority",()=>act(viewer,{type:"pass"})));
