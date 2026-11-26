@@ -77,17 +77,17 @@ function startTurn(m,actor){let events=[];
  return enqueue(m,events);
 }
 function settleSchedule(m,actor,action,events){
- const p=m.rules.scheduler;if(!p||!idle(m)||m.result)return events;
+ const p=m.rules.scheduler??{};if(!idle(m)||m.result)return events;
  const s=scheduleState(m);
- if(p.gauge&&m.state.resourcePools.shared[p.gauge.resource]>=p.gauge.threshold){m.state.resourcePools.shared[p.gauge.resource]=p.gauge.reset??0;return [...events,...startTurn(m,m.timing.active)]}
- if(p.mode==="alternate"&&s.handoff){s.handoff=false;const players=m.state.players,at=players.indexOf(m.timing.active),next=Array.from({length:players.length},(_,i)=>players[(at+i+1)%players.length]).find(x=>!s.passed.includes(x));if(!next)return [...events,...startTurn(m,m.timing.active)];m.timing=changeActive(m.timing,next);m.windowClosed=false;events.push({type:"actionSeatChanged",actor:next})}
+ if(p.gauge&&m.timing.passes===0&&m.state.resourcePools.shared[p.gauge.resource]>=p.gauge.threshold){m.state.resourcePools.shared[p.gauge.resource]=p.gauge.reset??0;return [...events,...startTurn(m,m.timing.active)]}
+ if(p.mode==="alternate"&&s.handoff&&m.timing.passes===0){s.handoff=false;const players=m.state.players,at=players.indexOf(m.timing.active),next=Array.from({length:players.length},(_,i)=>players[(at+i+1)%players.length]).find(x=>!s.passed.includes(x));if(!next)return [...events,...startTurn(m,m.timing.active)];m.timing=changeActive(m.timing,next);m.windowClosed=false;events.push({type:"actionSeatChanged",actor:next})}
  if(m.windowClosed&&phase(m)?.autoAdvance){if((m.phaseIndex??0)<m.rules.phases.length-1){m.phaseIndex++;m.windowClosed=false;events.push(...enqueue(m,[{type:"phaseStarted",actor:m.timing.active,phase:phase(m).id}]))}else events.push(...startTurn(m,m.timing.active))}
  return events;
 }
 export function applyMatchAction(match,actor,action){
  check(match.state.players.includes(actor)&&!match.result&&action&&typeof action.type==="string","Action unavailable");
  const m=structuredClone(match);let events=[];
- const done=events=>finish(m,settleSchedule(m,actor,action,events));
+ const done=events=>{for(const e of events)if(e.type==="turnScheduled"){const s=scheduleState(m),map=s[e.kind];map[e.actor]=Math.min(100,(map[e.actor]??0)+e.count)}return finish(m,settleSchedule(m,actor,action,events))};
  if(m.openingQueue?.length){
   const q=m.openingQueue[0];check(actor===q.player,"Opening decision belongs to another player");
   if(action.type==="keep"){m.openingQueue.shift();return finish(m,[{type:"openingKept",actor}])}
