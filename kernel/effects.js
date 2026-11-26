@@ -39,6 +39,8 @@ function advance(state,timing,program,triggerRules,frame){
   if(op.type==="skipUnless"){if(selectCards(next,actor,op.selector).length<op.minimum)pc+=op.skip;continue}
   if(op.type==="search"||op.type==="optional"||op.type==="choose"||op.type==="target"){
    const options=op.type==="search"?hiddenOptions(next,actor,op):op.type==="optional"?["accept","decline"]:op.type==="target"?selectCards(next,actor,{...op.selector,targetable:true}):op.options;
+   // Precommitted targets are not chosen a second time; recheck legality on resolution.
+   if(op.type==="target"&&Object.hasOwn(choices,op.name)){if(options.includes(choices[op.name]))continue;const finished=finishResolution(timing,timing.resolving.id);return {state,timing:finished.timing,pending:null,fizzled:true,events:[{type:"effectFizzled",actor},...finished.events]}}
    if(!options.length){const finished=finishResolution(timing,timing.resolving.id);return {state,timing:finished.timing,pending:null,fizzled:true,events:[{type:"effectFizzled",actor},...finished.events]}}
    return {state:next,timing:structuredClone(timing),pending:{effectId:timing.resolving.id,actor,pc,name:op.name,options:[...options],...(op.type==="search"?{labels:Object.fromEntries(options.map(id=>[id,next.objects[id].definition]))}:{}),choices,events},events:[]};
   }
