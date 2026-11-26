@@ -1,3 +1,4 @@
+import {validateDeck,appendDeckToSetup} from "./kernel/decks.js";
 import {demoModule} from "./kernel/demo-module.js";
 import {validateModuleV2} from "./kernel/module-v2.js";
 import {createMatch} from "./kernel/runtime.js";
@@ -121,11 +122,96 @@ function advancedEditor(key,section){
  }
 }
 
+
+function cardDesigner(section){
+ module.cardPresentation??={};
+ for(const id of module.definitions??[]){
+  const p=panel(section,id),data=module.cardPresentation[id]??={};
+  field(p,"Display name "+id,data.name??id,"text",v=>data.name=v);
+  field(p,"Card type "+id,data.type??"","text",v=>data.type=v);
+  const text=node("textarea");text.setAttribute("aria-label","Rules text "+id);text.value=data.text??"";text.rows=3;text.style.width="100%";text.oninput=()=>{data.text=text.value;sync()};p.append(text);
+  const art=node("input");art.type="file";art.accept="image/png,image/jpeg,image/webp";art.setAttribute("aria-label","Artwork "+id);
+  const preview=node("img");preview.alt="Card artwork "+id;preview.style.cssText="display:block;max-width:180px;max-height:240px;object-fit:contain";
+  if(/^data:image\/(png|jpeg|webp);base64,/.test(data.art??""))preview.src=data.art;else preview.hidden=true;
+  art.onchange=async()=>{try{const file=art.files[0];if(!file)return;if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>400000)throw Error("Choose a PNG, JPEG or WebP under 400 KB.");const reader=new FileReader();reader.onload=()=>{data.art=String(reader.result);preview.src=data.art;preview.hidden=false;sync()};reader.onerror=()=>status("Artwork read failed");reader.readAsDataURL(file)}catch(e){status(e.message)}};
+  p.append(art,preview,actionButton("Remove artwork",()=>{delete data.art;preview.removeAttribute("src");preview.hidden=true;sync()}));
+  const stats=module.combat?.stats?.[id];
+  if(stats){field(p,"Card attack "+id,stats.attack,"number",v=>stats.attack=v);field(p,"Card health "+id,stats.health,"number",v=>stats.health=v)}
+ }
+}
+
+
+function advancedPolicies(key,section){
+ const csv=v=>v.split(",").map(x=>x.trim()).filter(Boolean);
+ const bool=(p,label,value,fn)=>field(p,label,value?"yes":"no",["yes","no"],v=>fn(v==="yes"));
+ const disable=()=>section.append(actionButton("Disable "+key,()=>{delete module[key];render(key)}));
+ if(key==="attachment"){
+  if(!module.attachment){section.append(actionButton("Enable attachment",()=>{module.attachment={zones:[first("zones")],definitions:[],max:1,onHostMove:"detach"};render(key)}));return}
+  const a=module.attachment;
+  field(section,"Attachment zones",(a.zones??[]).join(","),"text",v=>a.zones=csv(v));
+  field(section,"Equipment definitions",(a.definitions??[]).join(","),"text",v=>a.definitions=csv(v));
+  field(section,"Maximum attachments",a.max??1,"number",v=>a.max=v);
+  field(section,"Host movement",a.onHostMove??"detach",["detach","follow","reject"],v=>a.onHostMove=v);disable();
+ }else if(key==="timing"){
+  module.timing??={};field(section,"Resolution order",module.timing.order??"lifo",["lifo","fifo"],v=>module.timing.order=v);
+  bool(section,"Refresh shared resources",module.refreshShared,v=>module.refreshShared=v);
+ }else if(key==="chain"){
+  if(!module.chain){section.append(actionButton("Enable chain",()=>{module.chain={maxLinks:10,minimumResponseSpeed:0,escalate:false,speedByEffect:Object.fromEntries(Object.keys(module.effects??{}).map(id=>[id,0]))};render(key)}));return}
+  const c=module.chain;c.speedByEffect??={};
+  field(section,"Maximum chain links",c.maxLinks??100,"number",v=>c.maxLinks=v);
+  field(section,"Minimum response speed",c.minimumResponseSpeed??0,"number",v=>c.minimumResponseSpeed=v);
+  bool(section,"Escalating response speed",c.escalate,v=>c.escalate=v);
+  for(const id of Object.keys(module.effects??{}))field(section,"Speed "+id,c.speedByEffect[id]??0,"number",v=>c.speedByEffect[id]=v);disable();
+ }else{
+  if(!module.combat){section.append(node("p","Enable combat first."));return}
+  const c=module.combat;c[key]??=[];
+  const modifier=key==="modifiers";
+  listEditor(section,c[key],modifier?"Modifier":"Replacement",()=>({id:key+(c[key].length+1),...(modifier?{stat:"attack",op:"add",value:1}:{op:"prevent"})}),(p,r)=>{
+   field(p,"Rule ID",r.id,"text",v=>r.id=v);
+   field(p,"Target instance (blank = all)",r.target??"","text",v=>{if(v)r.target=v;else delete r.target});
+   if(modifier){
+    field(p,"Statistic",r.stat,["attack","health"],v=>r.stat=v);
+    field(p,"Modifier operation",r.op,["set","add","multiply"],v=>r.op=v);
+    field(p,"Modifier value",r.value,"signed",v=>r.value=v);
+    field(p,"Source instance (optional)",r.source??"","text",v=>{if(v){r.source=v;r.sourceZones??=[]}else{delete r.source;delete r.sourceZones}});
+    field(p,"Source zones",(r.sourceZones??[]).join(","),"text",v=>r.sourceZones=csv(v));
+    field(p,"Expires before turn (blank = never)",r.expires??"","text",v=>{if(v==="")delete r.expires;else r.expires=Number(v)});
+   }else{
+    field(p,"Replacement operation",r.op,["prevent","reduce","redirect"],v=>{r.op=v;if(v==="reduce")r.amount??=1;if(v==="redirect")r.to??="c1";render(key)});
+    if(r.op==="reduce")field(p,"Damage reduction",r.amount,"number",v=>r.amount=v);
+    if(r.op==="redirect")field(p,"Redirect to instance",r.to,"text",v=>r.to=v);
+   }
+  },key);
+ }
+}
+
+
+function deckEditor(section){
+ module.deckRules??={min:1,max:40,copies:4};module.decks??=[];
+ const rules=module.deckRules;
+ field(section,"Minimum deck size",rules.min,"number",v=>rules.min=v);
+ field(section,"Maximum deck size",rules.max,"number",v=>rules.max=v);
+ field(section,"Maximum copies",rules.copies,"number",v=>rules.copies=v);
+ section.append(node("p","Decks can be saved with the module. Append a deck to starting setup explicitly; this preserves existing card instance IDs and order."));
+ listEditor(section,module.decks,"Deck",()=>({name:"New deck",player:first("players"),zone:module.zones.find(z=>z.owner===first("players"))?.id??"",cards:[]}),(p,d)=>{
+  field(p,"Deck name",d.name,"text",v=>d.name=v);
+  field(p,"Deck player",d.player,"players",v=>{d.player=v;d.zone=module.zones.find(z=>z.owner===v)?.id??"";render("decks")});
+  field(p,"Deck destination",d.zone,module.zones.filter(z=>z.owner===d.player).map(z=>z.id),v=>d.zone=v);
+  d.cards??=[];
+  listEditor(p,d.cards,"Deck card",()=>({definition:module.definitions.find(id=>!d.cards.some(c=>c.definition===id))??first("definitions"),count:1}),(r,c)=>{
+   field(r,"Deck card definition",c.definition,"definitions",v=>c.definition=v);field(r,"Copies",c.count,"number",v=>c.count=v);
+  },"decks");
+  const result=node("p");result.setAttribute("role","status");p.append(result);
+  p.append(actionButton("Validate deck",()=>{const errors=validateDeck(module,d);result.textContent=errors.length?errors.join(" · "):"Deck is legal."}));
+  p.append(actionButton("Append deck to starting setup",()=>{try{const next=appendDeckToSetup(module,d);createMatch(next);module=next;render("decks");status("Deck appended to starting setup.")}catch(e){status(e.message)}}));
+ },"decks");
+}
+
 function render(openKey){
  const root=$("editor-fields");root.replaceChildren();
  const label=node("label","Module name ");const input=node("input");input.value=module.name??"";input.addEventListener("input",()=>{module.name=input.value;sync()});label.append(input);root.append(label);
- for(const [key,title] of [["players","Players"],["definitions","Card definitions"],["zones","Zones"],["setup","Starting cards"],["resources","Resources"],["effects","Effects"],["triggers","Triggers"],["combat","Combat"],["attachment","Attachments"],["timing","Timing"],["chain","Chains"],["victory","Victory conditions"]]){
-  const section=node("details");section.open=key===openKey;section.append(node("summary",title));if(fields[key]){tableEditor(key,section);root.append(section);continue}if(["effects","triggers","combat","victory"].includes(key)){advancedEditor(key,section);root.append(section);continue}const area=node("textarea");area.rows=8;area.style.width="100%";area.setAttribute("aria-label",title);area.value=JSON.stringify(module[key]??null,null,2);
+ for(const [key,title] of [["players","Players"],["definitions","Card definitions"],["cardPresentation","Card designer"],["zones","Zones"],["setup","Starting cards"],["decks","Deck construction"],["resources","Resources"],["effects","Effects"],["triggers","Triggers"],["combat","Combat"],["attachment","Attachments"],["timing","Timing"],["chain","Chains"],["modifiers","Continuous modifiers"],["replacements","Damage replacements"],["victory","Victory conditions"]]){
+  const section=node("details");section.open=key===openKey;section.append(node("summary",title));if(key==="decks"){deckEditor(section);root.append(section);continue}if(["attachment","timing","chain","modifiers","replacements"].includes(key)){advancedPolicies(key,section);root.append(section);continue}if(key==="cardPresentation"){cardDesigner(section);root.append(section);continue}if(fields[key]){tableEditor(key,section);root.append(section);continue}if(["effects","triggers","combat","victory"].includes(key)){advancedEditor(key,section);root.append(section);continue}const area=node("textarea");area.rows=8;area.style.width="100%";area.setAttribute("aria-label",title);area.value=JSON.stringify(module[key]??null,null,2);
   const apply=node("button","Apply "+title.toLowerCase());apply.type="button";apply.onclick=()=>{try{const v=JSON.parse(area.value);if(v===null)delete module[key];else module[key]=v;sync();status(title+" updated; validate before exporting.")}catch(e){status("Invalid JSON: "+e.message)}};section.append(area,apply);root.append(section);
  }sync();
 }

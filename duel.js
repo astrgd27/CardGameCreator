@@ -10,11 +10,14 @@ const players=rules.players;
 const human=players[0],computer=players[1];
 let mode="hotseat",timer=null,lastEvents=[],lastAction=null;
 const inspector=document.createElement("dialog");inspector.className="duel-inspector";document.body.append(inspector);
+function presentation(o){return Object.hasOwn(rules.cardPresentation??{},o.definition)?rules.cardPresentation[o.definition]:{}}
+function cardName(o){return presentation(o).name|| (o.definition?o.definition[0].toUpperCase()+o.definition.slice(1):"Hidden card")}
+function artwork(o,cls){const data=presentation(o);if(/^data:image\/(png|jpeg|webp);base64,/.test(data.art??"")){const img=el("img",cls+" custom-art");img.src=data.art;img.alt="";return img}return el("span",cls,({sentinel:"♜",raider:"⚔",blade:"†",ward:"◈"})[o.definition]??"◆")}
 function inspect(o){
  if(!o.definition||inspector.open)return;
  clearTimeout(timer);inspector.replaceChildren();
- const name=o.definition[0].toUpperCase()+o.definition.slice(1),stats=match.rules.combat?.stats?.[o.definition];
- inspector.append(el("h2","",name),el("div","inspect-symbol",({sentinel:"♜",raider:"⚔",blade:"†",ward:"◈"})[o.definition]??"◆"),el("p","",stats?stats.attack+" attack · "+stats.health+" maximum health":"No combat statistics"),el("p","","Damage: "+o.damage+" · "+o.orientation),el("p","",match.rules.attachment?.definitions?.includes(o.definition)?"Equipment: select this card and a friendly host to attach.":"Unit: select this card and an enemy to attack."),button("Close inspection",()=>inspector.close()));
+ const name=cardName(o),stats=match.rules.combat?.stats?.[o.definition];
+ inspector.append(el("h2","",name),artwork(o,"inspect-symbol"),el("p","",presentation(o).type??""),el("p","",presentation(o).text??""),el("p","",stats?stats.attack+" attack · "+stats.health+" maximum health":"No combat statistics"),el("p","","Damage: "+o.damage+" · "+o.orientation),el("p","",match.rules.attachment?.definitions?.includes(o.definition)?"Equipment: select this card and a friendly host to attach.":"Unit: select this card and an enemy to attack."),button("Close inspection",()=>inspector.close()));
  inspector.showModal();
 }
 inspector.addEventListener("close",()=>scheduleOpponent());
@@ -29,8 +32,8 @@ function act(actor,action){
 }
 function card(o,viewer){
  const b=button("",()=>{selected=o.id;render()});b.className="duel-card"+(selected===o.id?" selected":"")+(o.orientation==="resting"?" resting":"");
- const name=o.definition?o.definition[0].toUpperCase()+o.definition.slice(1):"Hidden card";
- b.append(el("strong","",name),el("span","card-symbol",({sentinel:"♜",raider:"⚔",blade:"†",ward:"◈"})[o.definition]??"◆"));
+ const name=cardName(o);
+ b.append(el("strong","",name),artwork(o,"card-symbol"),el("small","",presentation(o).type??""));
  const stats=match.rules.combat?.stats?.[o.definition];
  if(stats)b.append(el("span","",stats.attack+" ATK · "+Math.max(0,stats.health-o.damage)+" HP"));
  const host=match.state.attachments?.[o.id]?.host;
