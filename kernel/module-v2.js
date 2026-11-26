@@ -158,6 +158,7 @@ function validateModuleStructure(m){
  for(const e of Object.values(effects))if(e.windows!==undefined)require(Array.isArray(e.windows)&&e.windows.length>0&&e.windows.every(key),"invalid effect windows");
  const g=m.combat?.group;
  if(g){require((g.comparison===undefined||["damage","power"].includes(g.comparison))&&(g.overflow===undefined||typeof g.overflow==="boolean")&&(g.intercept===undefined||["all","direct"].includes(g.intercept))&&(g.damageType===undefined||key(g.damageType)),"invalid extended combat policy");
+ require(g.twoSidedReactions===undefined||typeof g.twoSidedReactions==="boolean","invalid two-sided reactions");
  const ids=new Set();for(const r of list(g.reactions??[],"combat reactions",20)){require(record(r)&&key(r.id)&&!ids.has(r.id)&&defs.includes(r.definition)&&Array.isArray(r.zones)&&r.zones.length>0&&r.zones.every(z=>zids.has(z))&&zids.has(r.destination)&&!r.zones.includes(r.destination)&&integer(r.amount)&&r.amount<=100,"invalid combat reaction");if(record(r))ids.add(r.id)}
  }
  if(m.combat?.damageCleanup!==undefined)require(["turn","persistent"].includes(m.combat.damageCleanup),"invalid damage cleanup");
