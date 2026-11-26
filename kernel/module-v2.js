@@ -74,6 +74,7 @@ export function validateModuleV2(m){
   for(const p of phases){require(record(p)&&key(p.id)&&!ids.has(p.id)&&Array.isArray(p.actions)&&p.actions.every(a=>["activate","attack","attach"].includes(a)),"phase: invalid");if(record(p))ids.add(p.id)}
   for(const e of Object.values(effects))if(e?.phases!==undefined)require(Array.isArray(e.phases)&&e.phases.every(id=>ids.has(id)),"effect: invalid phase restriction");
  }
+ if(m.triggerOrder!==undefined)require(["fixed","player"].includes(m.triggerOrder),"invalid trigger ordering");
  const triggers=new Set();
  for(const t of list(m.triggers??[],"triggers")){
   require(record(t)&&key(t.id)&&!triggers.has(t.id)&&key(t.event)&&Object.hasOwn(effects,t.effect)&&players.includes(t.actor),"trigger: invalid reference");
@@ -82,6 +83,7 @@ export function validateModuleV2(m){
  for(const [label,config] of [["combat",m.combat],["attachment",m.attachment]])if(config!==undefined)require(record(config)&&Array.isArray(config.zones)&&config.zones.length>0&&config.zones.every(z=>zids.has(z)),label+": invalid zones");
  if(record(m.combat)){
   require(record(m.combat.stats)&&Object.entries(m.combat.stats).every(([d,s])=>defs.includes(d)&&record(s)&&integer(s.attack)&&integer(s.health)&&s.health>0),"combat: invalid stats");
+  if(m.combat.group!==undefined){const g=m.combat.group;require(record(g)&&players.length===2&&integer(g.maxAttackers??10)&&(g.maxAttackers??10)>=1&&(g.maxAttackers??10)<=10&&["lethal","even"].includes(g.assignment??"lethal")&&(g.guardStatus===undefined||key(g.guardStatus))&&(g.readyBlockers===undefined||typeof g.readyBlockers==="boolean")&&(g.lifeResource===undefined||(m.resources??[]).some(r=>r.id===g.lifeResource&&r.scope==="player")),"combat: invalid group policy")}
   require(record(m.combat.defeatZones)&&players.every(p=>zids.has(m.combat.defeatZones[p])),"combat: invalid defeat zones");
  }
  if(record(m.attachment))require(Array.isArray(m.attachment.definitions)&&m.attachment.definitions.every(d=>defs.includes(d))&&["detach","follow","reject"].includes(m.attachment.onHostMove??"detach")&&integer(m.attachment.max??1),"attachment: invalid configuration");
