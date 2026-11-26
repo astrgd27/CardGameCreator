@@ -76,7 +76,7 @@ export function validateModuleV2(m){
    else if(op.type==="skipUnlessResource")require(resources.has(op.resource)&&["atLeast","atMost","equal"].includes(op.comparison)&&integer(op.amount)&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"effect: invalid resource condition "+id);
    else if(op.type==="skipUnlessChoice")require(choices.has(op.choice)&&key(op.value)&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"effect: invalid choice condition "+id);
    else if(op.type==="skipUnless"){require(record(op.selector)&&integer(op.minimum)&&op.minimum<=100&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"effect: invalid condition "+id)}
-   else if(op.type==="target"){const q=op.selector;require(key(op.name)&&!choices.has(op.name)&&record(q)&&Object.keys(q).every(k=>["zones","owner","controller","face","orientation","definition","limit","keyword","targetable"].includes(k))&&(!q.zones||(Array.isArray(q.zones)&&q.zones.every(z=>zids.has(z))))&&["owner","controller"].every(k=>q[k]===undefined||["self","opponent","any"].includes(q[k]))&&(q.definition===undefined||defs.includes(q.definition))&&(q.face===undefined||["up","down"].includes(q.face))&&(q.orientation===undefined||["ready","resting","tapped"].includes(q.orientation))&&(q.limit===undefined||(integer(q.limit)&&q.limit<=100)),"effect: invalid selector "+id);choices.add(op.name)}
+   else if(op.type==="target"){const q=op.selector;require(key(op.name)&&!choices.has(op.name)&&record(q)&&Object.keys(q).every(k=>["zones","owner","controller","face","orientation","definition","limit","keyword","targetable","near","range"].includes(k))&&(!q.zones||(Array.isArray(q.zones)&&q.zones.every(z=>zids.has(z))))&&["owner","controller"].every(k=>q[k]===undefined||["self","opponent","any"].includes(q[k]))&&(q.definition===undefined||defs.includes(q.definition))&&(q.face===undefined||["up","down"].includes(q.face))&&(q.orientation===undefined||["ready","resting","tapped"].includes(q.orientation))&&(q.limit===undefined||(integer(q.limit)&&q.limit<=100)),"effect: invalid selector "+id);choices.add(op.name)}
    else if(op.type==="token")require(defs.includes(op.definition)&&zids.has(op.zone)&&integer(op.count)&&op.count>=1&&op.count<=20&&["up","down"].includes(op.face??"up"),"effect: invalid token "+id);
    else if(["counter","status","transform","flip","control","orient"].includes(op.type)){
     require((key(op.id)&&op.choice===undefined)||(op.id===undefined&&choices.has(op.choice)),"effect: invalid state target "+id);
@@ -92,7 +92,7 @@ export function validateModuleV2(m){
  if(m.phases!==undefined){
   const phases=list(m.phases,"phases",20),ids=new Set();
   require(phases.length>0,"phases: empty");
-  for(const p of phases){require(record(p)&&key(p.id)&&!ids.has(p.id)&&Array.isArray(p.actions)&&p.actions.every(a=>["activate","attack","attach"].includes(a)),"phase: invalid");if(record(p))ids.add(p.id)}
+  for(const p of phases){require(record(p)&&key(p.id)&&!ids.has(p.id)&&Array.isArray(p.actions)&&p.actions.every(a=>["activate","attack","attach","move"].includes(a)),"phase: invalid");if(record(p))ids.add(p.id)}
   for(const e of Object.values(effects))if(e?.phases!==undefined)require(Array.isArray(e.phases)&&e.phases.every(id=>ids.has(id)),"effect: invalid phase restriction");
  }
  if(m.triggerOrder!==undefined)require(["fixed","player","owner"].includes(m.triggerOrder),"invalid trigger ordering");
@@ -165,6 +165,12 @@ export function validateModuleV2(m){
  for(const r of list(m.eventReplacements??[],"event replacements",100))require(record(r)&&key(r.id)&&r.event==="draw"&&["prevent","reduce","redirect"].includes(r.op)&&(r.from===undefined||zids.has(r.from))&&(r.order===undefined||integer(r.order)&&r.order<=100)&&(r.when===undefined||expr(r.when))&&(r.op!=="reduce"||integer(r.amount)&&r.amount<=100)&&(r.op!=="redirect"||zids.has(r.to)&&r.to!==r.from),"invalid draw replacement");
  if(m.stabilization!==undefined){require(record(m.stabilization),"invalid stabilization");if(record(m.stabilization))for(const r of list(m.stabilization.moves??[],"state moves",100))require(record(r)&&zids.has(r.from)&&zids.has(r.to)&&r.from!==r.to&&expr(r.when),"invalid state-based move")}
  for(const t of m.triggers??[])if(t.bindings!==undefined)require(record(t.bindings)&&Object.entries(t.bindings).every(([k,v])=>key(k)&&key(v)),"invalid trigger bindings");
+ if(m.spatial!==undefined){const p=m.spatial;require(record(p),"invalid spatial board");if(record(p)){
+ const slots=new Set(),coords=new Set();
+ for(const x of list(p.slots,"spatial slots",100)){require(record(x)&&zids.has(x.zone)&&!slots.has(x.zone)&&m.zones.find(z=>z.id===x.zone)?.visibility==="public"&&integer(x.x)&&x.x<=19&&integer(x.y)&&x.y<=19&&!coords.has(x.x+","+x.y)&&["blocked","exclusive","ownerOnly"].every(k=>x[k]===undefined||typeof x[k]==="boolean"),"invalid spatial slot");if(record(x)){slots.add(x.zone);coords.add(x.x+","+x.y)}}
+ require((p.grid===undefined||typeof p.grid==="boolean")&&(p.restOnMove===undefined||typeof p.restOnMove==="boolean")&&["maxSteps","attackRange","blockRange","costPerStep"].every(k=>p[k]===undefined||integer(p[k])&&p[k]<=100)&&(p.resource===undefined||resources.has(p.resource)),"invalid spatial movement policy");
+ for(const e of list(p.edges??[],"spatial edges",300))require(Array.isArray(e)&&e.length===2&&e[0]!==e[1]&&e.every(z=>slots.has(z)),"invalid spatial edge");
+ }}
  return errors;
 }
 export function assertModuleV2(m){const errors=validateModuleV2(m);if(errors.length)throw Error(errors.join("; "));return m}

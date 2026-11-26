@@ -1,9 +1,10 @@
+import {distance,slotOf} from "./spatial.js";
 import {hasRule,keywords} from "./keywords.js";
 // Deterministic, bounded selectors for internal rule execution.
 const key=x=>typeof x==="string"&&/^[A-Za-z0-9_-]{1,80}$/.test(x)&&!Object.hasOwn(Object.prototype,x);
 export function selectCards(state,actor,query={}){
  if(!state.players.includes(actor)||!query||typeof query!=="object"||Array.isArray(query))throw Error("Invalid selector");
- const allowed=["zones","owner","controller","face","orientation","definition","limit","keyword","targetable"];
+ const allowed=["zones","owner","controller","face","orientation","definition","limit","keyword","targetable","near","range"];
  if(Object.keys(query).some(k=>!allowed.includes(k)))throw Error("Unsupported selector field");
  if(query.zones!==undefined&&(!Array.isArray(query.zones)||query.zones.length>100||new Set(query.zones).size!==query.zones.length||query.zones.some(z=>!key(z)||!Object.hasOwn(state.zones,z))))throw Error("Invalid selector zones");
  for(const k of ["owner","controller"])if(query[k]!==undefined&&!["self","opponent","any"].includes(query[k]))throw Error("Invalid seat selector");
@@ -12,6 +13,7 @@ export function selectCards(state,actor,query={}){
  if(query.definition!==undefined&&!state.definitions.includes(query.definition))throw Error("Invalid definition selector");
  if(query.keyword!==undefined&&!key(query.keyword))throw Error("Invalid keyword selector");
  if(query.targetable!==undefined&&typeof query.targetable!=="boolean")throw Error("Invalid targetable selector");
+ if(query.near!==undefined&&(!key(query.near)||!Number.isSafeInteger(query.range)||query.range<0||query.range>100))throw Error("Invalid local selector");
  const limit=query.limit??100;
  if(!Number.isSafeInteger(limit)||limit<0||limit>100)throw Error("Invalid selector limit");
  const seat=(rule,value)=>rule===undefined||rule==="any"||(rule==="self"?value===actor:value!==actor);
@@ -26,6 +28,7 @@ export function selectCards(state,actor,query={}){
    const o=state.objects[id];
    if(o.face==="down"&&o.owner!==actor)continue;
    if(query.keyword&&!keywords(state,id).includes(query.keyword)||query.targetable&&o.controller!==actor&&hasRule(state,id,"untargetable"))continue;
+   if(query.near!==undefined&&(!state.spatial||distance(state,query.near,slotOf(state,id)?.zone)>query.range))continue;
    if(seat(query.owner,o.owner)&&seat(query.controller,o.controller)&&
       (query.face===undefined||query.face===o.face)&&
       (query.orientation===undefined||query.orientation===o.orientation)&&

@@ -1,3 +1,4 @@
+import {movementOptions,moveSpatial,locationControl,assertSpatial,inRange} from "./spatial.js";
 import {stabilize} from "./stabilize.js";
 import {idle,scheduleState,nextSeat,triggerGroups,scheduleView} from "./scheduler.js";
 import {stackOptions,stackCard,inheritedDefinition} from "./composites.js";
@@ -24,7 +25,7 @@ const own=(o,k)=>typeof k==="string"&&Object.hasOwn(o??{},k);
 export function createMatch(module,{seed=1}={}){
  if(module?.schemaVersion===2)assertModuleV2(module);
  const rules=structuredClone(module);
- let state=createState(rules);if(rules.attributes)state.attributes=structuredClone(rules.attributes);if(rules.eventReplacements)state.eventReplacements=structuredClone(rules.eventReplacements);if(rules.permissionRules)state.permissionRules=structuredClone(rules.permissionRules);if(rules.keywordRules)state.keywordRules=structuredClone(rules.keywordRules);
+ let state=createState(rules);if(rules.spatial)state.spatial=structuredClone(rules.spatial);if(rules.attributes)state.attributes=structuredClone(rules.attributes);if(rules.eventReplacements)state.eventReplacements=structuredClone(rules.eventReplacements);if(rules.permissionRules)state.permissionRules=structuredClone(rules.permissionRules);if(rules.keywordRules)state.keywordRules=structuredClone(rules.keywordRules);
  for(const card of rules.setup??[])state=addCard(state,card).state;
  state=initializeResources(state,rules.resources??[]);state.hiddenSeed=seed>>>0;
  for(const p of rules.drawPolicies??[]){if(p.shuffle){const r=shuffleZone(state,p.deck,seed);state=r.state;seed=r.seed}if(p.opening)state=drawCards(state,p.deck,p.hand,p.opening).state}
@@ -50,7 +51,7 @@ function eligible(m,actor,id,e,source){
 function finish(m,events){
  if(!m.pending&&m.rules.tokenPolicy?.zones){const r=cleanupTokens(m.state,m.rules.tokenPolicy.zones);m.state=r.state;if(r.events.length)events=[...events,...(!m.timing.resolving?enqueue(m,r.events):r.events)]}
  if(!m.pending&&!m.battle&&!m.timing.resolving&&!m.triggerOrderPending){const r=stabilize(m.state,m.rules,m.turn);m.state=r.state;if(r.events.length)events=[...events,...enqueue(m,r.events)]}
- assertInvariants(m.state);assertAttachments(m.state);
+ assertInvariants(m.state);assertAttachments(m.state);assertSpatial(m.state);
  if(!m.openingQueue?.length&&!m.battle&&!m.pending&&!m.timing.resolving&&!m.timing.queue.length&&m.state.ruleLosses?.length){const losers=[...m.state.ruleLosses],remaining=m.state.players.filter(p=>!losers.includes(p));if(remaining.length<=1)m.result={losers,winner:remaining[0]??null,draw:!remaining.length}}
  if(!m.result&&!m.openingQueue?.length&&!m.battle&&!m.pending&&!m.timing.resolving&&!m.timing.queue.length&&m.rules.victory?.length){
   const r=evaluateVictory(m.state,m.rules.victory);
@@ -114,10 +115,11 @@ export function applyMatchAction(match,actor,action){
  }
  check(m.timing.resolving===null&&m.timing.priority===actor,"No priority");
  const policy=m.rules.scheduler,ss=policy?scheduleState(m):null;
- if(policy?.mode==="alternate"&&["activate","attack","attach","stack","generate","declareCombat"].includes(action.type)&&!m.timing.queue.length){check(actor===m.timing.active&&!ss.passed.includes(actor),"Not your action seat");ss.handoff=true}
+ if(policy?.mode==="alternate"&&["activate","attack","attach","stack","generate","declareCombat","moveSpatial"].includes(action.type)&&!m.timing.queue.length){check(actor===m.timing.active&&!ss.passed.includes(actor),"Not your action seat");ss.handoff=true}
  switch(action.type){
  case "claimInitiative":{check(scheduleView(m,actor)?.canClaim,"Initiative unavailable");ss.initiative=actor;if(policy.mode==="alternate"){if(!ss.passed.includes(actor))ss.passed.push(actor);ss.handoff=true}events=[{type:"initiativeClaimed",actor}];break}
  case "passOut":{check(scheduleView(m,actor)?.canPassOut,"Pass out unavailable");if(!ss.passed.includes(actor))ss.passed.push(actor);ss.handoff=true;events=[{type:"playerPassedOut",actor}];break}
+ case "moveSpatial":{const r=moveSpatial(m,actor,action);m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break}
  case "stack":{const r=stackCard(m,actor,action);m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break}
  case "generate":{check(allows(m,"activate")&&!m.windowClosed,"Generation unavailable");const r=generate(m,actor,action);m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break}
  case "activate":{
@@ -145,6 +147,7 @@ export function applyMatchAction(match,actor,action){
   check(!c?.group&&allows(m,"attack")&&c&&Array.isArray(c.zones)&&c.zones.length&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Combat unavailable");
   check(selectCards(m.state,actor,{zones:c.zones,controller:"self",face:"up",orientation:"ready"}).includes(action.attacker),"Invalid attacker");
   check(selectCards(m.state,actor,{zones:c.zones,controller:"opponent",face:"up"}).includes(action.defender),"Invalid defender");
+  check(inRange(m.state,action.attacker,action.defender),"Target outside attack range");
   check(!hasRule(m.state,action.attacker,"cannotAttack")&&!hasRule(m.state,action.defender,"cannotBeAttacked"),"Keyword prohibits attack");
   const r=resolveCombat(m.state,{...c,attacker:action.attacker,defender:action.defender,turn:m.turn});
   m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break;
@@ -175,5 +178,5 @@ export function matchView(m,viewer){
  const activations=[];
  if(!m.result&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&!m.pending&&m.timing.priority===viewer)for(const [id,e] of Object.entries(m.rules.effects)){const sources=e.sourceDefinition?selectCards(m.state,viewer,{zones:e.sourceZones,controller:"self",face:"up"}).filter(id=>inheritedDefinition(m.state.objects[id],e.sourceDefinition)):[undefined];for(const source of sources)if(eligible(m,viewer,id,e,source))for(const p of paymentPlans(e)){const option=dynamicOptions(m,viewer,e,source,p);if(option)activations.push({effect:id,source,...option})}}
  const available=[...new Set(activations.filter(a=>a.source===undefined&&a.id==="default"&&!a.groups.length&&!a.dynamic).map(a=>a.effect))];
- return {state,scheduler:scheduleView(m,viewer),reveals:Object.entries(m.state.reveals??{}).filter(([id,r])=>r.viewers.includes(viewer)&&m.state.zones[r.zone]?.cards.includes(id)&&m.state.objects[id]?.definition===r.definition).map(([id,r])=>({id,zone:r.zone,definition:r.definition})),stackOptions:stackOptions(m,viewer),triggerOrder:m.triggerOrderPending?{actor:m.triggerOrderPending.actor,ids:m.triggerOrderPending.actor===viewer?m.triggerOrderPending.ids:undefined}:null,combat:combatOptions(m,viewer),combatActor:battleActor(m),phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,generators:!m.result&&!m.pending&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&m.timing.priority===viewer&&allows(m,"activate")&&!m.windowClosed?generatorOptions(m,viewer):[],windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
+ return {state,spatial:m.state.spatial?{slots:structuredClone(m.state.spatial.slots),control:locationControl(m.state),moves:movementOptions(m,viewer)}:null,scheduler:scheduleView(m,viewer),reveals:Object.entries(m.state.reveals??{}).filter(([id,r])=>r.viewers.includes(viewer)&&m.state.zones[r.zone]?.cards.includes(id)&&m.state.objects[id]?.definition===r.definition).map(([id,r])=>({id,zone:r.zone,definition:r.definition})),stackOptions:stackOptions(m,viewer),triggerOrder:m.triggerOrderPending?{actor:m.triggerOrderPending.actor,ids:m.triggerOrderPending.actor===viewer?m.triggerOrderPending.ids:undefined}:null,combat:combatOptions(m,viewer),combatActor:battleActor(m),phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,generators:!m.result&&!m.pending&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&m.timing.priority===viewer&&allows(m,"activate")&&!m.windowClosed?generatorOptions(m,viewer):[],windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
 }

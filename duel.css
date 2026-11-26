@@ -22,3 +22,5 @@ body{background:radial-gradient(ellipse at 50% 8%,#243a43 0%,#101c25 52%,#0b141d
 .combat-declarations{display:grid;gap:8px;margin:10px 0;padding:10px;background:#111e29;border:1px solid #627887;border-radius:8px}.combat-declarations label{display:grid;gap:4px;font-size:13px}.combat-declarations select{width:100%;font:inherit;padding:8px;background:#203440;color:#fff;border:1px solid #607482;border-radius:5px}
 
 .duel-card.composite-card{box-shadow:3px 4px 0 #607c82,6px 8px 0 #324e57,9px 12px 12px #0007;margin-bottom:10px}
+
+.spatial-grid{grid-column:1/-1;display:grid;gap:10px;overflow:auto;padding:12px;align-items:stretch}.spatial-slot{min-width:120px;border:1px solid #678b82;border-radius:10px;padding:10px;background:#172f2b}.spatial-slot h2{font-size:1rem}.spatial-slot .duel-row{flex-wrap:wrap}.spatial-slot button{max-width:100%;white-space:normal}
