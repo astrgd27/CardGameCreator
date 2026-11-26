@@ -1,5 +1,7 @@
 // Configurable combat math; caller authorizes attacks and selects eligible targets.
 import {moveWithAttachments} from "./attachments.js";
+import {deriveStatistic} from "./modifiers.js";
+import {replaceDamage} from "./replacements.js";
 const integer=n=>Number.isSafeInteger(n)&&n>=0;
 const check=(ok,m)=>{if(!ok)throw Error(m)};
 function unit(s,id){check(typeof id==="string"&&Object.hasOwn(s.objects,id),"Unknown combatant");return s.objects[id]}
@@ -9,21 +11,29 @@ function value(stats,s,id,name){
  check(Object.hasOwn(stats,def)&&integer(stats[def][name]),"Missing combat statistic");
  return stats[def][name];
 }
-export function resolveCombat(state,{attacker,defender,stats,retaliate=true,defeatZones}){
+export function resolveCombat(state,{attacker,defender,stats,retaliate=true,defeatZones,modifiers=[],replacements=[],turn=0}){
  check(attacker!==defender&&typeof retaliate==="boolean","Invalid combat");
  const a=unit(state,attacker),d=unit(state,defender);
  check(a.controller!==d.controller&&a.face==="up"&&d.face==="up"&&a.orientation==="ready","Ineligible combatants");
- const strike=value(stats,state,attacker,"attack"),counter=retaliate?value(stats,state,defender,"attack"):0;
- const ah=value(stats,state,attacker,"health"),dh=value(stats,state,defender,"health");
+ const stat=(id,name)=>deriveStatistic(state,id,name,value(stats,state,id,name),modifiers,{turn}).value;
+ const strike=stat(attacker,"attack"),counter=retaliate?stat(defender,"attack"):0;
+ const ah=stat(attacker,"health"),dh=stat(defender,"health");
  check(ah>0&&dh>0&&integer(a.damage)&&integer(d.damage)&&a.damage<ah&&d.damage<dh,"Invalid combat health");
  check(integer(a.damage+counter)&&integer(d.damage+strike),"Damage overflow");
  let next=structuredClone(state);const events=[];
  next.objects[attacker].orientation="resting";
+ const affected=new Set([defender,attacker]);
  for(const [id,amount] of [[defender,strike],[attacker,counter]]){
-  next.objects[id].damage+=amount;
-  if(amount)events.push({type:"damageDealt",id,amount});
+  const r=replaceDamage(state,{type:"damageDealt",id,amount},replacements);
+  const e=r.event;
+  for(const rule of r.applied)events.push({type:"damageReplaced",rule,id});
+  if(e.amount){
+   const target=unit(next,e.id);
+   check(integer(target.damage)&&integer(target.damage+e.amount)&&stat(e.id,"health")>0,"Invalid redirected damage");
+   target.damage+=e.amount;affected.add(e.id);events.push(e);
+  }
  }
- const defeated=[[defender,dh],[attacker,ah]].filter(([id,h])=>next.objects[id].damage>=h);
+ const defeated=[...affected].filter(id=>next.objects[id].damage>=stat(id,"health")).map(id=>[id,stat(id,"health")]);
  for(const [id] of defeated){
   const owner=next.objects[id].owner;
   check(defeatZones&&Object.hasOwn(defeatZones,owner),"Missing defeat destination");
