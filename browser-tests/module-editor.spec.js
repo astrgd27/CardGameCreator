@@ -271,3 +271,16 @@ test("group combat editor configures direct attacks and blocking",async({page})=
  await page.getByRole("button",{name:"Resolve combat",exact:true}).click();
  await expect(page.locator(".action-banner")).toContainText("assigned 0 blockers");
 });
+
+test("AI editor configures profiles and reports bounded simulations",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.locator("#editor-fields summary").filter({hasText:/^Opponent AI$/}).click();
+ await page.getByLabel("AI difficulty",{exact:true}).selectOption("hard");
+ await page.getByLabel("AI personality",{exact:true}).selectOption("aggressive");
+ await page.getByRole("button",{name:"Run 3 AI simulations"}).click();
+ await expect(page.locator("#editor-fields pre").filter({hasText:"meanActions"})).toBeVisible();
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await page.getByRole("button",{name:"Gameplay settings",exact:true}).click();
+ await expect(page.getByLabel("Opponent difficulty",{exact:true})).toHaveValue("hard");
+ await expect(page.getByLabel("Opponent personality",{exact:true})).toHaveValue("aggressive");
+});
