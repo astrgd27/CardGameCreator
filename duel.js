@@ -72,7 +72,7 @@ function openSettings(){
  const dialog=el("dialog","duel-inspector settings-dialog");dialog.append(el("h2","","Gameplay settings"));
  const draft={...settings};
  for(const [key,label,values] of [["speed","Animation speed",["off","fast","normal","slow"]],["scale","Card scale",["compact","normal","large"]],["opponentPreview","Opponent action preview",["on","off"]]]){
-  const l=el("label","",label+" "),select=el("select");for(const value of values){const o=el("option","",value);o.value=value;select.append(o)}select.value=key==="opponentPreview"?(draft[key]?"on":"off"):draft[key];select.onchange=()=>draft[key]=key==="opponentPreview"?select.value==="on":select.value;l.append(select);dialog.append(l);
+  const l=el("label","",label+" "),select=el("select");for(const value of values){const o=el("option","",value);o.value=value;select.append(o)}select.setAttribute("aria-label",label);select.value=key==="opponentPreview"?(draft[key]?"on":"off"):draft[key];select.onchange=()=>draft[key]=key==="opponentPreview"?select.value==="on":select.value;l.append(select);dialog.append(l);
  }
  dialog.append(button("Save settings",()=>{try{settings=saveSettings(draft);dialog.close()}catch(e){error=e.message;dialog.close()}}),button("Cancel",()=>dialog.close()));
  document.body.append(dialog);dialog.addEventListener("close",()=>{dialog.remove();render()});dialog.showModal();
