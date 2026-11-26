@@ -103,7 +103,7 @@ export function validateModuleV2(m){
  for(const [label,config] of [["combat",m.combat],["attachment",m.attachment]])if(config!==undefined)require(record(config)&&Array.isArray(config.zones)&&config.zones.length>0&&config.zones.every(z=>zids.has(z)),label+": invalid zones");
  if(record(m.combat)){
   require(record(m.combat.stats)&&Object.entries(m.combat.stats).every(([d,s])=>defs.includes(d)&&record(s)&&integer(s.attack)&&integer(s.health)&&s.health>0),"combat: invalid stats");
-  if(m.combat.group!==undefined){const g=m.combat.group;require(record(g)&&players.length===2&&integer(g.maxAttackers??10)&&(g.maxAttackers??10)>=1&&(g.maxAttackers??10)<=10&&["lethal","even"].includes(g.assignment??"lethal")&&(g.guardStatus===undefined||key(g.guardStatus))&&(g.readyBlockers===undefined||typeof g.readyBlockers==="boolean")&&(g.lifeResource===undefined||(m.resources??[]).some(r=>r.id===g.lifeResource&&r.scope==="player")),"combat: invalid group policy")}
+  if(m.combat.group!==undefined){const g=m.combat.group;require(record(g)&&players.length===2&&integer(g.maxAttackers??10)&&(g.maxAttackers??10)>=1&&(g.maxAttackers??10)<=10&&["lethal","even","manual"].includes(g.assignment??"lethal")&&(g.guardStatus===undefined||key(g.guardStatus))&&(g.readyBlockers===undefined||typeof g.readyBlockers==="boolean")&&(g.lifeResource===undefined||(m.resources??[]).some(r=>r.id===g.lifeResource&&r.scope==="player")),"combat: invalid group policy")}
   require(record(m.combat.defeatZones)&&players.every(p=>zids.has(m.combat.defeatZones[p])),"combat: invalid defeat zones");
  }
  if(record(m.attachment))require(Array.isArray(m.attachment.definitions)&&m.attachment.definitions.every(d=>defs.includes(d))&&["detach","follow","reject"].includes(m.attachment.onHostMove??"detach")&&integer(m.attachment.max??1),"attachment: invalid configuration");
@@ -151,6 +151,11 @@ export function validateModuleV2(m){
  if(m.scheduler!==undefined){const p=m.scheduler;require(record(p)&&["round","alternate"].includes(p.mode??"round")&&(p.initiative===undefined||typeof p.initiative==="boolean")&&(p.responseWindow===undefined||key(p.responseWindow)),"invalid scheduler");if(record(p)&&p.gauge!==undefined){const g=p.gauge,r=m.resources?.find(x=>x.id===g?.resource);require(record(g)&&r?.scope==="shared"&&integer(g.threshold)&&g.threshold>0&&g.threshold<=r.max&&integer(g.reset??0)&&(g.reset??0)<g.threshold,"invalid turn gauge")}}
  for(const p of m.phases??[])require((p.window===undefined||key(p.window))&&(p.autoAdvance===undefined||typeof p.autoAdvance==="boolean"),"invalid phase window");
  for(const e of Object.values(effects))if(e.windows!==undefined)require(Array.isArray(e.windows)&&e.windows.length>0&&e.windows.every(key),"invalid effect windows");
+ const g=m.combat?.group;
+ if(g){require((g.comparison===undefined||["damage","power"].includes(g.comparison))&&(g.overflow===undefined||typeof g.overflow==="boolean")&&(g.intercept===undefined||["all","direct"].includes(g.intercept))&&(g.damageType===undefined||key(g.damageType)),"invalid extended combat policy");
+ const ids=new Set();for(const r of list(g.reactions??[],"combat reactions",20)){require(record(r)&&key(r.id)&&!ids.has(r.id)&&defs.includes(r.definition)&&Array.isArray(r.zones)&&r.zones.length>0&&r.zones.every(z=>zids.has(z))&&zids.has(r.destination)&&!r.zones.includes(r.destination)&&integer(r.amount)&&r.amount<=100,"invalid combat reaction");if(record(r))ids.add(r.id)}
+ }
+ if(m.combat?.damageCleanup!==undefined)require(["turn","persistent"].includes(m.combat.damageCleanup),"invalid damage cleanup");
  return errors;
 }
 export function assertModuleV2(m){const errors=validateModuleV2(m);if(errors.length)throw Error(errors.join("; "));return m}

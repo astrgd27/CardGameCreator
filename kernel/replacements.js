@@ -12,7 +12,7 @@ export function replaceDamage(state,event,rules=[]){
   check(r.target===undefined||Object.hasOwn(state.objects,r.target),"Invalid replacement target");
   check(r.op!=="reduce"||(Number.isSafeInteger(r.amount)&&r.amount>=0),"Invalid reduction");
   check(r.op!=="redirect"||Object.hasOwn(state.objects,r.to),"Invalid redirection");
-  if(!next.amount||(r.target!==undefined&&r.target!==next.id))continue;
+  if(!next.amount||(r.target!==undefined&&r.target!==next.id)||(r.damageType!==undefined&&r.damageType!==next.damageType))continue;
   if(r.op==="prevent")next.amount=0;
   if(r.op==="reduce")next.amount=Math.max(0,next.amount-r.amount);
   if(r.op==="redirect")next.id=r.to;

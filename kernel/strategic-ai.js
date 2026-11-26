@@ -31,6 +31,8 @@ function candidates(match,actor,v){
  if(v.triggerOrder){if(v.triggerOrder.actor===actor){add({type:"orderTriggers",ids:v.triggerOrder.ids});add({type:"orderTriggers",ids:[...v.triggerOrder.ids].reverse()})}return out}
  if(v.opening){if(v.opening.actor===actor)add({type:"keep"});return out}
  if(v.choice){if(v.choice.actor===actor)for(const value of v.choice.options??[])add({type:"choose",value});return out}
+ if(v.combat?.stage==="react"){add({type:"combatContinue"});return out}
+ if(v.combat?.stage==="assign"){add({type:"assignDamage",assignments:v.combat.assignments.map(a=>({attacker:a.attacker,amounts:a.blockers.map((b,i)=>i===0?Math.max(0,a.power):0)}))});return out}
  if(v.combat?.stage==="block"){
   const c=v.combat;add({type:"block",blocks:[]});
   for(const blocker of c.blockers)for(const attacker of c.attackers)add({type:"block",blocks:[{blocker,attacker}]});
@@ -79,7 +81,7 @@ function projectedScore(match,actor,action,profile){
 export function chooseStrategicAction(match,actor,input={}){
  const p=aiProfile(input),v=matchView(match,actor);
  if(v.result)return null;
- if(p.difficulty==="easy")return chooseDemoAction(match,actor);
+ if(p.difficulty==="easy"&&!["react","assign"].includes(v.combat?.stage))return chooseDemoAction(match,actor);
  const budget=p.difficulty==="hard"?160:60,items=candidates(match,actor,v);
  let best=null,bestScore=-Infinity;
  for(const item of items.slice(0,budget)){
@@ -89,4 +91,4 @@ export function chooseStrategicAction(match,actor,input={}){
  }
  return best??chooseDemoAction(match,actor);
 }
-export function decisionActor(m){return m.openingQueue?.[0]?.player??m.triggerOrderPending?.actor??m.battle?.defender??m.pending?.actor??m.timing.priority}
+export function decisionActor(m){return m.openingQueue?.[0]?.player??m.triggerOrderPending?.actor??(m.battle?.stage==="assign"?m.battle.actor:m.battle?.defender)??m.pending?.actor??m.timing.priority}

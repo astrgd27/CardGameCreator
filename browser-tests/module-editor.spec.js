@@ -373,3 +373,21 @@ test("evidence dashboard runs five micro-fixtures without awarding catalog passe
  await expect(page.locator("#status")).toContainText("5/5 micro-fixtures passed");
  await expect(page.locator("#status")).toContainText("Catalog scores unchanged");
 });
+
+test("manual damage assignment follows blocking and hand reaction windows",async({page})=>{
+ await page.goto("/module-editor.html");
+ const source=page.locator("#source"),m=JSON.parse(await source.inputValue());
+ m.combat.group={assignment:"manual",lifeResource:"energy",reactions:[{id:"counter",definition:"raider",zones:["hand-b"],destination:"discard-b",amount:1}]};
+ await page.locator("summary").filter({hasText:/^Advanced module JSON$/}).click();
+ await source.fill(JSON.stringify(m));await page.getByRole("button",{name:"Apply JSON changes"}).click();
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await page.getByLabel("Attack with Sentinel c1",{exact:true}).selectOption("player:b");
+ await page.getByRole("button",{name:"Declare attackers",exact:true}).click();
+ await page.getByLabel("Block with Raider c2",{exact:true}).selectOption("c1");
+ await page.getByRole("button",{name:"Resolve combat",exact:true}).click();
+ await page.getByRole("button",{name:/Defend with Raider c6/}).click();
+ await page.getByRole("button",{name:"Continue combat",exact:true}).click();
+ await page.getByLabel("Damage from Sentinel c1 to Raider c2",{exact:true}).fill("1");
+ await page.getByRole("button",{name:"Confirm damage assignment",exact:true}).click();
+ await expect(page.getByRole("button",{name:"Confirm damage assignment",exact:true})).toHaveCount(0);
+});
