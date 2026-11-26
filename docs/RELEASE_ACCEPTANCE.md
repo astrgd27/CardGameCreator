@@ -29,3 +29,5 @@ PR 51 merged after successful run 45861102474. PR 52 run 45860725618, PR 53 run 
 
 ## Consolidated validation
 Main 9a2e6b3518b8e2cfd95fc68243e706d0294328ea, push run 45866387786: 150 Node tests passed, zero skipped, 114 browser tests passed; benchmark and standalone byte comparison passed. No unresolved high-severity failure reported by this suite; not a guarantee of absence. Existing randomized tests did not emit exact executed step counts. Capture those in the next CI run before formally closing 13A. Initial 13B fixture preparation is not certification; no catalog pass awarded.
+
+PR 56 run 45868157060 reports 420 seeded, 257 cross-module and 320 combined-mechanic legal actions (997 total); each iteration also checks illegal-action rejection. All three randomized tests passed. Fixture count assertion failed independently; correction pending CI.
