@@ -9,7 +9,7 @@ import {hasRule,keywords} from "./keywords.js";
 import {createState,addCard,projectState,assertInvariants} from "./objects.js";
 import {initializeResources,payResources,refreshResources,quotePayment} from "./resources.js";
 import {attachCard,assertAttachments,moveWithAttachments} from "./attachments.js";
-import {createTiming,submitEffect,passPriority,changeActive,finishResolution} from "./timing.js";
+import {enqueueTriggers,createTiming,submitEffect,passPriority,changeActive,finishResolution} from "./timing.js";
 import {submitChainLink} from "./chains.js";
 import {collectTriggers} from "./triggers.js";
 import {beginEffect,resumeEffect,choiceView} from "./effects.js";
@@ -100,7 +100,7 @@ export function applyMatchAction(match,actor,action){
  check(match.timing.players.includes(actor)&&!match.result&&action&&typeof action.type==="string","Action unavailable");
  const m=structuredClone(match);let events=[];
  const done=events=>{for(const e of events)if(e.type==="turnScheduled"){const s=scheduleState(m),map=s[e.kind];map[e.actor]=Math.min(100,(map[e.actor]??0)+e.count)}const first=finish(m,events);if(first.match.result||m.promotion||m.state.lifeDecisions?.length||!idle(m))return first;const scheduled=settleSchedule(m,actor,action,[]);return scheduled.length?(()=>{const second=finish(m,scheduled);return {match:m,events:[...first.events,...second.events]}})():first};
- if(m.state.lifeDecisions?.length&&!m.pending&&!m.battle&&!m.timing.resolving&&!m.timing.queue.length){const p=m.state.lifeDecisions[0];check(actor===p.actor&&action.type==="choose"&&["accept","decline"].includes(action.value),"Invalid life trigger decision");m.state.lifeDecisions.shift();if(action.value==="accept"){check(m.state.zones[p.zone].cards.includes(p.id),"Life trigger source unavailable");const r=submitEffect(m.timing,{actor,effect:p.effect,choices:{source:p.id}});m.timing=r.timing;return finish(m,r.events)}return finish(m,[{type:"lifeTriggerDeclined",actor}])}
+ if(m.state.lifeDecisions?.length&&!m.pending&&!m.battle&&!m.timing.resolving&&!m.timing.queue.length){const p=m.state.lifeDecisions[0];check(actor===p.actor&&action.type==="choose"&&["accept","decline"].includes(action.value),"Invalid life trigger decision");m.state.lifeDecisions.shift();if(action.value==="accept"){check(m.state.zones[p.zone].cards.includes(p.id),"Life trigger source unavailable");const r=enqueueTriggers(m.timing,[{actor,effect:p.effect,choices:{source:p.id}}]);m.timing=r.timing;return finish(m,r.events)}return finish(m,[{type:"lifeTriggerDeclined",actor}])}
  if(m.promotion){const p=m.promotion;check(actor===p.actor&&action.type==="choose"&&p.options.includes(action.value),"Invalid reserve replacement");const r=moveWithAttachments(m.state,{id:action.value,from:p.reserve,to:p.active});m.state=r.state;delete m.promotion;return finish(m,enqueue(m,[{type:"replacementPromoted",actor,id:action.value},...r.events]))}
  if(m.openingQueue?.length){
   const q=m.openingQueue[0];check(actor===q.player,"Opening decision belongs to another player");
