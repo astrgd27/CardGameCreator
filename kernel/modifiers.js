@@ -13,13 +13,14 @@ export function deriveStatistic(state,id,stat,base,modifiers,{turn=0}={}){
   check(m.expires===undefined||(Number.isSafeInteger(m.expires)&&m.expires>=0),"Invalid expiration");
   check(m.target===undefined||(typeof m.target==="string"&&Object.hasOwn(state.objects,m.target)),"Invalid target");
   check(m.source===undefined||(typeof m.source==="string"&&Object.hasOwn(state.objects,m.source)&&Array.isArray(m.sourceZones)&&m.sourceZones.every(z=>Object.hasOwn(state.zones,z))),"Invalid source");
-  if(m.attachmentDefinition!==undefined)continue;
+  if(m.attachmentDefinition!==undefined||m.auraDefinition!==undefined)continue;
   if(m.stat!==stat||(m.target!==undefined&&m.target!==id)||(m.expires!==undefined&&turn>=m.expires))continue;
   if(m.source!==undefined&&!m.sourceZones.some(z=>state.zones[z].cards.includes(m.source)))continue;
   if(m.when!==undefined&&evaluate(m.when,state,{self:id,source:m.source,actor:state.objects[id].controller})!==true)continue;
   active.push(m);
  }
- for(const [child,link] of Object.entries(state.attachments??{}))if(link.host===id)for(const rule of modifiers.filter(x=>x.attachmentDefinition===state.objects[child].definition&&x.stat===stat))active.push({...rule,id:rule.id+"-"+child});
+ for(const [child,link] of Object.entries(state.attachments??{}))if(link.host===id)for(const rule of modifiers.filter(x=>x.attachmentDefinition===state.objects[child].definition&&x.stat===stat&&(x.target===undefined||x.target===id)&&(x.expires===undefined||turn<x.expires)&&(x.source===undefined||x.sourceZones.some(z=>state.zones[z].cards.includes(x.source)))&&(x.when===undefined||evaluate(x.when,state,{self:id,source:child,actor:state.objects[id].controller})===true)))active.push({...rule,id:rule.id+"-"+child});
+ for(const rule of modifiers.filter(x=>x.auraDefinition!==undefined&&x.stat===stat&&(x.expires===undefined||turn<x.expires)&&(x.target===undefined||x.target===id)))for(const z of rule.auraZones??[])for(const source of state.zones[z]?.cards??[]){const o=state.objects[source];if(o.definition===rule.auraDefinition&&o.face==="up"&&(rule.auraController==="any"||o.controller===state.objects[id].controller)&&(rule.when===undefined||evaluate(rule.when,state,{self:id,source,actor:state.objects[id].controller})===true))active.push({...rule,id:rule.id+"-"+source})}
  active.push(...passiveModifiers(state,id,stat,turn));
  let value=base;const applied=[];
  const layer=m=>m.layer??({set:0,add:1,multiply:2}[m.op]);
