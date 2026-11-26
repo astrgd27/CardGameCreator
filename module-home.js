@@ -1,3 +1,4 @@
+import {referenceModules} from "./reference-modules.js";
 import {readLibrary,saveLibraryModule,deleteLibraryModule,stagePlaytest} from "./module-library.js";
 import {packPortable,unpackPortable,validatePortable} from "./portable-modules.js";
 const $=id=>document.getElementById(id),node=(tag,t)=>{const n=document.createElement(tag);if(t!==undefined)n.textContent=t;return n};
@@ -9,4 +10,4 @@ function render(){const root=$("modules");root.replaceChildren();for(const item 
  p.append(button("Edit",()=>open("module-editor.html?resume=1&saved="+encodeURIComponent(item.id))),button("Decks",()=>open("deck-workshop.html?saved="+encodeURIComponent(item.id))),button("Play",()=>open("duel.html?custom=1")),button("Duplicate",()=>{saveLibraryModule(m);render()}),button("Export ZIP",async()=>{const blob=await packPortable(m,globalThis.JSZip,{type:"blob"}),url=URL.createObjectURL(blob),a=node("a");a.href=url;a.download="tcg-module-v2.zip";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}),button("Delete",()=>{if(confirm("Delete saved module?")){deleteLibraryModule(item.id);render()}}));root.append(p)
  }if(!root.children.length)root.append(node("p","No saved generalized modules yet."))}
  $("zip").onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>32*1024*1024)throw Error("ZIP exceeds size limit");saveLibraryModule(await unpackPortable(await f.arrayBuffer()));render();status("Imported as a new saved module.")}catch(err){status(err.message)}finally{e.target.value=""}};
-try{render()}catch(e){status(e.message)}
+try{render();const starter=node("section");starter.append(node("h2","Playable reference starters"),node("p","Original small games for developing generalized mechanics. Save a copy to customize."));for(const m of referenceModules()){const row=node("section");row.append(node("h3",m.name),node("p",m.referenceDescription),button("Play starter",()=>{stagePlaytest(validatePortable(m));location.href="duel.html?custom=1"}),button("Save editable copy",()=>{saveLibraryModule(validatePortable(m));render();status("Starter saved.")}));starter.append(row)}$("modules").before(starter)}catch(e){status(e.message)}
