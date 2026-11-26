@@ -44,10 +44,10 @@ function buildDecks(m,i){
   const [name,type,frame]=recruits[i][j];m.definitions.push(id);m.cardPresentation[id]=card(name,type,frame,"A recruit ready to join the contest.",["recruit"]);m.combat.stats[id]={attack:2+j,health:4};
   const deck="deck-"+p,hand="hand-"+p,discard="discard-"+p;
   m.zones.find(z=>z.id===discard).capacity=80;m.zones.find(z=>z.id===hand).capacity=12;
-  m.zones.push({id:deck,owner:p,visibility:"hidden",capacity:60});
+  m.zones.push({id:deck,owner:p,visibility:"hidden",capacity:80});
   const cards=i===0?[base,id,support,j===0?"puffbloom":"zibbolt"]:[base,id,support];
-  for(let k=0;k<20;k++)m.setup.push({definition:cards[k%cards.length],owner:p,zone:deck,face:"down"});
-  m.drawPolicies??=[];m.drawPolicies.push({player:p,deck,hand,opening:4,perTurn:1,shuffle:true,exhaustion:"lose"});
+  for(let k=0;k<[60,60,40,50,40][i];k++)m.setup.push({definition:cards[k%cards.length],owner:p,zone:deck,face:"down"});
+  m.drawPolicies??=[];m.drawPolicies.push({player:p,deck,hand,opening:[6,6,4,4,3][i],perTurn:1,shuffle:true,exhaustion:"lose"});
   const destination=i===0?"bench-"+p:"field",resource=i===1?(j===0?"azure":"ruby"):i===3?"momentum":i===4?"rune":"energy";
   for(const d of [id,...(i===0?[base]:[])])m.effects["recruit-"+d+"-"+p]={available:true,actors:[p],sourceDefinition:d,sourceZones:[hand],costs:[{kind:"spend",resource,amount:1}],program:[{type:"move",choice:"source",from:hand,to:destination}]};
   if(i===0){m.combat.attackerDefinitions.push(id);m.combat.defenderDefinitions.push(id);m.attachment.hostDefinitions.push(id);m.combat.attachedCosts[id]={[support]:1};m.attachment.zones.push(hand,"bench-"+p);m.effects["retreat"+p].dynamicPayment.targets[0].selector={zones:["bench-"+p],controller:"self",face:"up"};m.effects["retreat"+p].program[0].selector={zones:["bench-"+p],controller:"self",face:"up"}}
@@ -55,7 +55,9 @@ function buildDecks(m,i){
   if(i===2){m.chain.speedByEffect["recruit-"+id+"-"+p]=1}
   if(i===3)m.attachment.hostDefinitions.push(id);
  }
- m.deckRoles=[{id:"main",zones:m.players.map(p=>"deck-"+p),required:true,rules:{min:20,max:20,copies:10}}];
+ m.deckRoles=[{id:"main",zones:m.players.map(p=>"deck-"+p),required:true,rules:{min:[60,60,40,50,40][i],max:[60,60,40,50,40][i],copies:20}}];
+ const labels=[["Active creature","Bench","Nutrients"],["Combat field","Reserve","Crystals"],["Monster field","Extra deck","Ingredients"],["Wrestling ring","Life","Momentum"],["Home base","Battlefield","Runes"]][i];
+ m.battlefield={columns:2,zones:m.zones.map(z=>({zone:z.id,label:z.id.startsWith("active-")?labels[0]+" "+z.owner:z.id.startsWith("bench-")?labels[1]+" "+z.owner:z.id==="field"?labels[0]:z.id.startsWith("reserve-")?labels[1]+" "+z.owner:z.id.startsWith("life-")?"Life "+z.owner:z.id.startsWith("deck-")?"Draw deck "+z.owner:z.id.startsWith("hand-")?"Hand "+z.owner:z.id.startsWith("discard-")?"Discard "+z.owner:z.id.replaceAll("-"," "),display:z.visibility==="hidden"||z.id.startsWith("discard-")?"count":"cards",span:z.id==="field"||z.id.startsWith("hand-")?2:1}))};
  return m;
 }
 
