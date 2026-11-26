@@ -1,7 +1,7 @@
 // Trusted declarative dynamic costs; clients submit only choices, never prices.
 import {selectCards} from "./selectors.js";
 import {payPlan,paymentOptions} from "./card-costs.js";
-import {changeResource,quotePayment} from "./resources.js";
+import {changeResource} from "./resources.js";
 const check=(ok,msg)=>{if(!ok)throw Error(msg)};
 export function dynamicOptions(m,actor,e,source,plan){
  const d=e.dynamicPayment;if(!d)return paymentOptions(m.state,actor,plan);
@@ -29,7 +29,7 @@ export function commitDynamic(m,actor,e,source,plan,action){
  const opt=dynamicOptions(m,actor,e,source,plan)?.dynamic;check(opt,"No legal targets");
  const input=action.payment??{},x=input.x??0,mode=input.mode??"default";
  check(Number.isSafeInteger(x)&&x>=opt.xMin&&x<=opt.xMax&&opt.modes.includes(mode),"Invalid variable cost or mode");
- const targets=input.targets??{};check(Object.keys(targets).length===opt.targets.length,"Invalid target count");
+ const targets=input.targets??{};check(targets&&typeof targets==="object"&&!Array.isArray(targets)&&Object.keys(targets).length===opt.targets.length,"Invalid target count");
  const choices={...(source?{source}:{}),mode,x:String(x)};
  for(const t of opt.targets){check(t.ids.includes(targets[t.name]),"Invalid pre-commit target");choices[t.name]=targets[t.name]}
  const hybrid=input.hybrid??[];check(Array.isArray(hybrid)&&hybrid.length===opt.hybrid.length,"Invalid hybrid selection");
