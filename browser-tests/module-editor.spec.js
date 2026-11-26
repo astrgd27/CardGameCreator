@@ -402,3 +402,15 @@ test("declarative rules author conditional permissions",async({page})=>{
  await expect(page.locator("#editor-status")).toContainText("passed");
  const m=JSON.parse(await page.locator("#source").inputValue());expect(m.permissionRules[0].when).toBe(true);
 });
+
+test("spatial battlefield designer places public zones on a grid",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.locator("#editor-fields summary").filter({hasText:/^Spatial battlefield designer$/}).click();
+ await page.getByRole("button",{name:"Enable spatial battlefield"}).click();
+ await page.getByLabel("Zone to place",{exact:true}).selectOption("field");
+ await page.getByRole("button",{name:"Cell 0,0 empty",exact:true}).click();
+ await expect(page.getByRole("button",{name:"Cell 0,0 field",exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await expect(page.getByLabel("Spatial battlefield",{exact:true})).toBeVisible();
+ await expect(page.locator('.spatial-slot[data-zone="field"]')).toContainText("Contested");
+});
