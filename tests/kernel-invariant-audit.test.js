@@ -8,7 +8,7 @@ import {solveDynamic} from "../kernel/dynamic-payments.js";
 import {chooseStrategicAction,decisionActor} from "../kernel/strategic-ai.js";
 import {projectEvents} from "../kernel/event-view.js";
 test("bounded payment solver distinguishes impossible, unknown and witnessed hybrid payments",()=>{
- const r=demoModule();r.effects.cast={available:true,dynamicPayment:{hybrid:[{resources:["energy"],amount:4}]},program:[]};let m=createMatch(r);
+ const r=demoModule();r.resources.push({id:"spare",scope:"player",initial:0,max:6});r.effects.cast={available:true,dynamicPayment:{hybrid:[{resources:["energy","spare"],amount:4}]},program:[]};let m=createMatch(r);
  assert.equal(solveDynamic(m,"a",r.effects.cast,undefined,{id:"default",costs:[]}).status,"impossible");
  r.generators=[{id:"forge",definition:"blade",zones:["field"],resource:"energy",amount:2}];m=createMatch(r);
  const p={id:"default",costs:[]},w=solveDynamic(m,"a",r.effects.cast,undefined,p);
