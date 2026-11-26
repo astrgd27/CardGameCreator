@@ -8,7 +8,7 @@ let rules=demoModule(),startupError="";
 if(custom){try{rules=readPlaytest();if(!rules)throw Error("No staged module");createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]})}catch(e){startupError=e.message;rules=demoModule()}}
 const players=rules.players;
 const human=players[0],computer=players[1];
-let mode="hotseat",timer=null,lastEvents=[],lastAction=null;
+let mode="hotseat",timer=null,lastEvents=[],lastAction=null,aiMoves=0;
 const inspector=document.createElement("dialog");inspector.className="duel-inspector";document.body.append(inspector);
 function presentation(o){return Object.hasOwn(rules.cardPresentation??{},o.definition)?rules.cardPresentation[o.definition]:{}}
 function cardName(o){return presentation(o).name|| (o.definition?o.definition[0].toUpperCase()+o.definition.slice(1):"Hidden card")}
@@ -21,7 +21,7 @@ function inspect(o){
  inspector.showModal();
 }
 inspector.addEventListener("close",()=>scheduleOpponent());
-function scheduleOpponent(){clearTimeout(timer);if(!inspector.open&&mode==="computer"&&!match.result&&(match.pending?.actor??match.timing.priority)===computer){timer=setTimeout(()=>{const action=chooseDemoAction(match,computer);if(action)act(computer,action);else{error="Opponent has no valid action";render(false)}},650)}}
+function scheduleOpponent(){clearTimeout(timer);if(!inspector.open&&mode==="computer"&&!match.result&&(match.openingQueue?.[0]?.player??match.pending?.actor??match.timing.priority)===computer){timer=setTimeout(()=>{if(++aiMoves>100){error="Opponent action budget reached; switch to hot-seat to continue.";render(false);return}const action=chooseDemoAction(match,computer);if(action)act(computer,action);else{error="Opponent has no valid action";render(false)}},650)}}
 let match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]}),selected=null,log=[],error="";
 const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n};
 const button=(label,fn)=>{const b=el("button","",label);b.type="button";b.addEventListener("click",fn);return b};
@@ -55,11 +55,12 @@ function card(o,viewer){
 function render(schedule=true){
  root.replaceChildren();
  const actor=match.openingQueue?.[0]?.player??match.pending?.actor??match.timing.priority??match.timing.active;
+ if(actor!==computer)aiMoves=0;
  const viewer=mode==="computer"?human:actor;
  const view=matchView(match,viewer);
  const top=el("div","duel-top");
  top.append(el("h1","",rules.name??"Custom duel"),el("span","","Turn "+view.turn+" · Active "+view.active.toUpperCase()+" · Priority "+actor.toUpperCase()),button("Restart",()=>{match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]});selected=null;log=[];lastEvents=[];lastAction=null;error="";render()}));
- if(!custom)top.append(button(mode==="computer"?"Switch to hot-seat":"Play vs computer",()=>{mode=mode==="computer"?"hotseat":"computer";selected=null;render()}));root.append(top);if(custom)top.append(button("Back to editor",()=>location.href="module-editor.html"));if(startupError)root.append(el("p","duel-error","Custom module could not load: "+startupError));
+ if(players.length===2)top.append(button(mode==="computer"?"Switch to hot-seat":"Play vs computer",()=>{mode=mode==="computer"?"hotseat":"computer";selected=null;aiMoves=0;render()}));if(view.phase)top.append(el("span","","Phase: "+view.phase));root.append(top);if(custom)top.append(button("Back to editor",()=>location.href="module-editor.html"));if(startupError)root.append(el("p","duel-error","Custom module could not load: "+startupError));
  const board=el("div","duel-board"),field={cards:view.state.zones.filter(z=>z.id==="field"||(custom&&(rules.combat?.zones??[]).includes(z.id))).flatMap(z=>z.cards??[])};
  for(const p of custom?[]:[...players].reverse()){
   const seat=el("section","duel-seat "+(p===viewer?"friendly":"opposing")+(p===view.active?" active-seat":""));
@@ -87,12 +88,12 @@ function render(schedule=true){
  else{
   for(const effect of view.available)controls.append(button(!custom&&effect.startsWith("muster")?"Deploy from hand":effect,()=>act(viewer,{type:"activate",effect})));
   controls.append(button("Pass priority",()=>act(viewer,{type:"pass"})));
-  if(view.windowClosed&&view.active===viewer)controls.append(button("End turn",()=>act(viewer,{type:"endTurn"})));
+  if(view.windowClosed&&view.active===viewer)controls.append(button(view.hasNextPhase?"Next phase":"End turn",()=>act(viewer,{type:view.hasNextPhase?"nextPhase":"endTurn"})));
   const candidates=custom?view.state.zones.flatMap(z=>z.cards??[]):field.cards;
   const o=candidates.find(c=>c.id===selected);
   if(o&&o.controller===viewer&&view.active===viewer&&!view.queue.length&&!view.windowClosed){
-   if(match.rules.combat&&o.orientation==="ready")for(const target of field.cards.filter(c=>c.controller!==viewer&&c.face==="up"))controls.append(button("Attack "+target.definition+" "+target.id,()=>act(viewer,{type:"attack",attacker:o.id,defender:target.id})));
-   if(match.rules.attachment?.definitions?.includes(o.definition))for(const target of candidates.filter(c=>c.controller===viewer&&c.id!==o.id))controls.append(button("Attach to "+target.definition+" "+target.id,()=>act(viewer,{type:"attach",id:o.id,host:target.id})));
+   if(view.phaseActions.includes("attack")&&match.rules.combat&&o.orientation==="ready")for(const target of field.cards.filter(c=>c.controller!==viewer&&c.face==="up"))controls.append(button("Attack "+target.definition+" "+target.id,()=>act(viewer,{type:"attack",attacker:o.id,defender:target.id})));
+   if(view.phaseActions.includes("attach")&&match.rules.attachment?.definitions?.includes(o.definition))for(const target of candidates.filter(c=>c.controller===viewer&&c.id!==o.id))controls.append(button("Attach to "+target.definition+" "+target.id,()=>act(viewer,{type:"attach",id:o.id,host:target.id})));
   }
  }
  controls.append(el("p","duel-error",error),el("p","","Stack: "+(view.queue.map(e=>e.effect).join(" · ")||"empty")));
