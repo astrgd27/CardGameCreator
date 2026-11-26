@@ -102,6 +102,7 @@ export function validateModuleV2(m){
   }
  }
  if(m.tokenPolicy!==undefined)require(record(m.tokenPolicy)&&Array.isArray(m.tokenPolicy.zones)&&m.tokenPolicy.zones.every(z=>zids.has(z)),"tokenPolicy: invalid cleanup zones");
+ if(m.ai!==undefined)require(record(m.ai)&&(m.ai.difficulty===undefined||["easy","normal","hard"].includes(m.ai.difficulty))&&(m.ai.personality===undefined||["balanced","aggressive","defensive","economic"].includes(m.ai.personality))&&(m.ai.weights===undefined||(record(m.ai.weights)&&Object.entries(m.ai.weights).every(([k,n])=>["board","life","resource","hand","pressure"].includes(k)&&Number.isFinite(n)&&n>=0&&n<=5))),"AI: invalid configuration");
  return errors;
 }
 export function assertModuleV2(m){const errors=validateModuleV2(m);if(errors.length)throw Error(errors.join("; "));return m}
