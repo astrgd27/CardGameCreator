@@ -48,7 +48,7 @@ function card(o,viewer){
  const host=match.state.attachments?.[o.id]?.host;
  if(host)b.append(el("small","", "Attached to "+host));
  if(o.orientation==="resting"||o.orientation==="tapped")b.append(el("small","",o.orientation==="tapped"?"Tapped":"Rested"));
- if(o.definition){const badges=el("div","card-state-badges");if(o.token)badges.append(el("span","","Token"));for(const [k,v] of Object.entries(o.counters??{}))badges.append(el("span","",k+" ×"+v));for(const status of o.statuses??[])badges.append(el("span","",status));if(o.controller!==o.owner)badges.append(el("span","","Controlled by "+o.controller));if(o.face==="down")badges.append(el("span","","Face down"));if(badges.childNodes.length)b.append(badges)}
+ if(o.definition){const badges=el("div","card-state-badges");if(o.token)badges.append(el("span","","Token"));for(const [k,v] of Object.entries(o.counters??{}))badges.append(el("span","",k+" ×"+v));for(const status of o.statuses??[])badges.append(el("span","",status+(o.statusDurations?.[status]?" ("+o.statusDurations[status]+")":"")));if(o.controller!==o.owner)badges.append(el("span","","Controlled by "+o.controller));if(o.face==="down")badges.append(el("span","","Face down"));if(badges.childNodes.length)b.append(badges)}
  if(lastEvents.some(e=>e.id===o.id&&["cardFlipped","cardTransformed"].includes(e.type)))b.classList.add("flipping");
  if(lastEvents.some(e=>e.id===o.id&&e.type==="tokenCreated"))b.classList.add("arriving");
  b.setAttribute("aria-label",name+" "+(o.id??""));
@@ -79,6 +79,13 @@ function openSettings(){
  }
  dialog.append(button("Save settings",()=>{try{settings=saveSettings(draft);dialog.close()}catch(e){error=e.message;dialog.close()}}),button("Cancel",()=>dialog.close()));
  document.body.append(dialog);dialog.addEventListener("close",()=>{dialog.remove();render()});dialog.showModal();
+}
+function choosePayment(actor,a){
+ const dialog=el("dialog","duel-inspector");dialog.append(el("h2","","Choose payment cards"));
+ const selects=[];
+ for(const g of a.groups)for(let i=0;i<g.count;i++){const l=el("label","",g.kind+" "+(i+1)+" "),s=el("select");s.setAttribute("aria-label",g.kind+" "+(selects.length+1));for(const id of g.ids){const o=el("option","",cardName(match.state.objects[id])+" "+id);o.value=id;s.append(o)}s.value=a.example[selects.length];selects.push(s);l.append(s);dialog.append(l)}
+ dialog.append(button("Pay and activate",()=>{const cards=selects.map(s=>s.value);dialog.close();act(actor,{type:"activate",effect:a.effect,source:a.source,plan:a.id,cards})}),button("Cancel",()=>dialog.close()));
+ document.body.append(dialog);dialog.addEventListener("close",()=>dialog.remove());dialog.showModal();
 }
 function render(schedule=true){
  root.replaceChildren();
@@ -119,7 +126,7 @@ function render(schedule=true){
  else if(view.opening){controls.append(el("p","","Opening hand · "+view.opening.remaining+" mulligans remaining"),button("Keep opening hand",()=>act(viewer,{type:"keep"})),button("Mulligan",()=>act(viewer,{type:"mulligan"})))}
  else if(view.choice){for(const value of view.choice.options??[])controls.append(button("Choose "+value,()=>act(viewer,{type:"choose",value})))}
  else{
-  for(const effect of view.available)controls.append(button(!custom&&effect.startsWith("muster")?"Deploy from hand":effect,()=>act(viewer,{type:"activate",effect})));
+  for(const a of view.activations??[]){const label=(!custom&&a.effect.startsWith("muster")?"Deploy from hand":a.effect)+(a.source?" · "+cardName(match.state.objects[a.source])+" "+a.source:"")+(a.id!=="default"?" · "+a.id:"");controls.append(button(label,()=>a.groups.length?choosePayment(viewer,a):act(viewer,{type:"activate",effect:a.effect,source:a.source,plan:a.id})))}
   controls.append(button("Pass priority",()=>act(viewer,{type:"pass"})));
   if(view.windowClosed&&view.active===viewer)controls.append(button(view.hasNextPhase?"Next phase":"End turn",()=>act(viewer,{type:view.hasNextPhase?"nextPhase":"endTurn"})));
   const candidates=custom?view.state.zones.flatMap(z=>z.cards??[]):field.cards;

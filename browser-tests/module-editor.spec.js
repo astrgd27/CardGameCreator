@@ -242,3 +242,19 @@ test("card state effects display counters, statuses and tokens in play",async({p
  await expect(page.getByRole("button",{name:"Sentinel c1",exact:true})).toContainText("stunned");
  await expect(page.getByRole("button",{name:"Blade c7",exact:true})).toContainText("Token");
 });
+
+test("alternative card payment and source ability reach gameplay",async({page})=>{
+ await page.goto("/module-editor.html");
+ const source=page.locator("#source"),m=JSON.parse(await source.inputValue());
+ m.effects.power={available:true,sourceDefinition:"sentinel",sourceZones:["field"],limit:{scope:"match",count:1},costs:[{resource:"energy",amount:5,kind:"spend"}],alternatives:[{id:"sacrifice",cardCosts:[{kind:"sacrifice",from:"field",to:"discard-a",count:1}]}],program:[{type:"counter",choice:"source",counter:"power",delta:2}]};
+ await page.locator("summary").filter({hasText:/^Advanced module JSON$/}).click();
+ await source.fill(JSON.stringify(m));await page.getByRole("button",{name:"Apply JSON changes"}).click();
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await page.getByRole("button",{name:"power · Sentinel c1 · sacrifice",exact:true}).click();
+ await page.getByLabel("sacrifice 1",{exact:true}).selectOption("c3");
+ await page.getByRole("button",{name:"Pay and activate"}).click();
+ await page.getByRole("button",{name:"Pass priority"}).click();
+ await page.getByRole("button",{name:"Pass priority"}).click();
+ await expect(page.getByRole("button",{name:"Sentinel c1",exact:true})).toContainText("power ×2");
+ await expect(page.getByRole("button",{name:"power · Sentinel c1 · sacrifice",exact:true})).toHaveCount(0);
+});

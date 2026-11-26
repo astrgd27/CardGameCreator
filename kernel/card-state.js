@@ -20,6 +20,7 @@ export function changeCardState(state,actor,id,op){
  case "status":{
   check(key(op.status)&&["add","remove"].includes(op.operation),"Invalid status");
   o.statuses??=[];if(op.operation==="add"&&!o.statuses.includes(op.status)){check(o.statuses.length<50,"Too many statuses");o.statuses.push(op.status)}else if(op.operation==="remove")o.statuses=o.statuses.filter(s=>s!==op.status);
+  o.statusDurations??={};if(op.operation==="remove"||!op.duration)delete o.statusDurations[op.status];else{check(Number.isSafeInteger(op.duration)&&op.duration>=1&&op.duration<=100,"Invalid status duration");o.statusDurations[op.status]=op.duration}
   event={type:"statusChanged",id,status:op.status,operation:op.operation};break;
  }
  case "transform":check(next.definitions.includes(op.definition),"Unknown transformation");event={type:"cardTransformed",id};o.definition=op.definition;break;
@@ -29,4 +30,20 @@ export function changeCardState(state,actor,id,op){
  default:throw Error("Unsupported card-state operation");
  }
  assertInvariants(next);return {state:next,events:[event]};
+}
+
+export function expireStatuses(state){
+ const next=structuredClone(state),events=[];
+ for(const o of Object.values(next.objects))for(const [name,n] of Object.entries(o.statusDurations??{})){
+  if(n<=1){delete o.statusDurations[name];o.statuses=(o.statuses??[]).filter(s=>s!==name);events.push({type:"statusExpired",id:o.id,status:name})}else o.statusDurations[name]=n-1;
+ }
+ return {state:next,events};
+}
+export function cleanupTokens(state,zones){
+ const next=structuredClone(state),events=[];
+ for(const zone of Object.values(next.zones))if(zones.includes(zone.id))for(const id of [...zone.cards])if(next.objects[id].token){
+  for(const [child,link] of Object.entries(next.attachments??{}))if(child===id||link.host===id){delete next.attachments[child];events.push({type:"detached",id:child,host:link.host})}
+  zone.cards=zone.cards.filter(c=>c!==id);delete next.objects[id];events.push({type:"tokenRemoved",id,zone:zone.id});
+ }
+ assertInvariants(next);return {state:next,events};
 }
