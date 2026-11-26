@@ -92,7 +92,7 @@ function advancedEditor(key,section){
    if(e.sourceDefinition)field(p,"Ability source zones",(e.sourceZones??[]).join(","),"text",v=>e.sourceZones=v.split(",").map(x=>x.trim()).filter(Boolean));
    field(p,"Usage limit",e.limit?.scope??"none",["none","turn","match"],v=>{if(v==="none")delete e.limit;else e.limit={scope:v,count:e.limit?.count??1};render(key)});
    if(e.limit)field(p,"Maximum uses",e.limit.count,"number",v=>e.limit.count=v);
-   function cardCosts(parent,plan){plan.cardCosts??=[];listEditor(parent,plan.cardCosts,"Card payment",()=>({kind:"sacrifice",from:first("zones"),to:options("zones")[1]??"",count:1}),(r,c)=>{field(r,"Payment kind",c.kind,["discard","sacrifice"],v=>c.kind=v);field(r,"Payment source",c.from,"zones",v=>c.from=v);field(r,"Payment destination",c.to,"zones",v=>c.to=v);field(r,"Payment quantity",c.count,"number",v=>c.count=v)},key)}
+   function cardCosts(parent,plan){plan.cardCosts??=[];listEditor(parent,plan.cardCosts,"Card payment",()=>({kind:"sacrifice",from:first("zones"),to:options("zones")[1]??"",count:1}),(r,c)=>{field(r,"Payment kind",c.kind,["discard","sacrifice"],v=>c.kind=v);field(r,"Payment source",c.from,"zones",v=>c.from=v);field(r,"Payment destination",c.to,"zones",v=>c.to=v);field(r,"Payment quantity",c.count,"number",v=>c.count=v);field(r,"Required material",c.definition??"",["",...module.definitions],v=>{if(v)c.definition=v;else delete c.definition})},key)}
    p.append(actionButton(e.dynamicPayment?"Remove dynamic payment":"Configure dynamic payment",()=>{if(e.dynamicPayment)delete e.dynamicPayment;else e.dynamicPayment={modes:["default"],hybrid:[],targets:[],modifiers:[]};render(key)}));
    if(e.dynamicPayment){
     const d=e.dynamicPayment;
@@ -283,6 +283,7 @@ function deckEditor(section){
 
 
 function drawPolicyEditor(section){
+ module.resourceDrawPolicies??=[];listEditor(section,module.resourceDrawPolicies,"Resource replenishment",()=>({player:module.players[0],deck:first("zones"),pool:options("zones")[1],perTurn:1}),(p,r)=>{field(p,"Resource player",r.player,module.players,v=>r.player=v);field(p,"Resource deck",r.deck,"zones",v=>r.deck=v);field(p,"Resource pool",r.pool,"zones",v=>r.pool=v);field(p,"Cards per turn",r.perTurn,"number",v=>r.perTurn=v)},"drawPolicies");
  module.drawPolicies??=[];
  listEditor(section,module.drawPolicies,"Draw policy",()=>{
   const player=module.players.find(p=>!module.drawPolicies.some(d=>d.player===p))??first("players");
