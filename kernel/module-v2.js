@@ -132,6 +132,15 @@ export function validateModuleV2(m){
   if(d.allowedTags!==undefined)require(Array.isArray(d.allowedTags)&&d.allowedTags.every(key),"deckRules: allowedTags");
   for(const q of list(d.quotas??[],"deck quotas",100))require(record(q)&&["type","tag"].includes(q.kind)&&typeof q.value==="string"&&integer(q.min??0)&&integer(q.max??1000)&&(q.min??0)<=(q.max??1000),"deckRules: invalid quota");
  }}
+ const stackIds=new Set();
+ for(const r of list(m.stackRules??[],"stack rules",100)){
+  require(record(r)&&key(r.id)&&!stackIds.has(r.id)&&defs.includes(r.hostDefinition)&&defs.includes(r.materialDefinition)&&(r.resultDefinition===undefined||defs.includes(r.resultDefinition))&&Array.isArray(r.hostZones)&&r.hostZones.length>0&&r.hostZones.every(z=>zids.has(z))&&Array.isArray(r.materialZones)&&r.materialZones.length>0&&r.materialZones.every(z=>zids.has(z))&&(r.inherit===undefined||typeof r.inherit==="boolean")&&(r.preserve===undefined||Array.isArray(r.preserve)&&r.preserve.every(x=>["damage","counters","statuses","orientation","controller","attachments"].includes(x))),"stack rule: invalid");if(record(r))stackIds.add(r.id);
+ }
+ const roleIds=new Set();
+ for(const r of list(m.deckRoles??[],"deck roles",20)){
+  require(record(r)&&key(r.id)&&!roleIds.has(r.id)&&Array.isArray(r.zones)&&r.zones.length>0&&r.zones.every(z=>zids.has(z))&&["required","providesTags","requiresProvidedTags"].every(k=>r[k]===undefined||typeof r[k]==="boolean")&&(r.rules===undefined||record(r.rules)&&["min","max","copies"].every(k=>r.rules[k]===undefined||integer(r.rules[k])&&r.rules[k]<=1000)),"deck role: invalid");if(record(r))roleIds.add(r.id);
+ }
+ if(m.linkedDeckRules!==undefined)require(record(m.linkedDeckRules)&&(m.linkedDeckRules.combinedCopies===undefined||integer(m.linkedDeckRules.combinedCopies)&&m.linkedDeckRules.combinedCopies<=1000),"linked deck rules: invalid");
  return errors;
 }
 export function assertModuleV2(m){const errors=validateModuleV2(m);if(errors.length)throw Error(errors.join("; "));return m}

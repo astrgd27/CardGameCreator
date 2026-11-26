@@ -317,3 +317,15 @@ test("dynamic payment dialog cancels before resources or cards change",async({pa
  await page.getByRole("button",{name:"Pass priority"}).click();
  await expect(page.getByRole("button",{name:"cast · Sentinel c5",exact:true})).toHaveCount(0);
 });
+
+test("composite recipe appears as a layered card in gameplay",async({page})=>{
+ await page.goto("/module-editor.html");
+ const source=page.locator("#source"),m=JSON.parse(await source.inputValue());
+ m.stackRules=[{id:"evolve",hostDefinition:"sentinel",materialDefinition:"sentinel",hostZones:["field"],materialZones:["hand-a"],resultDefinition:"raider",inherit:true}];
+ await page.locator("summary").filter({hasText:/^Advanced module JSON$/}).click();
+ await source.fill(JSON.stringify(m));await page.getByRole("button",{name:"Apply JSON changes"}).click();
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await page.getByRole("button",{name:"Stack Sentinel c5 on Sentinel c1",exact:true}).click();
+ await expect(page.getByRole("button",{name:"Raider c1",exact:true})).toHaveClass(/composite-card/);
+ await expect(page.getByRole("button",{name:"Raider c1",exact:true})).toContainText("Stack ×2");
+});
