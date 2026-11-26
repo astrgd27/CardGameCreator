@@ -1,3 +1,4 @@
+import {projectEvents} from "./kernel/event-view.js";
 import {demoModule} from "./kernel/demo-module.js";
 import {createMatch,applyMatchAction,matchView} from "./kernel/runtime.js";
 import {chooseStrategicAction,aiProfile} from "./kernel/strategic-ai.js";
@@ -36,7 +37,7 @@ function describeAction(actor,action){const who="Player "+actor.toUpperCase();co
 function act(actor,action){
  if(preview)return;
  const before=new Map();if(animationDuration(settings)>0&&!window.matchMedia("(prefers-reduced-motion: reduce)").matches)for(const n of root.querySelectorAll("[data-card-id]"))before.set(n.dataset.cardId,n.getBoundingClientRect());
- try{const summary=describeAction(actor,action);const r=applyMatchAction(match,actor,action);match=r.match;movement=[...new Set(r.events.filter(e=>e.type==="cardMoved").map(e=>e.id))].map(id=>({id,from:before.get(id)}));actionSummary=summary;lastAction=action;lastEvents=r.events;log.push(...r.events.map(e=>[e.type,e.actor??"",e.amount??""].filter(Boolean).join(" ")));if(log.length>200)log.splice(0,log.length-200);error="";selected=null}
+ try{const summary=describeAction(actor,action);const prior=match.state,r=applyMatchAction(match,actor,action);match=r.match;const viewer=mode==="computer"?human:actor;const visibleEvents=projectEvents(r.events,prior,match.state,viewer);movement=[...new Set(visibleEvents.filter(e=>e.type==="cardMoved").map(e=>e.id))].map(id=>({id,from:before.get(id)}));actionSummary=summary;lastAction=action;lastEvents=visibleEvents;log.push(...visibleEvents.map(e=>[e.type,e.actor??"",e.amount??""].filter(Boolean).join(" ")));if(log.length>200)log.splice(0,log.length-200);error="";selected=null}
  catch(e){error=e.message}
  render();
 }

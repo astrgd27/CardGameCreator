@@ -23,8 +23,8 @@ export function changeCardState(state,actor,id,op){
   o.statusDurations??={};if(op.operation==="remove"||!op.duration)delete o.statusDurations[op.status];else{check(Number.isSafeInteger(op.duration)&&op.duration>=1&&op.duration<=100,"Invalid status duration");o.statusDurations[op.status]=op.duration}
   event={type:"statusChanged",id,status:op.status,operation:op.operation};break;
  }
- case "transform":check(next.definitions.includes(op.definition),"Unknown transformation");event={type:"cardTransformed",id};o.definition=op.definition;break;
- case "flip":check(["up","down","toggle"].includes(op.face),"Invalid face");o.face=op.face==="toggle"?(o.face==="up"?"down":"up"):op.face;event={type:"cardFlipped",id,face:o.face};break;
+ case "transform":check(next.definitions.includes(op.definition),"Unknown transformation");event={type:"cardTransformed",id};o.definition=op.definition;if(next.reveals)delete next.reveals[id];break;
+ case "flip":check(["up","down","toggle"].includes(op.face),"Invalid face");o.face=op.face==="toggle"?(o.face==="up"?"down":"up"):op.face;event={type:"cardFlipped",id,face:o.face};if(next.reveals)delete next.reveals[id];break;
  case "control":{const player=op.player==="self"?actor:op.player;check(next.players.includes(player),"Invalid controller");o.controller=player;event={type:"controlChanged",id,actor:player};break}
  case "orient":check(["ready","resting","tapped"].includes(op.orientation),"Invalid orientation");o.orientation=op.orientation;event={type:"orientationChanged",id,orientation:o.orientation};break;
  default:throw Error("Unsupported card-state operation");
@@ -43,7 +43,7 @@ export function cleanupTokens(state,zones){
  const next=structuredClone(state),events=[];
  for(const zone of Object.values(next.zones))if(zones.includes(zone.id))for(const id of [...zone.cards])if(next.objects[id].token){
   for(const [child,link] of Object.entries(next.attachments??{}))if(child===id||link.host===id){delete next.attachments[child];events.push({type:"detached",id:child,host:link.host})}
-  zone.cards=zone.cards.filter(c=>c!==id);delete next.objects[id];events.push({type:"tokenRemoved",id,zone:zone.id});
+  zone.cards=zone.cards.filter(c=>c!==id);delete next.objects[id];if(next.reveals)delete next.reveals[id];events.push({type:"tokenRemoved",id,zone:zone.id});
  }
  assertInvariants(next);return {state:next,events};
 }

@@ -24,3 +24,13 @@ Source inspection and targeted regressions, not exhaustive certification. Priori
 | 12J AI | Candidate fairness, concealed-dependent legality, tactical calibration and real-device accessibility |
 
 No benchmark catalog passes awarded. CI must pass on exact head before merge. Further audit required; this PR is a first focused slice, not completion of milestone 13A.
+
+## Second pass
+- Fixed impossible minimum resource quotes and disjoint card-cost feasibility for dynamic plans. The resource estimate is deliberately optimistic: hybrid and generator combination search is not exhaustive; commitment remains authoritative.
+- Disallowed token composite hosts, which otherwise could remove consumed physical cards on token cleanup.
+- Revoked reveal grants on transform, flip and token removal.
+- Added allowlisted viewer event projection for UI history and animations. Internal events remain trusted and unredacted; event type, zone and counts can still convey public consequences. This is not an online security boundary.
+- Validate dynamic selector structure and reject conflicting alternate/gauge/auto-phase combinations. These combinations need a defined scheduling contract before being enabled.
+- Adjudicate stable victory before automatic handoff; retain invalid-reference exceptions while stale selected targets fizzle.
+- Upstream AI branch restored conservative pass policy for occupied stacks to address computer-opponent regression. No tests weakened.
+- Six adversarial regression scenarios added. Exact-head CI remains required. General resolution failures after a pending choice, full hybrid affordability, complete event noninterference, and selector validation parity remain open.

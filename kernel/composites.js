@@ -10,7 +10,7 @@ export function stackOptions(m,actor){
  for(const r of m.rules.stackRules??[]){
   const hosts=selectCards(m.state,actor,{zones:r.hostZones,controller:"self",definition:r.hostDefinition,face:"up"});
   const materials=selectCards(m.state,actor,{zones:r.materialZones,controller:"self",definition:r.materialDefinition,face:"up"});
-  for(const host of hosts)for(const material of materials)if(host!==material&&!m.state.objects[material].components?.length&&!m.state.objects[material].token&&!Object.hasOwn(m.state.attachments??{},material)&&!Object.values(m.state.attachments??{}).some(l=>l.host===material)&&(m.state.objects[host].components?.length??0)<20)out.push({rule:r.id,host,material});
+  for(const host of hosts)for(const material of materials)if(host!==material&&!m.state.objects[host].token&&!m.state.objects[material].components?.length&&!m.state.objects[material].token&&!Object.hasOwn(m.state.attachments??{},material)&&!Object.values(m.state.attachments??{}).some(l=>l.host===material)&&(m.state.objects[host].components?.length??0)<20)out.push({rule:r.id,host,material});
  }
  return out.slice(0,200);
 }

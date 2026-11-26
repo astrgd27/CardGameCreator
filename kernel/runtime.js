@@ -93,7 +93,7 @@ function settleSchedule(m,actor,action,events){
 export function applyMatchAction(match,actor,action){
  check(match.timing.players.includes(actor)&&!match.result&&action&&typeof action.type==="string","Action unavailable");
  const m=structuredClone(match);let events=[];
- const done=events=>{for(const e of events)if(e.type==="turnScheduled"){const s=scheduleState(m),map=s[e.kind];map[e.actor]=Math.min(100,(map[e.actor]??0)+e.count)}return finish(m,settleSchedule(m,actor,action,events))};
+ const done=events=>{for(const e of events)if(e.type==="turnScheduled"){const s=scheduleState(m),map=s[e.kind];map[e.actor]=Math.min(100,(map[e.actor]??0)+e.count)}const first=finish(m,events);if(first.match.result||!idle(m))return first;const scheduled=settleSchedule(m,actor,action,[]);return scheduled.length?(()=>{const second=finish(m,scheduled);return {match:m,events:[...first.events,...second.events]}})():first};
  if(m.openingQueue?.length){
   const q=m.openingQueue[0];check(actor===q.player,"Opening decision belongs to another player");
   if(action.type==="keep"){m.openingQueue.shift();return finish(m,[{type:"openingKept",actor}])}
