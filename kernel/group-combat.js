@@ -1,3 +1,4 @@
+import {hasRule} from "./keywords.js";
 // Opt-in two-seat declaration combat. All assignments use the pre-damage state.
 import {selectCards} from "./selectors.js";
 import {deriveStatistic} from "./modifiers.js";
@@ -9,11 +10,11 @@ const units=(m,actor,side,ready=false)=>selectCards(m.state,actor,{zones:m.rules
 export function combatOptions(m,actor){
  const c=m.rules.combat?.group;if(!c||m.state.players.length!==2)return null;
  const battle=m.battle,enemy=m.state.players.find(p=>p!==actor);
- if(battle)return battle.stage==="block"&&battle.defender===actor?{stage:"block",attackers:battle.attacks.map(a=>a.attacker),blockers:units(m,actor,"self",c.readyBlockers!==false).filter(id=>!c.guardStatus||m.state.objects[id].statuses?.includes(c.guardStatus)),attacks:battle.attacks}:null;
+ if(battle)return battle.stage==="block"&&battle.defender===actor?{stage:"block",attackers:battle.attacks.map(a=>a.attacker),blockers:units(m,actor,"self",c.readyBlockers!==false).filter(id=>!hasRule(m.state,id,"cannotBlock")).filter(id=>!c.guardStatus||m.state.objects[id].statuses?.includes(c.guardStatus)),attacks:battle.attacks}:null;
  if(m.result||m.openingQueue?.length||m.triggerOrderPending||m.timing.active!==actor||m.timing.priority!==actor||m.windowClosed||m.pending||m.timing.queue.length||m.timing.resolving||m.rules.phases&&!m.rules.phases[m.phaseIndex].actions.includes("attack")||m.combatUsed===m.turn)return null;
- const targets=units(m,actor,"opponent").map(id=>({kind:"card",id}));
+ const targets=units(m,actor,"opponent").filter(id=>!hasRule(m.state,id,"cannotBeAttacked")).map(id=>({kind:"card",id}));
  if(c.lifeResource)targets.push({kind:"player",id:enemy});
- return {stage:"declare",attackers:units(m,actor,"self",true),targets,max:c.maxAttackers??10};
+ return {stage:"declare",attackers:units(m,actor,"self",true).filter(id=>!hasRule(m.state,id,"cannotAttack")),targets,max:c.maxAttackers??10};
 }
 export function declareCombat(m,actor,attacks){
  const options=combatOptions(m,actor);check(options?.stage==="declare","Cannot declare attacks");
