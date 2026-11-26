@@ -3,7 +3,7 @@ import {validateExpression} from "./expressions.js";
 const key=x=>typeof x==="string"&&/^[A-Za-z0-9_-]{1,80}$/.test(x)&&!Object.hasOwn(Object.prototype,x);
 const integer=x=>Number.isSafeInteger(x)&&x>=0;
 const record=x=>x!==null&&typeof x==="object"&&!Array.isArray(x);
-export function validateModuleV2(m){
+function validateModuleStructure(m){
  const errors=[],require=(ok,path)=>{if(!ok)errors.push(path)};
  if(!record(m))return ["module: expected object"];
  require(m.schemaVersion===2,"schemaVersion: expected 2");
@@ -184,4 +184,5 @@ export function validateModuleV2(m){
  for(const e of Object.values(effects)){if(!record(e))continue;for(const t of Array.isArray(e.dynamicPayment?.targets)?e.dynamicPayment.targets:[]){const q=t?.selector;if(!record(q))continue;require(Object.keys(q).every(k=>["zones","owner","controller","face","orientation","definition","limit","keyword","targetable","near","range"].includes(k))&&(!q.zones||Array.isArray(q.zones)&&new Set(q.zones).size===q.zones.length&&q.zones.every(z=>zids.has(z)))&&["owner","controller"].every(k=>q[k]===undefined||["self","opponent","any"].includes(q[k]))&&(q.definition===undefined||defs.includes(q.definition))&&(q.face===undefined||["up","down"].includes(q.face))&&(q.orientation===undefined||["ready","resting","tapped"].includes(q.orientation))&&(q.limit===undefined||integer(q.limit)&&q.limit<=100)&&(q.targetable===undefined||typeof q.targetable==="boolean")&&(q.near===undefined||zids.has(q.near)&&integer(q.range)&&q.range<=100),"invalid dynamic target selector")}}
  return errors;
 }
+export function validateModuleV2(m){try{return validateModuleStructure(m)}catch{return ["module: malformed nested configuration"]}}
 export function assertModuleV2(m){const errors=validateModuleV2(m);if(errors.length)throw Error(errors.join("; "));return m}

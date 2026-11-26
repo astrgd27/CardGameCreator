@@ -35,12 +35,13 @@ export async function packPortable(input,Zip=globalThis.JSZip,{type="uint8array"
 }
 export async function unpackPortable(input,Zip=globalThis.JSZip){
  check(Zip,"ZIP library unavailable");check((input.byteLength??input.size)<=MAX_ZIP,"Module ZIP exceeds 32 MB");
- const zip=await Zip.loadAsync(input),files=Object.values(zip.files).filter(f=>!f.dir);
+ const zip=await Zip.loadAsync(input),entries=Object.values(zip.files),files=entries.filter(f=>!f.dir);
+ check(entries.length<=2005,"Too many archive entries");for(const f of entries)check(!f.unsafeOriginalName||f.unsafeOriginalName===f.name,"Unsafe archive path");
  check(files.length<=1002,"Too many archive files");
  let expanded=0;for(const f of files){check(!f.unsafeOriginalName||f.unsafeOriginalName===f.name,"Unsafe archive path");check(Number.isSafeInteger(f._data?.uncompressedSize)&&f._data.uncompressedSize>=0,"Unknown archive size");expanded+=f._data.uncompressedSize;check(expanded<=MAX_EXPANDED,"Expanded ZIP exceeds 40 MB")}
- const read=async(path,format)=>{const f=zip.file(path);check(f,"Missing archive file: "+path);return f.async(format)};
+ const read=async(path,format)=>{const f=zip.file(path);check(f,"Missing archive file: "+path);const bytes=await f.async("uint8array");check(bytes.length===f._data.uncompressedSize,"Archive size mismatch");if(format==="string")return new TextDecoder("utf-8",{fatal:true}).decode(bytes);return f.async(format)};
  const manifest=JSON.parse(await read("manifest.json","string"));
- check(manifest.format==="card-game-creator"&&manifest.version===2&&manifest.module==="module.json"&&Array.isArray(manifest.assets),"Unsupported ZIP format; open legacy v1 in original workshop");
+ check(manifest&&typeof manifest==="object"&&!Array.isArray(manifest)&&manifest.format==="card-game-creator"&&manifest.version===2&&manifest.module==="module.json"&&Array.isArray(manifest.assets),"Unsupported ZIP format; open legacy v1 in original workshop");
  const declared=new Set(manifest.assets);check(declared.size===manifest.assets.length&&manifest.assets.every(x=>typeof x==="string"&&/^assets\/cards\/[A-Za-z0-9_-]{1,80}\.(png|jpeg|webp)$/.test(x)),"Invalid asset manifest");
  check(files.every(f=>["manifest.json","module.json"].includes(f.name)||declared.has(f.name)),"Undeclared archive file");
  const m=migrateModule(JSON.parse(await read("module.json","string"))),used=new Set();

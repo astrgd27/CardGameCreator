@@ -76,9 +76,14 @@ export function solveDynamic(m,actor,e,source,plan,limit=2048){
  }
  function generateChoices(hybrid,i=0,chosen=[]){
   if(found||exhausted||!tick())return;
-  if(i===gs.length){cards(hybrid,chosen);return}
+  if(i===gs.length){orders(hybrid,chosen,[]);return}
   generateChoices(hybrid,i+1,chosen);
   if(chosen.length<20)for(const g of gs[i]){generateChoices(hybrid,i+1,[...chosen,g]);if(found||exhausted)return}
+ }
+ function orders(hybrid,remaining,ordered){
+  if(found||exhausted||!tick())return;
+  if(!remaining.length){cards(hybrid,ordered);return}
+  for(let i=0;i<remaining.length;i++){orders(hybrid,remaining.filter((_,j)=>j!==i),[...ordered,remaining[i]]);if(found||exhausted)return}
  }
  function hybrids(chosen=[]){
   if(found||exhausted||!tick())return;
