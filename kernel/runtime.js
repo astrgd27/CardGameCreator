@@ -75,12 +75,13 @@ function resolve(m,r){
 }
 function startTurn(m,actor){let events=[];
   const next=nextSeat(m,actor);
+  const returned=[];for(const p of m.rules.resourceDrawPolicies??[])if(p.returnAssigned&&p.player===next){for(const id of Object.keys(m.state.attachments??{})){const o=m.state.objects[id];if(o.owner!==next||o.definition!==p.returnAssigned)continue;const from=Object.values(m.state.zones).find(z=>z.cards.includes(id)).id;if(from===p.pool||m.state.zones[p.pool].cards.length>=m.state.zones[p.pool].capacity)continue;const moved=moveWithAttachments(m.state,{id,from,to:p.pool});m.state=moved.state;returned.push(...moved.events)}}
   const expired=expireStatuses(m.state);m.state=expired.state;
  if(m.rules.combat?.damageCleanup==="turn")for(const o of Object.values(m.state.objects))if(o.damage){expired.events.push({type:"damageCleared",id:o.id,amount:o.damage});o.damage=0}
   m.timing=changeActive(m.timing,next);const ss=scheduleState(m);ss.passed=[];ss.handoff=false;m.turn++;m.actionUses={};m.phaseIndex=0;m.windowClosed=false;
   for(const id of Object.values(m.state.zones).filter(z=>m.rules.combat?.zones.includes(z.id)||(m.rules.generators??[]).some(g=>g.zones.includes(z.id))).flatMap(z=>z.cards))if(m.state.objects[id].controller===next)m.state.objects[id].orientation="ready";
   const r=refreshResources(m.state,next,{includeShared:!!m.rules.refreshShared});
-  m.state=r.state;events=[...expired.events,{type:"turnStarted",actor:next},...r.events];if(phase(m))events.push({type:"phaseStarted",actor:next,phase:phase(m).id});
+  m.state=r.state;events=[...returned,...expired.events,{type:"turnStarted",actor:next},...r.events];if(phase(m))events.push({type:"phaseStarted",actor:next,phase:phase(m).id});
   for(const p of m.rules.resourceDrawPolicies??[])if(p.player===next){const n=Math.min(p.perTurn,m.state.zones[p.deck].cards.length,m.state.zones[p.pool].capacity-m.state.zones[p.pool].cards.length);const drawn=drawCards(m.state,p.deck,p.pool,n);m.state=drawn.state;events.push(...drawn.events)}
   for(const p of m.rules.drawPolicies??[])if(p.player===next&&p.perTurn){if(p.exhaustion==="lose"&&m.state.zones[p.deck].cards.length<p.perTurn){m.state.ruleLosses??=[];if(!m.state.ruleLosses.includes(next))m.state.ruleLosses.push(next);events.push({type:"deckExhausted",actor:next})}const n=Math.min(p.perTurn,m.state.zones[p.deck].cards.length,m.state.zones[p.hand].capacity-m.state.zones[p.hand].cards.length);const drawn=drawCards(m.state,p.deck,p.hand,n);m.state=drawn.state;events.push(...drawn.events)}
  return enqueue(m,events);
