@@ -168,7 +168,7 @@ function advancedEditor(key,section){
    g.lifeCards??={};for(const player of module.players){
     const zones=module.zones.filter(z=>z.owner===player).map(z=>z.id);
     field(section,"Life card zone "+player,g.lifeCards[player]?.zone??"",["",...zones],v=>{if(v)g.lifeCards[player]={zone:v,destination:zones.find(z=>z!==v)??"",emptyLoss:true,perAttack:true};else delete g.lifeCards[player];render(key)});
-    if(g.lifeCards[player]){const p=g.lifeCards[player];field(section,"Life destination "+player,p.destination,zones,v=>p.destination=v);field(section,"Life damage per "+player,p.perAttack?"attack":"damage",["attack","damage"],v=>p.perAttack=v==="attack");field(section,"Lose on empty life "+player,p.emptyLoss!==false?"yes":"no",["yes","no"],v=>p.emptyLoss=v==="yes")}
+    if(g.lifeCards[player]){const p=g.lifeCards[player];p.triggers??={};for(const d of module.definitions)field(section,"Life trigger "+player+" / "+d,p.triggers[d]??"",["",...Object.keys(module.effects)],v=>{if(v)p.triggers[d]=v;else delete p.triggers[d]});field(section,"Life destination "+player,p.destination,zones,v=>p.destination=v);field(section,"Life damage per "+player,p.perAttack?"attack":"damage",["attack","damage"],v=>p.perAttack=v==="attack");field(section,"Lose on empty life "+player,p.emptyLoss!==false?"yes":"no",["yes","no"],v=>p.emptyLoss=v==="yes")}
    }
   }
   for(const d of module.definitions??[]){const p=panel(section,d),st=c.stats[d]??{attack:0,health:1};field(p,"Attack "+d,st.attack,"number",v=>{c.stats[d]??={...st};c.stats[d].attack=v});field(p,"Health "+d,st.health,"number",v=>{c.stats[d]??={...st};c.stats[d].health=v})}
