@@ -79,8 +79,8 @@ function startTurn(m,actor){let events=[];
 function settleSchedule(m,actor,action,events){
  const p=m.rules.scheduler??{};if(!idle(m)||m.result)return events;
  const s=scheduleState(m);
- if(p.gauge&&m.timing.passes===0&&m.state.resourcePools.shared[p.gauge.resource]>=p.gauge.threshold){m.state.resourcePools.shared[p.gauge.resource]=p.gauge.reset??0;return [...events,...startTurn(m,m.timing.active)]}
- if(p.mode==="alternate"&&s.handoff&&m.timing.passes===0){s.handoff=false;const players=m.state.players,at=players.indexOf(m.timing.active),next=Array.from({length:players.length},(_,i)=>players[(at+i+1)%players.length]).find(x=>!s.passed.includes(x));if(!next)return [...events,...startTurn(m,m.timing.active)];m.timing=changeActive(m.timing,next);m.windowClosed=false;events.push({type:"actionSeatChanged",actor:next})}
+ if(p.gauge&&m.timing.passes===0&&m.state.resourcePools.shared[p.gauge.resource]>=p.gauge.threshold){const before=m.state.resourcePools.shared[p.gauge.resource],after=p.gauge.reset??0;m.state.resourcePools.shared[p.gauge.resource]=after;return [...events,{type:"resourceChanged",actor:m.timing.active,resource:p.gauge.resource,before,after},...startTurn(m,m.timing.active)]}
+ if(p.mode==="alternate"&&(s.handoff||m.windowClosed)&&m.timing.passes===0){s.handoff=false;const players=m.state.players,at=players.indexOf(m.timing.active),next=Array.from({length:players.length},(_,i)=>players[(at+i+1)%players.length]).find(x=>!s.passed.includes(x));if(!next)return [...events,...startTurn(m,m.timing.active)];m.timing=changeActive(m.timing,next);m.windowClosed=false;events.push({type:"actionSeatChanged",actor:next})}
  if(m.windowClosed&&phase(m)?.autoAdvance){if((m.phaseIndex??0)<m.rules.phases.length-1){m.phaseIndex++;m.windowClosed=false;events.push(...enqueue(m,[{type:"phaseStarted",actor:m.timing.active,phase:phase(m).id}]))}else events.push(...startTurn(m,m.timing.active))}
  return events;
 }
@@ -103,7 +103,7 @@ export function applyMatchAction(match,actor,action){
   return finish(m,[{type:"openingRedrawn",actor,count:n}]);
  }
  if(m.triggerOrderPending){const p=m.triggerOrderPending;check(actor===p.actor&&action.type==="orderTriggers"&&Array.isArray(action.ids)&&action.ids.length===p.ids.length&&new Set(action.ids).size===p.ids.length&&action.ids.every(id=>p.ids.includes(id)),"Invalid trigger order");const items=m.timing.queue.filter(q=>p.ids.includes(q.id));let i=0;m.timing.queue=m.timing.queue.map(q=>p.ids.includes(q.id)?items.find(x=>x.id===action.ids[i++]):q);m.triggerOrderPending=m.triggerOrderRemaining?.shift()??null;return done([{type:"triggersOrdered",actor}])}
- if(m.battle){check(action.type==="block","Blocking decision required");events=enqueue(m,resolveGroupCombat(m,actor,action.blocks));return finish(m,events)}
+ if(m.battle){check(action.type==="block","Blocking decision required");events=enqueue(m,resolveGroupCombat(m,actor,action.blocks));return done(events)}
  if(m.pending){
   check(action.type==="choose","Choice pending");
   events=resolve(m,resumeEffect(m.state,m.timing,m.pending,{actor,value:action.value}));
@@ -113,7 +113,7 @@ export function applyMatchAction(match,actor,action){
  const policy=m.rules.scheduler,ss=policy?scheduleState(m):null;
  if(policy?.mode==="alternate"&&["activate","attack","attach","stack","generate","declareCombat"].includes(action.type)&&!m.timing.queue.length){check(actor===m.timing.active&&!ss.passed.includes(actor),"Not your action seat");ss.handoff=true}
  switch(action.type){
- case "claimInitiative":{check(scheduleView(m,actor)?.canClaim,"Initiative unavailable");ss.initiative=actor;events=[{type:"initiativeClaimed",actor}];break}
+ case "claimInitiative":{check(scheduleView(m,actor)?.canClaim,"Initiative unavailable");ss.initiative=actor;if(policy.mode==="alternate"){if(!ss.passed.includes(actor))ss.passed.push(actor);ss.handoff=true}events=[{type:"initiativeClaimed",actor}];break}
  case "passOut":{check(scheduleView(m,actor)?.canPassOut,"Pass out unavailable");if(!ss.passed.includes(actor))ss.passed.push(actor);ss.handoff=true;events=[{type:"playerPassedOut",actor}];break}
  case "stack":{const r=stackCard(m,actor,action);m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break}
  case "generate":{check(allows(m,"activate")&&!m.windowClosed,"Generation unavailable");const r=generate(m,actor,action);m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break}
