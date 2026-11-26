@@ -1,6 +1,6 @@
 # ADR 001 — Deterministic, module-defined rules kernel
 
-Status: proposed; issue #3. No runtime changes. Approval and a green baseline are required before migration.
+Status: accepted by product director; issue #3. No runtime changes in this ADR. Baseline PR #11 passed CI and merged.
 
 ## Context
 The v1 engine uses definition IDs in deck/hand/discard, mutable field entries, a single pending response, fixed two-seat life/energy and four bounded script operations. The editor and bot depend on these interfaces. Preserve Lantern Duel and v1 ZIP imports; do not replace the application wholesale.
