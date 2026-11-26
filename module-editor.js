@@ -261,11 +261,15 @@ function campaignEditor(section){
  const c=module.campaign;
  field(section,"Campaign ID",c.id,"text",v=>c.id=v);
  field(section,"Human seat",c.player,"players",v=>c.player=v);
+ field(section,"Reward deck zone",c.rewardZone??"",["",...module.zones.filter(z=>z.owner===c.player&&z.visibility==="hidden").map(z=>z.id)],v=>{if(v)c.rewardZone=v;else delete c.rewardZone});
  section.append(node("p","Encounters inherit the current module. Capture scenario rules from the editor, or edit encounter overrides directly. Winning unlocks the next encounter."));
  listEditor(section,c.encounters,"Encounter",()=>({id:"encounter-"+crypto.randomUUID(),name:"New encounter",intro:"",overrides:{}}),(p,e,i)=>{
   field(p,"Encounter ID",e.id,"text",v=>e.id=v);
   field(p,"Encounter name",e.name,"text",v=>e.name=v);
   field(p,"Encounter introduction",e.intro??"","text",v=>e.intro=v);
+  p.append(actionButton(e.routes===undefined?"Configure branching routes":"Use next encounter in order",()=>{if(e.routes===undefined)e.routes=[];else delete e.routes;render("campaign")}));
+  if(e.routes!==undefined)listEditor(p,e.routes,"Route",()=>({to:c.encounters[i+1]?.id??"",label:"Continue"}),(r,route)=>{field(r,"Route destination",route.to,c.encounters.slice(i+1).map(x=>x.id),v=>route.to=v);field(r,"Route label",route.label,"text",v=>route.label=v)},"campaign");
+  e.rewards??=[];listEditor(p,e.rewards,"Reward",()=>({definition:first("definitions"),count:1}),(r,reward)=>{field(r,"Reward card",reward.definition,"definitions",v=>reward.definition=v);field(r,"Reward copies",reward.count,"number",v=>reward.count=v)},"campaign");
   const area=node("textarea");area.rows=6;area.style.width="100%";area.setAttribute("aria-label","Encounter rule overrides "+(i+1));area.value=JSON.stringify(e.overrides??{},null,2);p.append(area);
   p.append(actionButton("Apply encounter overrides",()=>{try{const value=JSON.parse(area.value);if(!value||typeof value!=="object"||Array.isArray(value))throw Error("Expected object");e.overrides=value;sync();status("Encounter overrides updated.")}catch(err){status(err.message)}}));
   p.append(actionButton("Capture current scenario",()=>{e.overrides=Object.fromEntries(["setup","resources","effects","triggers","victory","drawPolicies","combat","attachment","phases","timing","chain"].filter(k=>Object.hasOwn(module,k)).map(k=>[k,structuredClone(module[k])]));render("campaign")}));
