@@ -80,17 +80,40 @@ function projectedScore(match,actor,action,profile,initial,next){
  if(!publicSimulationSafe(match,initial,action))return 0;
  return evaluatePosition(matchView(next,actor),rules,actor,profile)-evaluatePosition(initial,rules,actor,profile);
 }
+// Public-only tactical continuation: at most eight root candidates and twelve replies.
+// No speculative opponent hand, deck, pending choice, or hidden draw is evaluated.
+function tacticalContinuation(match,actor,view,action,next,profile){
+ if(!publicSimulationSafe(match,view,action)||action.type!=="attack"||match.rules.players.length!==2||next.result||next.pending||next.timing.queue.length)return 0;
+ const base=evaluatePosition(matchView(next,actor),match.rules,actor,profile);
+ const enemy=match.rules.players.find(p=>p!==actor);
+ let worst=base;
+ // Project a public enemy attack after the current turn's pass/end sequence.
+ // Refuse to cross draw, refresh-trigger or state-dependent boundaries.
+ if(match.rules.drawPolicies?.length||match.rules.scheduler||match.rules.phases||match.rules.tokenPolicy||match.rules.keywordRules||match.rules.permissionRules||match.rules.combat?.modifiers?.length||match.rules.combat?.replacements?.length)return 0;
+ try{
+  let future=next;for(let i=0;i<2;i++)future=applyMatchAction(future,future.timing.priority,{type:"pass"}).match;
+  if(!future.windowClosed||future.timing.active!==actor)return 0;
+  future=applyMatchAction(future,actor,{type:"endTurn"}).match;
+  if(future.result||future.timing.active!==enemy)return 0;
+  const enemyView=matchView(future,enemy),replies=candidates(future,enemy,enemyView,60).filter(x=>x.action.type==="attack"&&publicSimulationSafe(future,enemyView,x.action)).slice(0,12);
+  const baseline=evaluatePosition(matchView(future,actor),match.rules,actor,profile);let loss=0;
+  for(const reply of replies){try{const r=applyMatchAction(future,enemy,reply.action).match;loss=Math.min(loss,evaluatePosition(matchView(r,actor),match.rules,actor,profile)-baseline)}catch{}}
+  return loss*.65;
+ }catch{return 0}
+}
 export function chooseStrategicAction(match,actor,input={}){
  const p=aiProfile(input),v=matchView(match,actor);
  if(v.result||decisionActor(match)!==actor)return null;
  const budget={easy:20,normal:60,hard:160}[p.difficulty],items=candidates(match,actor,v,budget);
- let best=null,bestScore=-Infinity;
+ let best=null,bestScore=-Infinity;const ranked=[];
  for(const item of items){
   try{const next=applyMatchAction(match,actor,item.action).match;
    const score=p.difficulty==="easy"?item.bias:projectedScore(match,actor,item.action,p,v,next)+item.bias*p.weights.pressure;
+   ranked.push({action:item.action,score,next:p.difficulty==="hard"&&item.action.type==="attack"?next:null});
    if(score>bestScore||(score===bestScore&&best&&actionKey(item.action)<actionKey(best))){bestScore=score;best=item.action}
   }catch{}
  }
+ if(p.difficulty==="hard"&&ranked.length){ranked.sort((a,b)=>b.score-a.score||actionKey(a.action).localeCompare(actionKey(b.action)));let top=null,topScore=-Infinity;for(const r of ranked.slice(0,8)){const score=r.score+(r.next?tacticalContinuation(match,actor,v,r.action,r.next,p):0);if(score>topScore){top=r.action;topScore=score}}return top}
  return best;
 }
 export function decisionActor(m){return m.openingQueue?.[0]?.player??m.triggerOrderPending?.actor??(m.battle?.stage==="assign"?m.battle.actor:m.battle?.defender)??m.pending?.actor??m.timing.priority}
