@@ -3,6 +3,7 @@ import {moveWithAttachments} from "./attachments.js";
 export function shuffleZone(state,zone,seed){
  if(!Object.hasOwn(state.zones,zone)||!Number.isSafeInteger(seed)||seed<0||seed>4294967295)throw Error("Invalid shuffle");
  const next=structuredClone(state),cards=next.zones[zone].cards;
+ if(next.reveals)for(const id of cards)delete next.reveals[id];
  let x=seed>>>0;
  for(let i=cards.length-1;i>0;i--){x=(Math.imul(x,1664525)+1013904223)>>>0;const j=Math.floor(x/4294967296*(i+1));[cards[i],cards[j]]=[cards[j],cards[i]]}
  return {state:next,seed:x,events:[{type:"zoneShuffled",zone,count:cards.length}]};
