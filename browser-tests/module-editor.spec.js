@@ -20,7 +20,7 @@ test("effect, trigger and victory controls modify module data",async({page})=>{
  await page.goto("/module-editor.html");
  await page.locator("#editor-fields summary").filter({hasText:/^Effects$/}).click();
  await page.getByRole("button",{name:"Add effect",exact:true}).click();
- await expect(page.getByText("effect1",{exact:true})).toBeVisible();
+ await expect(page.locator("legend").filter({hasText:/^effect1$/})).toBeVisible();
  await page.locator("#editor-fields summary").filter({hasText:/^Triggers$/}).click();
  await page.getByRole("button",{name:"Add trigger",exact:true}).click();
  await page.locator("#editor-fields summary").filter({hasText:/^Victory conditions$/}).click();
