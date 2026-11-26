@@ -15,7 +15,7 @@ const total=d=>(d?.cards??[]).reduce((n,c)=>n+c.count,0);
 function select(el,items,value){el.replaceChildren();for(const [v,t] of items){const o=node("option",t);o.value=v;el.append(o)}el.value=String(value??"")}
 function fresh(){const player=module.players[0];return {name:"New deck",player,zone:module.zones.find(z=>z.owner===player)?.id??"",cards:[]}}
 function button(label,fn){const b=node("button",label);b.type="button";b.onclick=fn;return b}
-function add(id,delta){const d=current();if(!d||!module.definitions.includes(id))return;const r=d.cards.find(c=>c.definition===id),n=(r?.count??0)+delta;if(delta>0&&(n>(module.deckRules.copies??4)||total(d)>=(module.deckRules.max??100))){status("Deck limit reached.");return}if(n<=0){d.cards=d.cards.filter(c=>c.definition!==id)}else if(r)r.count=n;else d.cards.push({definition:id,count:n});status("");render()}
+function add(id,delta){const d=current();if(!d||!module.definitions.includes(id))return;const r=d.cards.find(c=>c.definition===id),n=(r?.count??0)+delta;if(delta>0&&module.deckRules.banned?.includes(id)){status("This card is banned.");return}if(delta>0&&(n>(module.deckRules.copyLimits?.[id]??module.deckRules.copies??4)||total(d)>=(module.deckRules.max??100))){status("Deck limit reached.");return}if(n<=0){d.cards=d.cards.filter(c=>c.definition!==id)}else if(r)r.count=n;else d.cards.push({definition:id,count:n});status("");render()}
 function renderGallery(){
  const q=$("card-search").value.toLowerCase().trim(),filter=$("type-filter").value,sort=$("card-sort").value;
  const ids=module.definitions.filter(id=>[name(id),id,type(id),module.cardPresentation?.[id]?.text??""].join(" ").toLowerCase().includes(q)&&(!filter||type(id)===filter));
@@ -28,8 +28,8 @@ function render(){
  for(const id of ["deck-name","deck-player","deck-zone","deck-copy","deck-remove","deck-validate"])$(id).disabled=!d;
  const list=$("deck-list");list.replaceChildren();
  for(const row of d?.cards??[]){const r=node("div");r.className="deck-row";r.append(node("span",name(row.definition)),node("strong",String(row.count)),button("−",()=>add(row.definition,-1)),button("+",()=>add(row.definition,1)));r.lastChild.setAttribute("aria-label","Add copy of "+name(row.definition));r.children[2].setAttribute("aria-label","Remove copy of "+name(row.definition));list.append(r)}
- const n=total(d),types={};for(const r of d?.cards??[])types[type(r.definition)]=(types[type(r.definition)]??0)+r.count;
- $("deck-stats").textContent=n+" cards · "+(d?.cards?.length??0)+" unique\n"+Object.entries(types).map(([k,v])=>k+": "+v).join(" · ")+"\nLimits: "+(module.deckRules.min??1)+"–"+(module.deckRules.max??100)+" cards, "+(module.deckRules.copies??4)+" copies";
+ const points=(d?.cards??[]).reduce((n,r)=>n+r.count*(module.cardPresentation?.[r.definition]?.deckPoints??0),0);const n=total(d),types={};for(const r of d?.cards??[])types[type(r.definition)]=(types[type(r.definition)]??0)+r.count;
+ $("deck-stats").textContent=n+" cards · "+(d?.cards?.length??0)+" unique\n"+Object.entries(types).map(([k,v])=>k+": "+v).join(" · ")+"\nLimits: "+(module.deckRules.min??1)+"–"+(module.deckRules.max??100)+" cards, "+(module.deckRules.copies??4)+" copies"+(module.deckRules.maxPoints!==undefined?"\nPoints: "+points+" / "+module.deckRules.maxPoints:"");
  renderGallery();
 }
 $("deck-module").textContent=module.name;

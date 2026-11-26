@@ -12,9 +12,21 @@ export function validateDeck(module,deck){
  if(min>max)errors.push("Minimum exceeds maximum");
  let total=0;const seen=new Set();
  for(const row of cards){
-  if(!row||!module.definitions.includes(row.definition)||seen.has(row.definition)||!Number.isSafeInteger(row.count)||row.count<1||row.count>copies){errors.push("Invalid card count or definition");continue}
+  if(!row||!module.definitions.includes(row.definition)||seen.has(row.definition)||!Number.isSafeInteger(row.count)||row.count<1||row.count>(rules.copyLimits?.[row.definition]??copies)){errors.push("Invalid card count or definition");continue}
   seen.add(row.definition);total+=row.count;
  }
+ const rows=cards.filter(r=>r&&module.definitions.includes(r.definition)&&Number.isSafeInteger(r.count)&&r.count>0);
+ const tags=id=>module.cardPresentation?.[id]?.tags??[];
+ for(const r of rows){
+  if(rules.banned?.includes(r.definition))errors.push("Banned card "+r.definition);
+  if(rules.allowedTags?.length&&!tags(r.definition).some(t=>rules.allowedTags.includes(t)))errors.push("Disallowed card "+r.definition);
+ }
+ for(const rule of rules.quotas??[]){
+  const n=rows.filter(r=>rule.kind==="type"?module.cardPresentation?.[r.definition]?.type===rule.value:tags(r.definition).includes(rule.value)).reduce((sum,r)=>sum+r.count,0);
+  if(n<(rule.min??0)||n>(rule.max??1000))errors.push(rule.kind+" "+rule.value+": "+n+" outside required range");
+ }
+ for(const [id,n] of Object.entries(rules.required??{}))if((rows.find(r=>r.definition===id)?.count??0)<n)errors.push("Required card "+id);
+ if(rules.maxPoints!==undefined){const points=rows.reduce((sum,r)=>sum+r.count*(module.cardPresentation?.[r.definition]?.deckPoints??0),0);if(points>rules.maxPoints)errors.push("Deck point budget exceeded: "+points)}
  if(total<min||total>max)errors.push("Deck size "+total+" outside "+min+"–"+max);
  if(zone&&total>zone.capacity)errors.push("Deck exceeds zone capacity");
  return errors;

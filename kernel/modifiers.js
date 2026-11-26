@@ -1,3 +1,4 @@
+import {passiveModifiers} from "./keywords.js";
 // Deterministic layered numeric modifiers. Trusted rules provide the definitions.
 const check=(ok,m)=>{if(!ok)throw Error(m)};
 const key=x=>typeof x==="string"&&/^[A-Za-z0-9_-]{1,80}$/.test(x)&&!Object.hasOwn(Object.prototype,x);
@@ -15,6 +16,7 @@ export function deriveStatistic(state,id,stat,base,modifiers,{turn=0}={}){
   if(m.source!==undefined&&!m.sourceZones.some(z=>state.zones[z].cards.includes(m.source)))continue;
   active.push(m);
  }
+ active.push(...passiveModifiers(state,id,stat,turn));
  let value=base;const applied=[];
  for(const op of ["set","add","multiply"])for(const m of active.filter(m=>m.op===op)){
   value=op==="set"?m.value:op==="add"?value+m.value:value*m.value;

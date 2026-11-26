@@ -1,3 +1,4 @@
+import {hasRule,keywords} from "./keywords.js";
 // First unified runtime: trusted module definitions, untrusted player action IDs.
 // No client-provided effect programs, prices, statistics or replacement rules.
 import {createState,addCard,projectState,assertInvariants} from "./objects.js";
@@ -19,7 +20,7 @@ const own=(o,k)=>typeof k==="string"&&Object.hasOwn(o??{},k);
 export function createMatch(module,{seed=1}={}){
  if(module?.schemaVersion===2)assertModuleV2(module);
  const rules=structuredClone(module);
- let state=createState(rules);
+ let state=createState(rules);if(rules.keywordRules)state.keywordRules=structuredClone(rules.keywordRules);
  for(const card of rules.setup??[])state=addCard(state,card).state;
  state=initializeResources(state,rules.resources??[]);
  for(const p of rules.drawPolicies??[]){if(p.shuffle){const r=shuffleZone(state,p.deck,seed);state=r.state;seed=r.seed}if(p.opening)state=drawCards(state,p.deck,p.hand,p.opening).state}
@@ -36,6 +37,7 @@ function effect(m,id){
 function phase(m){return m.rules.phases?.[m.phaseIndex??0]}
 function allows(m,type){return !phase(m)||phase(m).actions.includes(type)}
 function eligible(m,actor,id,e,source){
+ if(source&&hasRule(m.state,source,"cannotActivate"))return false;
  if(e.sourceDefinition){if(!source||!selectCards(m.state,actor,{zones:e.sourceZones,controller:"self",definition:e.sourceDefinition,face:"up"}).includes(source))return false}else if(source!==undefined)return false;
  const useKey=JSON.stringify([actor,id,source??null]);const usage=m.uses?.[useKey];if(e.limit&&usage&&(e.limit.scope==="match"?usage.total:usage.turn===m.turn?usage.count:0)>=e.limit.count)return false;
  return allows(m,"activate")&&(!e.phases||e.phases.includes(phase(m)?.id))&&(!e.requiresCard||!m.timing.queue.some(q=>q.effect===id))&&e.available===true&&(e.actors===undefined||e.actors.includes(actor))&&(!e.requiresCard||m.state.zones[e.requiresCard.zone]?.cards.includes(e.requiresCard.id))&&paymentPlans(e).some(p=>paymentOptions(m.state,actor,p));
@@ -110,6 +112,7 @@ export function applyMatchAction(match,actor,action){
   check(!c?.group&&allows(m,"attack")&&c&&Array.isArray(c.zones)&&c.zones.length&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Combat unavailable");
   check(selectCards(m.state,actor,{zones:c.zones,controller:"self",face:"up",orientation:"ready"}).includes(action.attacker),"Invalid attacker");
   check(selectCards(m.state,actor,{zones:c.zones,controller:"opponent",face:"up"}).includes(action.defender),"Invalid defender");
+  check(!hasRule(m.state,action.attacker,"cannotAttack")&&!hasRule(m.state,action.defender,"cannotBeAttacked"),"Keyword prohibits attack");
   const r=resolveCombat(m.state,{...c,attacker:action.attacker,defender:action.defender,turn:m.turn});
   m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break;
  }
@@ -141,7 +144,7 @@ export function applyMatchAction(match,actor,action){
  return finish(m,events);
 }
 export function matchView(m,viewer){
- const state=projectState(m.state,viewer);
+ const state=projectState(m.state,viewer);for(const z of state.zones)for(const o of z.cards??[])if(o.id){o.keywords=keywords(m.state,o.id)}
  const activations=[];
  if(!m.result&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&!m.pending&&m.timing.priority===viewer)for(const [id,e] of Object.entries(m.rules.effects)){const sources=e.sourceDefinition?selectCards(m.state,viewer,{zones:e.sourceZones,controller:"self",definition:e.sourceDefinition,face:"up"}):[undefined];for(const source of sources)if(eligible(m,viewer,id,e,source))for(const p of paymentPlans(e)){const option=paymentOptions(m.state,viewer,p);if(option)activations.push({effect:id,source,...option})}}
  const available=[...new Set(activations.filter(a=>a.source===undefined&&a.id==="default"&&!a.groups.length).map(a=>a.effect))];
