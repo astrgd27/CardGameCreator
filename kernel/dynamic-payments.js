@@ -1,4 +1,5 @@
 // Trusted declarative dynamic costs; clients submit only choices, never prices.
+import {hasRule} from "./keywords.js";
 import {selectCards} from "./selectors.js";
 import {payPlan,paymentOptions} from "./card-costs.js";
 import {changeResource} from "./resources.js";
@@ -14,7 +15,7 @@ export function dynamicOptions(m,actor,e,source,plan){
  return {id:plan.id,groups:(plan.cardCosts??[]).map(c=>({kind:c.kind,count:c.count,ids:selectCards(m.state,actor,{zones:[c.from],controller:"self",...(c.kind==="discard"?{owner:"self"}:{face:"up"})})})),example:[],dynamic:{targets,modes,hybrid,xMin,xMax,generators}};
 }
 export function generatorOptions(m,actor){
- return (m.rules.generators??[]).flatMap(g=>selectCards(m.state,actor,{zones:g.zones,controller:"self",definition:g.definition,face:"up",orientation:"ready"}).map(id=>({id,generator:g.id,resource:g.resource,amount:g.amount})));
+ return (m.rules.generators??[]).flatMap(g=>selectCards(m.state,actor,{zones:g.zones,controller:"self",definition:g.definition,face:"up",orientation:"ready"}).filter(id=>!hasRule(m.state,id,"cannotActivate")).filter(id=>{const r=m.state.resourceRules[g.resource],pool=m.state.resourcePools[r.scope==="shared"?"shared":"player-"+actor];return pool[g.resource]+g.amount<=r.max}).map(id=>({id,generator:g.id,resource:g.resource,amount:g.amount})));
 }
 export function generate(m,actor,selection){
  const g=generatorOptions(m,actor).find(x=>x.id===selection.id&&x.generator===selection.generator);
