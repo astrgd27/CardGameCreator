@@ -137,6 +137,7 @@ function cardDesigner(section){
   const p=panel(section,id),data=module.cardPresentation[id]??={};
   field(p,"Display name "+id,data.name??id,"text",v=>data.name=v);
   field(p,"Card type "+id,data.type??"","text",v=>data.type=v);
+  field(p,"Card frame "+id,data.frame??"verdant",["verdant","steel","crimson","gold","arcane","neutral"],v=>data.frame=v);
   const text=node("textarea");text.setAttribute("aria-label","Rules text "+id);text.value=data.text??"";text.rows=3;text.style.width="100%";text.oninput=()=>{data.text=text.value;sync()};p.append(text);
   const art=node("input");art.type="file";art.accept="image/png,image/jpeg,image/webp";art.setAttribute("aria-label","Artwork "+id);
   const preview=node("img");preview.alt="Card artwork "+id;preview.style.cssText="display:block;max-width:180px;max-height:240px;object-fit:contain";
@@ -234,6 +235,7 @@ function drawPolicyEditor(section){
  },"drawPolicies");
 }
 function layoutEditor(section){
+ module.tabletop??={};field(section,"Tabletop theme",module.tabletop.theme??"forest",["forest","midnight","stone","ember"],v=>module.tabletop.theme=v);field(section,"Card back design",module.tabletop.back??"diamond",["diamond","rune","spiral"],v=>module.tabletop.back=v);
  if(!module.battlefield){section.append(actionButton("Configure battlefield",()=>{module.battlefield={columns:2,zones:module.zones.map(z=>({zone:z.id,label:z.id,display:"cards",span:1}))};render("battlefield")}));return}
  const b=module.battlefield;b.zones??=[];
  field(section,"Battlefield columns",String(b.columns??1),["1","2","3"],v=>b.columns=Number(v));
