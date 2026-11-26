@@ -1,9 +1,11 @@
+import {hasRule} from "./keywords.js";
 // Ordered damage replacement rules; each rule applies at most once per event.
 const check=(ok,m)=>{if(!ok)throw Error(m)};
 export function replaceDamage(state,event,rules=[]){
  check(event?.type==="damageDealt"&&Object.hasOwn(state.objects,event.id)&&Number.isSafeInteger(event.amount)&&event.amount>=0,"Invalid damage event");
  check(Array.isArray(rules)&&rules.length<=100,"Invalid replacement budget");
- let next={...event};const applied=[],seen=new Set();
+ let next={...event};
+ if(hasRule(state,event.id,"damageImmune"))return {event:{...next,amount:0},applied:["keyword-immunity"]};const applied=[],seen=new Set();
  for(const r of rules){
   check(r&&typeof r.id==="string"&&r.id.length>0&&!seen.has(r.id)&&["prevent","reduce","redirect"].includes(r.op),"Invalid replacement");
   seen.add(r.id);
@@ -16,5 +18,6 @@ export function replaceDamage(state,event,rules=[]){
   if(r.op==="redirect")next.id=r.to;
   applied.push(r.id);
  }
+ if(hasRule(state,next.id,"damageImmune"))next.amount=0;
  return {event:next,applied};
 }
