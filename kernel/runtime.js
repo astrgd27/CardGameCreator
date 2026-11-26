@@ -24,7 +24,7 @@ const own=(o,k)=>typeof k==="string"&&Object.hasOwn(o??{},k);
 export function createMatch(module,{seed=1}={}){
  if(module?.schemaVersion===2)assertModuleV2(module);
  const rules=structuredClone(module);
- let state=createState(rules);if(rules.attributes)state.attributes=structuredClone(rules.attributes);if(rules.permissionRules)state.permissionRules=structuredClone(rules.permissionRules);if(rules.keywordRules)state.keywordRules=structuredClone(rules.keywordRules);
+ let state=createState(rules);if(rules.attributes)state.attributes=structuredClone(rules.attributes);if(rules.eventReplacements)state.eventReplacements=structuredClone(rules.eventReplacements);if(rules.permissionRules)state.permissionRules=structuredClone(rules.permissionRules);if(rules.keywordRules)state.keywordRules=structuredClone(rules.keywordRules);
  for(const card of rules.setup??[])state=addCard(state,card).state;
  state=initializeResources(state,rules.resources??[]);state.hiddenSeed=seed>>>0;
  for(const p of rules.drawPolicies??[]){if(p.shuffle){const r=shuffleZone(state,p.deck,seed);state=r.state;seed=r.seed}if(p.opening)state=drawCards(state,p.deck,p.hand,p.opening).state}
