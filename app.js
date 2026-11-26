@@ -515,7 +515,7 @@ function nextBot(){
 }
 $("dialog").addEventListener("close",syncBot);
 function battle(){
-  if(!s)return '<section class="duelLobby"><div><small>PLAYTEST</small><h2>'+esc(m.name)+'</h2><p>Your deck against George Card.</p>'+choose('Your deck','active:0',m.savedDecks.map(d=>[d.id,d.name]),m.activeDecks[0])+choose('George’s deck','active:1',m.savedDecks.map(d=>[d.id,d.name]),m.activeDecks[1])+button('duel','Start duel','primary')+'<p><a href="duel.html">Try Ironwood Duel · generalized rules preview</a></p>'+'</div><div class="lobbyCards">'+m.cards.slice(0,3).map(c=>cardView(c)).join('')+'</div></section>';
+  if(!s)return '<section class="duelLobby"><div><small>PLAYTEST</small><h2>'+esc(m.name)+'</h2><p>Your deck against George Card.</p>'+choose('Your deck','active:0',m.savedDecks.map(d=>[d.id,d.name]),m.activeDecks[0])+choose('George’s deck','active:1',m.savedDecks.map(d=>[d.id,d.name]),m.activeDecks[1])+button('duel','Start duel','primary')+'<p><a href="duel.html" data-online-preview>Try Ironwood Duel · generalized rules preview</a></p>'+'</div><div class="lobbyCards">'+m.cards.slice(0,3).map(c=>cardView(c)).join('')+'</div></section>';
   const p=s.players[0],v=s.visual;
   const phase=s.winner!==null?(s.winner===0?'Victory':'Defeat'):s.pending?'Response window':s.actor===1?'George’s turn':'Your turn';
   const recent=s.log.at(-1);
