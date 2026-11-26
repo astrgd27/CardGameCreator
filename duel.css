@@ -41,3 +41,5 @@ body{background:radial-gradient(ellipse at 50% 8%,#243a43 0%,#101c25 52%,#0b141d
 @media (prefers-reduced-motion:reduce){.duel-card.orientation-changing{animation:none}}
 
 .monogram-art{position:relative;display:grid!important;place-items:center;isolation:isolate;overflow:hidden;background:#202a30!important;color:#e7e5df!important;container-type:inline-size;min-height:48px}.monogram-symbol{position:absolute;font-size:clamp(36px,70cqw,200px);opacity:.09;line-height:1;z-index:-1}.monogram-letters{font:700 clamp(16px,23cqw,80px)/1 system-ui,sans-serif!important;letter-spacing:.08em}
+
+.duel-card .card-symbol.monogram-art{width:100%;flex:0 0 auto;aspect-ratio:4/3;min-height:48px}.inspect-symbol.monogram-art{width:100%;aspect-ratio:4/3}.duel-card .monogram-letters{background:none;padding:0}
