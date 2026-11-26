@@ -14,8 +14,8 @@ const health=(m,id)=>deriveStatistic(m.state,id,"health",m.rules.combat.stats[m.
 export function battleActor(m){return m.battle?.stage==="assign"?m.battle.actor:m.battle?.defender??null}
 function reactions(m,actor){const p=m.rules.combat.group,opts=[];for(const r of p.reactions??[])for(const id of selectCards(m.state,actor,{zones:r.zones,owner:"self",controller:"self",definition:r.definition,face:"up"}))if(!m.battle.used?.includes(id))opts.push({id,rule:r.id,amount:r.amount});return opts}
 export function combatOptions(m,actor){
- const c=m.rules.combat?.group;if(!c||m.state.players.length!==2)return null;
- const battle=m.battle,enemy=m.state.players.find(p=>p!==actor);
+ const c=m.rules.combat?.group;if(!c||m.timing.players.length!==2)return null;
+ const battle=m.battle,enemy=m.timing.players.find(p=>p!==actor);
  if(battle?.stage==="react")return battle.defender===actor?{stage:"react",reactions:reactions(m,actor),attackers:battle.attacks.map(a=>a.attacker)}:null;
  if(battle?.stage==="assign")return battle.actor===actor?{stage:"assign",assignments:battle.attacks.filter(a=>battle.blocks.some(b=>b.attacker===a.attacker)).map(a=>({attacker:a.attacker,power:Math.max(0,power(m,a.attacker)),blockers:battle.blocks.filter(b=>b.attacker===a.attacker).map(b=>({id:b.blocker,lethal:Math.max(0,health(m,b.blocker)-m.state.objects[b.blocker].damage)}))})),overflow:!!c.overflow}:null;
  if(battle)return battle.stage==="block"&&battle.defender===actor?{stage:"block",attackers:battle.attacks.map(a=>a.attacker),blockers:units(m,actor,"self",c.readyBlockers!==false).filter(id=>!hasRule(m.state,id,"cannotBlock")).filter(id=>!c.guardStatus||m.state.objects[id].statuses?.includes(c.guardStatus)),attacks:battle.attacks,attackersByBlocker:Object.fromEntries(units(m,actor,"self",c.readyBlockers!==false).map(id=>[id,battle.attacks.filter(a=>inRange(m.state,id,a.attacker,m.state.spatial?.blockRange??Infinity)&&(c.intercept!=="direct"||a.kind==="player")).map(a=>a.attacker)])),intercept:c.intercept??"all"}:null;
