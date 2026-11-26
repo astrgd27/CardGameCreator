@@ -38,7 +38,7 @@ function candidates(match,actor,v){
  }
  if(v.priority!==actor)return out;
  if(v.windowClosed&&v.active===actor){add({type:v.hasNextPhase?"nextPhase":"endTurn"},100);return out}
- add({type:"pass"});
+ add(v.scheduler?.canPassOut?{type:"passOut"}:{type:"pass"});
  const combat=match.rules.combat,attachment=match.rules.attachment,cards=zones=>v.state.zones.filter(z=>zones?.includes(z.id)).flatMap(z=>z.cards??[]).filter(c=>c.id);
  if(v.combat?.stage==="declare"){
   const c=v.combat;
