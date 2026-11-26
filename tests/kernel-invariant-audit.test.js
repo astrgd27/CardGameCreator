@@ -32,10 +32,11 @@ test("differential hidden deck identities and order preserve opponent projection
  assert.deepEqual(matchView(m,"a"),matchView(other,"a"));assert.deepEqual(chooseStrategicAction(m,"a"),chooseStrategicAction(other,"a"));assert.deepEqual(projectEvents([{type:"cardMoved",id:"c7",definition:"blade",to:"deck-b"}],m.state,m.state,"a"),projectEvents([{type:"cardMoved",id:"c8",definition:"ward",to:"deck-b"}],other.state,other.state,"a"));
 });
 test("seeded mixed legal and illegal action sequences preserve invariants and input",()=>{
- for(let seed=1;seed<=12;seed++){let m=createMatch(demoModule(),{seed}),rng=seed;
+ let executed=0;for(let seed=1;seed<=12;seed++){let m=createMatch(demoModule(),{seed}),rng=seed;
  for(let i=0;i<35&&!m.result;i++){const actor=decisionActor(m),before=structuredClone(m);rng=(Math.imul(rng,1664525)+1013904223)>>>0;
  assert.throws(()=>applyMatchAction(m,actor,{type:"unknown-action",id:"__proto__"}));assert.deepEqual(m,before);
  const action=chooseStrategicAction(m,actor,{difficulty:["easy","normal","hard"][rng%3]});if(!action)break;
- const next=applyMatchAction(m,actor,action).match;assert.deepEqual(m,before);assertInvariants(next.state);assertAttachments(next.state);m=next;
+ const next=applyMatchAction(m,actor,action).match;assert.deepEqual(m,before);assertInvariants(next.state);assertAttachments(next.state);m=next;executed++;
  }}
+ console.log("seeded-invariant executed actions:",executed);
 });

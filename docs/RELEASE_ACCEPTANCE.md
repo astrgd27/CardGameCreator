@@ -1,6 +1,6 @@
 # Milestone 13A exit criteria and 13B entry gate
 
-Status: proposed gate; not yet satisfied. Reviewed 2026-11-26.
+Status: integration CI passed; final acceptance record pending actual seeded action counts. Reviewed 2026-11-26.
 CI is necessary, not proof of universal correctness.
 
 ## Required before starting certification
@@ -26,3 +26,8 @@ CI is necessary, not proof of universal correctness.
 
 ## Evidence and decision
 PR 51 merged after successful run 45861102474. PR 52 run 45860725618, PR 53 run 45861171123, PR 54 run 45861886523 succeeded before reconciliation. PR 52 new head requires fresh CI; PR 55 requires initial CI. No outstanding failure observed in those completed runs. Do not mark the gate complete until merged main validation and remaining defect review are recorded.
+
+## Consolidated validation
+Main 9a2e6b3518b8e2cfd95fc68243e706d0294328ea, push run 45866387786: 150 Node tests passed, zero skipped, 114 browser tests passed; benchmark and standalone byte comparison passed. No unresolved high-severity failure reported by this suite; not a guarantee of absence. Existing randomized tests did not emit exact executed step counts. Capture those in the next CI run before formally closing 13A. Initial 13B fixture preparation is not certification; no catalog pass awarded.
+
+PR 56 run 45868157060 reports 420 seeded, 257 cross-module and 320 combined-mechanic legal actions (997 total); each iteration also checks illegal-action rejection. All three randomized tests passed. Fixture count assertion failed independently; correction pending CI.

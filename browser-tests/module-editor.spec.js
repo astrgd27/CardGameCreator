@@ -370,7 +370,7 @@ test("portable module ZIP export and import preserves original rules",async({pag
 test("evidence dashboard runs five micro-fixtures without awarding catalog passes",async({page})=>{
  await page.goto("/evidence.html");
  await page.getByRole("button",{name:"Run five ZIP round-trip fixtures"}).click();
- await expect(page.locator("#status")).toContainText("5/5 micro-fixtures passed");
+ await expect(page.locator("#status")).toContainText("10/10 micro-fixtures passed");
  await expect(page.locator("#status")).toContainText("Catalog scores unchanged");
 });
 
