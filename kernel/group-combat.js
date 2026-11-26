@@ -29,7 +29,7 @@ export function declareCombat(m,actor,attacks){
  const options=combatOptions(m,actor);check(options?.stage==="declare","Cannot declare attacks");
  check(Array.isArray(attacks)&&attacks.length>0&&attacks.length<=options.max&&new Set(attacks.map(a=>a.attacker)).size===attacks.length,"Invalid attackers");
  for(const a of attacks)check(options.attackers.includes(a.attacker)&&options.targetsByAttacker[a.attacker]?.some(t=>t.kind===a.kind&&t.id===a.target),"Invalid attack target");
- const defender=m.state.players.find(p=>p!==actor);
+ const defender=m.timing.players.find(p=>p!==actor);
  m.battle={stage:"block",actor,defender,attacks:structuredClone(attacks),boosts:{},used:[]};m.combatUsed=m.turn;
  return [{type:"attackersDeclared",actor,count:attacks.length}];
 }
