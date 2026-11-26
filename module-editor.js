@@ -3,10 +3,11 @@ import {validateCampaign} from "./kernel/campaign.js";
 import {demoModule} from "./kernel/demo-module.js";
 import {validateModuleV2} from "./kernel/module-v2.js";
 import {createMatch} from "./kernel/runtime.js";
-import {readLibrary,saveLibraryModule,deleteLibraryModule,stagePlaytest} from "./module-library.js";
+import {readLibrary,saveLibraryModule,deleteLibraryModule,stagePlaytest,readPlaytest} from "./module-library.js";
 let savedId=null;
 const $=id=>document.getElementById(id);
 let module=demoModule();
+if(new URLSearchParams(location.search).has("resume")){try{module=readPlaytest()??module}catch{}}
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n};
 function status(text){$("editor-status").textContent=text}
 function sync(){ $("source").value=JSON.stringify(module,null,2); }
@@ -194,6 +195,7 @@ function advancedPolicies(key,section){
 
 
 function deckEditor(section){
+ section.append(actionButton("Open visual deck workshop",()=>{try{stagePlaytest(module);location.href="deck-workshop.html"}catch(e){status(e.message)}}));
  module.deckRules??={min:1,max:40,copies:4};module.decks??=[];
  const rules=module.deckRules;
  field(section,"Minimum deck size",rules.min,"number",v=>rules.min=v);
