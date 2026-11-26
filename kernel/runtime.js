@@ -171,7 +171,8 @@ export function applyMatchAction(match,actor,action){
   check(allows(m,"attach")&&a&&Array.isArray(a.zones)&&a.zones.length&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Attachment unavailable");
   const ids=selectCards(m.state,actor,{zones:a.zones,controller:"self",face:"up"});
   check(ids.includes(action.id)&&ids.includes(action.host)&&a.definitions.includes(m.state.objects[action.id].definition)&&(!a.hostDefinitions||a.hostDefinitions.includes(m.state.objects[action.host].definition)),"Invalid attachment");
-  const r=attachCard(m.state,{id:action.id,host:action.host,onHostMove:a.onHostMove,max:a.max});
+  const from=Object.values(m.state.zones).find(z=>z.cards.includes(action.id)).id,to=Object.values(m.state.zones).find(z=>z.cards.includes(action.host)).id;const moved=from===to?{state:m.state,events:[]}:moveWithAttachments(m.state,{id:action.id,from,to});
+  const r=attachCard(moved.state,{id:action.id,host:action.host,onHostMove:a.onHostMove,max:a.max});r.events.unshift(...moved.events);
   m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break;
  }
  case "nextPhase":{
