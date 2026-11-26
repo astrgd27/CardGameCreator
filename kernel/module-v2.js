@@ -55,7 +55,7 @@ export function validateModuleV2(m){
    else if(op.type==="skipUnlessResource")require(resources.has(op.resource)&&["atLeast","atMost","equal"].includes(op.comparison)&&integer(op.amount)&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"effect: invalid resource condition "+id);
    else if(op.type==="skipUnlessChoice")require(choices.has(op.choice)&&key(op.value)&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"effect: invalid choice condition "+id);
    else if(op.type==="skipUnless"){require(record(op.selector)&&integer(op.minimum)&&op.minimum<=100&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"effect: invalid condition "+id)}
-   else if(op.type==="target"){const q=op.selector;require(key(op.name)&&!choices.has(op.name)&&record(q)&&Object.keys(q).every(k=>["zones","owner","controller","face","orientation","definition","limit"].includes(k))&&(!q.zones||(Array.isArray(q.zones)&&q.zones.every(z=>zids.has(z))))&&["owner","controller"].every(k=>q[k]===undefined||["self","opponent","any"].includes(q[k]))&&(q.definition===undefined||defs.includes(q.definition))&&(q.face===undefined||["up","down"].includes(q.face))&&(q.orientation===undefined||["ready","resting","tapped"].includes(q.orientation))&&(q.limit===undefined||(integer(q.limit)&&q.limit<=100)),"effect: invalid selector "+id);choices.add(op.name)}
+   else if(op.type==="target"){const q=op.selector;require(key(op.name)&&!choices.has(op.name)&&record(q)&&Object.keys(q).every(k=>["zones","owner","controller","face","orientation","definition","limit","keyword","targetable"].includes(k))&&(!q.zones||(Array.isArray(q.zones)&&q.zones.every(z=>zids.has(z))))&&["owner","controller"].every(k=>q[k]===undefined||["self","opponent","any"].includes(q[k]))&&(q.definition===undefined||defs.includes(q.definition))&&(q.face===undefined||["up","down"].includes(q.face))&&(q.orientation===undefined||["ready","resting","tapped"].includes(q.orientation))&&(q.limit===undefined||(integer(q.limit)&&q.limit<=100)),"effect: invalid selector "+id);choices.add(op.name)}
    else if(op.type==="token")require(defs.includes(op.definition)&&zids.has(op.zone)&&integer(op.count)&&op.count>=1&&op.count<=20&&["up","down"].includes(op.face??"up"),"effect: invalid token "+id);
    else if(["counter","status","transform","flip","control","orient"].includes(op.type)){
     require((key(op.id)&&op.choice===undefined)||(op.id===undefined&&choices.has(op.choice)),"effect: invalid state target "+id);
@@ -103,6 +103,21 @@ export function validateModuleV2(m){
  }
  if(m.tokenPolicy!==undefined)require(record(m.tokenPolicy)&&Array.isArray(m.tokenPolicy.zones)&&m.tokenPolicy.zones.every(z=>zids.has(z)),"tokenPolicy: invalid cleanup zones");
  if(m.ai!==undefined)require(record(m.ai)&&(m.ai.difficulty===undefined||["easy","normal","hard"].includes(m.ai.difficulty))&&(m.ai.personality===undefined||["balanced","aggressive","defensive","economic"].includes(m.ai.personality))&&(m.ai.weights===undefined||(record(m.ai.weights)&&Object.entries(m.ai.weights).every(([k,n])=>["board","life","resource","hand","pressure"].includes(k)&&Number.isFinite(n)&&n>=0&&n<=5))),"AI: invalid configuration");
+ if(m.keywordRules!==undefined){
+  const k=m.keywordRules;require(record(k),"keywordRules: expected object");
+  if(record(k)){
+   require(record(k.keywords??{})&&Object.entries(k.keywords??{}).every(([id,r])=>key(id)&&record(r)&&Array.isArray(r.restrictions)&&r.restrictions.every(x=>["cannotAttack","cannotBlock","cannotBeAttacked","cannotActivate","untargetable","damageImmune"].includes(x))),"keywordRules: invalid keywords");
+   require(record(k.definitions??{})&&Object.entries(k.definitions??{}).every(([id,t])=>defs.includes(id)&&Array.isArray(t)&&t.every(x=>Object.hasOwn(k.keywords??{},x))),"keywordRules: invalid definition tags");
+   for(const p of list(k.passives??[],"passives",100))require(record(p)&&defs.includes(p.sourceDefinition)&&Array.isArray(p.sourceZones)&&p.sourceZones.every(z=>zids.has(z))&&Array.isArray(p.targetZones)&&p.targetZones.every(z=>zids.has(z))&&["self","friendly","enemy","all"].includes(p.relation)&&["attack","health"].includes(p.stat)&&["set","add","multiply"].includes(p.op)&&Number.isSafeInteger(p.value)&&(p.targetDefinition===undefined||defs.includes(p.targetDefinition))&&(p.targetKeyword===undefined||key(p.targetKeyword))&&(p.requiresStatus===undefined||key(p.requiresStatus))&&(p.minimumTurn===undefined||integer(p.minimumTurn))&&(p.minimumCounter===undefined||(record(p.minimumCounter)&&key(p.minimumCounter.name)&&integer(p.minimumCounter.amount))),"passives: invalid rule");
+  }
+ }
+ if(m.deckRules!==undefined){const d=m.deckRules;require(record(d),"deckRules: invalid");if(record(d)){
+  for(const k of ["min","max","copies","maxPoints"])if(d[k]!==undefined)require(integer(d[k])&&d[k]<=1000,"deckRules: "+k);
+  for(const k of ["copyLimits","required"])if(d[k]!==undefined)require(record(d[k])&&Object.entries(d[k]).every(([id,n])=>defs.includes(id)&&integer(n)&&n<=1000),"deckRules: "+k);
+  if(d.banned!==undefined)require(Array.isArray(d.banned)&&d.banned.every(id=>defs.includes(id)),"deckRules: banned");
+  if(d.allowedTags!==undefined)require(Array.isArray(d.allowedTags)&&d.allowedTags.every(key),"deckRules: allowedTags");
+  for(const q of list(d.quotas??[],"deck quotas",100))require(record(q)&&["type","tag"].includes(q.kind)&&typeof q.value==="string"&&integer(q.min??0)&&integer(q.max??1000)&&(q.min??0)<=(q.max??1000),"deckRules: invalid quota");
+ }}
  return errors;
 }
 export function assertModuleV2(m){const errors=validateModuleV2(m);if(errors.length)throw Error(errors.join("; "));return m}
