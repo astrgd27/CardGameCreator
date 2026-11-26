@@ -58,7 +58,7 @@ function render(schedule=true){
  top.append(el("h1","",rules.name??"Custom duel"),el("span","","Turn "+view.turn+" · Active "+view.active.toUpperCase()+" · Priority "+actor.toUpperCase()),button("Restart",()=>{match=createMatch(rules);selected=null;log=[];lastEvents=[];lastAction=null;error="";render()}));
  if(!custom)top.append(button(mode==="computer"?"Switch to hot-seat":"Play vs computer",()=>{mode=mode==="computer"?"hotseat":"computer";selected=null;render()}));root.append(top);if(custom)top.append(button("Back to editor",()=>location.href="module-editor.html"));if(startupError)root.append(el("p","duel-error","Custom module could not load: "+startupError));
  const board=el("div","duel-board"),field={cards:view.state.zones.filter(z=>z.id==="field"||(custom&&(rules.combat?.zones??[]).includes(z.id))).flatMap(z=>z.cards??[])};
- for(const p of [...players].reverse()){
+ for(const p of custom?[]:[...players].reverse()){
   const seat=el("section","duel-seat "+(p===viewer?"friendly":"opposing")+(p===view.active?" active-seat":""));
   seat.append(el("h2","","Player "+p.toUpperCase()+" · Energy "+(custom?Object.entries(view.resources["player-"+p]??{}).map(([k,v])=>k+" "+v).join(" · "):view.resources["player-"+p].energy)));
   const row=el("div","duel-row");
@@ -72,7 +72,7 @@ function render(schedule=true){
  const discard=view.state.zones.find(z=>z.id==="discard-"+p)??{count:0};
  seat.append(el("small","discard-count","Discard · "+discard.count));board.append(seat);
  }
- if(custom){for(const z of view.state.zones){const section=el("section","duel-seat");section.append(el("h2","",z.id+" · "+z.count));const row=el("div","duel-row");if(z.cards)for(const o of z.cards)row.append(card(o,viewer));else row.append(el("span","","Hidden cards: "+z.count));section.append(row);board.append(section)}}
+ if(custom){for(const p of players){const resources=view.resources["player-"+p]??{};board.append(el("h2","","Player "+p+" · "+Object.entries(resources).map(([k,v])=>k+": "+v).join(" · ")))}for(const z of view.state.zones){const section=el("section","duel-seat");section.append(el("h2","",z.id+" · "+z.count));const row=el("div","duel-row");if(z.cards)for(const o of z.cards)row.append(card(o,viewer));else row.append(el("span","","Hidden cards: "+z.count));section.append(row);board.append(section)}}
  const layout=el("div","duel-layout");layout.append(board);root.append(layout);
  const sidebar=el("aside","duel-sidebar");layout.append(sidebar);
  const controls=el("section","duel-controls");
@@ -81,13 +81,14 @@ function render(schedule=true){
  else if(mode==="computer"&&actor===computer)controls.append(el("p","","Opponent is considering a move…"));
  else if(view.choice){for(const value of view.choice.options??[])controls.append(button("Choose "+value,()=>act(viewer,{type:"choose",value})))}
  else{
-  for(const effect of view.available)controls.append(button(effect.startsWith("muster")?"Deploy from hand":effect,()=>act(viewer,{type:"activate",effect})));
+  for(const effect of view.available)controls.append(button(!custom&&effect.startsWith("muster")?"Deploy from hand":effect,()=>act(viewer,{type:"activate",effect})));
   controls.append(button("Pass priority",()=>act(viewer,{type:"pass"})));
   if(view.windowClosed&&view.active===viewer)controls.append(button("End turn",()=>act(viewer,{type:"endTurn"})));
-  const o=field.cards.find(c=>c.id===selected);
+  const candidates=custom?view.state.zones.flatMap(z=>z.cards??[]):field.cards;
+  const o=candidates.find(c=>c.id===selected);
   if(o&&o.controller===viewer&&view.active===viewer&&!view.queue.length&&!view.windowClosed){
    if(match.rules.combat&&o.orientation==="ready")for(const target of field.cards.filter(c=>c.controller!==viewer&&c.face==="up"))controls.append(button("Attack "+target.definition+" "+target.id,()=>act(viewer,{type:"attack",attacker:o.id,defender:target.id})));
-   if(match.rules.attachment?.definitions?.includes(o.definition))for(const target of field.cards.filter(c=>c.controller===viewer&&c.id!==o.id))controls.append(button("Attach to "+target.definition+" "+target.id,()=>act(viewer,{type:"attach",id:o.id,host:target.id})));
+   if(match.rules.attachment?.definitions?.includes(o.definition))for(const target of candidates.filter(c=>c.controller===viewer&&c.id!==o.id))controls.append(button("Attach to "+target.definition+" "+target.id,()=>act(viewer,{type:"attach",id:o.id,host:target.id})));
   }
  }
  controls.append(el("p","duel-error",error),el("p","","Stack: "+(view.queue.map(e=>e.effect).join(" · ")||"empty")));
