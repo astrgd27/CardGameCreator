@@ -24,3 +24,18 @@ body{background:radial-gradient(ellipse at 50% 8%,#243a43 0%,#101c25 52%,#0b141d
 .duel-card.composite-card{box-shadow:3px 4px 0 #607c82,6px 8px 0 #324e57,9px 12px 12px #0007;margin-bottom:10px}
 
 .spatial-grid{grid-column:1/-1;display:grid;gap:10px;overflow:auto;padding:12px;align-items:stretch}.spatial-slot{min-width:120px;border:1px solid #678b82;border-radius:10px;padding:10px;background:#172f2b}.spatial-slot h2{font-size:1rem}.spatial-slot .duel-row{flex-wrap:wrap}.spatial-slot button{max-width:100%;white-space:normal}
+
+/* Landscape desktop and tablet: preserve art size, scroll cards locally rather than shrink them. */
+.duel-layout{grid-template-columns:minmax(0,1fr) minmax(200px,230px)}
+.duel-row.hand{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;padding:8px 6px 14px;scroll-snap-type:x proximity}
+.duel-row.hand .duel-card{flex:0 0 auto;scroll-snap-align:start;width:clamp(155px,16vw,220px);min-height:230px}
+.duel-card .card-rules{font-size:12px}
+.duel-inspector{width:min(650px,94vw);max-height:92dvh}
+.duel-inspector .custom-art{max-height:54dvh}
+.duel-card.orientation-changing{animation:orient-card var(--motion,400ms) ease-out}
+@keyframes orient-card{from{rotate:7deg;filter:brightness(1.25)}to{rotate:0deg;filter:none}}
+.duel-card:focus-visible{outline:3px solid #f2ce7b;outline-offset:4px}
+@media (min-width:851px) and (max-width:1200px){.duel-layout{grid-template-columns:minmax(0,1fr) 200px}.duel-card{width:clamp(155px,17vw,200px);min-height:220px}}
+@media (max-width:850px){.duel-layout{grid-template-columns:minmax(0,1fr)}.duel-row.hand .duel-card{width:clamp(155px,28vw,205px)}}
+@media (pointer:coarse){button,.duel-controls button,.combat-declarations select{min-height:44px}.duel-card{touch-action:pan-x pan-y}.duel-sidebar{position:static}}
+@media (prefers-reduced-motion:reduce){.duel-card.orientation-changing{animation:none}}
