@@ -48,6 +48,6 @@ $("deck-role").onchange=()=>{if(current()){current().role=$("deck-role").value;c
 $("deck-group-validate").onclick=()=>{if(!current())return;const errors=validateDeckGroup(module,module.decks,current().player);status(errors.length?errors.join(" · "):"Deck group is legal.")};
 $("deck-zone").onchange=()=>{if(current())current().zone=$("deck-zone").value};
 $("deck-validate").onclick=()=>{const errors=validateDeck(module,current());status(errors.length?errors.join(" · "):"Deck is legal.")};
-$("deck-done").onclick=()=>{try{stagePlaytest(module);location.href="module-editor.html?resume=1"}catch(e){status(e.message)}};
+$("deck-done").onclick=()=>{try{stagePlaytest(module);location.href="module-editor.html?resume=1"+(new URLSearchParams(location.search).has("saved")?"&saved="+encodeURIComponent(new URLSearchParams(location.search).get("saved")):"")}catch(e){status(e.message)}};
 const panel=document.querySelector(".deck-panel");panel.ondragover=e=>{e.preventDefault();panel.classList.add("drag-over")};panel.ondragleave=()=>panel.classList.remove("drag-over");panel.ondrop=e=>{e.preventDefault();panel.classList.remove("drag-over");add(e.dataTransfer.getData("text/plain"),1)};
 render();
