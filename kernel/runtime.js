@@ -40,7 +40,7 @@ function eligible(m,actor,id,e,source){
  return allows(m,"activate")&&(!e.phases||e.phases.includes(phase(m)?.id))&&(!e.requiresCard||!m.timing.queue.some(q=>q.effect===id))&&e.available===true&&(e.actors===undefined||e.actors.includes(actor))&&(!e.requiresCard||m.state.zones[e.requiresCard.zone]?.cards.includes(e.requiresCard.id))&&paymentPlans(e).some(p=>paymentOptions(m.state,actor,p));
 }
 function finish(m,events){
- if(!m.pending&&m.rules.tokenPolicy?.zones){const r=cleanupTokens(m.state,m.rules.tokenPolicy.zones);m.state=r.state;if(r.events.length){events=[...events,...r.events];if(!m.timing.resolving)events=enqueue(m,events.slice(-r.events.length)).concat(events.slice(0,-r.events.length))}}
+ if(!m.pending&&m.rules.tokenPolicy?.zones){const r=cleanupTokens(m.state,m.rules.tokenPolicy.zones);m.state=r.state;if(r.events.length)events=[...events,...(!m.timing.resolving?enqueue(m,r.events):r.events)]}
  assertInvariants(m.state);assertAttachments(m.state);
  if(!m.openingQueue?.length&&!m.pending&&!m.timing.resolving&&!m.timing.queue.length&&m.rules.victory?.length){
   const r=evaluateVictory(m.state,m.rules.victory);
