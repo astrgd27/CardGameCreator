@@ -20,7 +20,7 @@ export function createMatch(module){
  check(rules.effects&&typeof rules.effects==="object"&&!Array.isArray(rules.effects),"Missing effects");
  for(const e of Object.values(rules.effects))check(e&&Array.isArray(e.program)&&Array.isArray(e.costs??[]),"Invalid effect");
  for(const trigger of rules.triggers??[])check(own(rules.effects,trigger.effect),"Unknown trigger effect");
- return {version:1,rules,state,timing,pending:null,turn:1,windowClosed:false,result:null};
+ return finish({version:1,rules,state,timing,pending:null,turn:1,windowClosed:false,result:null},[]).match;
 }
 function effect(m,id){
  check(own(m.rules.effects,id),"Unknown effect");return m.rules.effects[id];
@@ -73,7 +73,7 @@ export function applyMatchAction(match,actor,action){
  }
  case "attack":{
   const c=m.rules.combat;
-  check(c&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Combat unavailable");
+  check(c&&Array.isArray(c.zones)&&c.zones.length&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Combat unavailable");
   check(selectCards(m.state,actor,{zones:c.zones,controller:"self",face:"up",orientation:"ready"}).includes(action.attacker),"Invalid attacker");
   check(selectCards(m.state,actor,{zones:c.zones,controller:"opponent",face:"up"}).includes(action.defender),"Invalid defender");
   const r=resolveCombat(m.state,{...c,attacker:action.attacker,defender:action.defender,turn:m.turn});
@@ -81,7 +81,7 @@ export function applyMatchAction(match,actor,action){
  }
  case "attach":{
   const a=m.rules.attachment;
-  check(a&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Attachment unavailable");
+  check(a&&Array.isArray(a.zones)&&a.zones.length&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Attachment unavailable");
   const ids=selectCards(m.state,actor,{zones:a.zones,controller:"self",face:"up"});
   check(ids.includes(action.id)&&ids.includes(action.host)&&a.definitions.includes(m.state.objects[action.id].definition),"Invalid attachment");
   const r=attachCard(m.state,{id:action.id,host:action.host,onHostMove:a.onHostMove,max:a.max});
@@ -91,6 +91,7 @@ export function applyMatchAction(match,actor,action){
   check(m.windowClosed&&m.timing.active===actor&&!m.timing.queue.length,"Window must close");
   const players=m.state.players,next=players[(players.indexOf(actor)+1)%players.length];
   m.timing=changeActive(m.timing,next);m.turn++;m.windowClosed=false;
+  for(const id of Object.values(m.state.zones).filter(z=>m.rules.combat?.zones.includes(z.id)).flatMap(z=>z.cards))if(m.state.objects[id].controller===next)m.state.objects[id].orientation="ready";
   const r=refreshResources(m.state,next,{includeShared:!!m.rules.refreshShared});
   m.state=r.state;events=enqueue(m,[{type:"turnStarted",actor:next},...r.events]);break;
  }
