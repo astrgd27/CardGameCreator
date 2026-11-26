@@ -17,8 +17,7 @@ for filename in ["structure.js", "engine.js", "storage.js", "benchmarks.js", "ke
     code = re.sub(r'^import\s+[^;]+;\s*', '', code, flags=re.MULTILINE)
     modules.append(re.sub(r'^export ', '', code, flags=re.MULTILINE))
 code = "\n".join(modules)
-# The generalized preview is a separate web page, not part of the offline workshop yet.
-code = code.replace('<p><a href="duel.html" data-online-preview>Try Ironwood Duel · generalized rules preview</a></p>', '')
+code = code.replace("<p data-online-preview><a href=\"duel.html\">Try Ironwood Duel · generalized rules preview</a> · <a href=\"module-editor.html\">Generalized module editor</a></p>", '')
 import json
 art = ["data:image/webp;base64," + base64.b64encode((root / "assets" / f"art{i}.webp").read_bytes()).decode() for i in range(6)]
 code = re.sub(r"const builtinArt\s*=.*?;", lambda _: "const builtinArt=" + json.dumps(art) + ";", code, count=1, flags=re.S)
