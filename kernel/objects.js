@@ -59,6 +59,8 @@ export function moveCard(state,{id,from,to,position,face,controller,reset=false}
   const next=structuredClone(state),o=next.objects[id];
   next.zones[from].cards.splice(src.cards.indexOf(id),1);
   next.zones[to].cards.splice(at,0,id);
+  // A reveal is scoped to the current stay in a zone, never a later return.
+  if(from!==to&&next.reveals)delete next.reveals[id];
   if(reset){o.orientation="ready";o.damage=0;o.counters={};o.controller=object.owner;}
   if(face!==undefined)o.face=face;
   if(controller!==undefined)o.controller=controller;
