@@ -50,11 +50,13 @@ function finish(m,events){
  return {match:m,events};
 }
 function enqueue(m,events){
+ const start=m.timing.queue.length;
  const r=collectTriggers(m.timing,m.rules.triggers??[],events);
- m.timing=r.timing;return [...events,...r.events];
+ m.timing=r.timing;if(m.rules.triggerOrder==="player"&&r.events.length>1){const batch=m.timing.queue.slice(start);m.triggerOrderPending={actor:m.timing.active,ids:batch.map(x=>x.id)}}return [...events,...r.events];
 }
 function resolve(m,r){
  m.state=r.state;m.timing=r.timing;m.pending=r.pending;
+ if(m.rules.triggerOrder==="player"&&!r.pending){const ids=r.events.filter(e=>e.type==="triggerQueued").map(e=>e.id);if(ids.length>1)m.triggerOrderPending={actor:m.timing.active,ids}}
  return r.events;
 }
 export function applyMatchAction(match,actor,action){
@@ -74,6 +76,7 @@ export function applyMatchAction(match,actor,action){
   if(!q.remaining||!q.ids.length)m.openingQueue.shift();
   return finish(m,[{type:"openingRedrawn",actor,count:n}]);
  }
+ if(m.triggerOrderPending){const p=m.triggerOrderPending;check(actor===p.actor&&action.type==="orderTriggers"&&Array.isArray(action.ids)&&action.ids.length===p.ids.length&&new Set(action.ids).size===p.ids.length&&action.ids.every(id=>p.ids.includes(id)),"Invalid trigger order");const items=m.timing.queue.filter(q=>p.ids.includes(q.id));m.timing.queue=m.timing.queue.filter(q=>!p.ids.includes(q.id)).concat(action.ids.map(id=>items.find(q=>q.id===id)));m.triggerOrderPending=null;return finish(m,[{type:"triggersOrdered",actor}])}
  if(m.battle){check(action.type==="block","Blocking decision required");events=enqueue(m,resolveGroupCombat(m,actor,action.blocks));return finish(m,events)}
  if(m.pending){
   check(action.type==="choose","Choice pending");
@@ -140,7 +143,7 @@ export function applyMatchAction(match,actor,action){
 export function matchView(m,viewer){
  const state=projectState(m.state,viewer);
  const activations=[];
- if(!m.result&&!m.battle&&!m.openingQueue?.length&&!m.pending&&m.timing.priority===viewer)for(const [id,e] of Object.entries(m.rules.effects)){const sources=e.sourceDefinition?selectCards(m.state,viewer,{zones:e.sourceZones,controller:"self",definition:e.sourceDefinition,face:"up"}):[undefined];for(const source of sources)if(eligible(m,viewer,id,e,source))for(const p of paymentPlans(e)){const option=paymentOptions(m.state,viewer,p);if(option)activations.push({effect:id,source,...option})}}
+ if(!m.result&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&!m.pending&&m.timing.priority===viewer)for(const [id,e] of Object.entries(m.rules.effects)){const sources=e.sourceDefinition?selectCards(m.state,viewer,{zones:e.sourceZones,controller:"self",definition:e.sourceDefinition,face:"up"}):[undefined];for(const source of sources)if(eligible(m,viewer,id,e,source))for(const p of paymentPlans(e)){const option=paymentOptions(m.state,viewer,p);if(option)activations.push({effect:id,source,...option})}}
  const available=[...new Set(activations.filter(a=>a.source===undefined&&a.id==="default"&&!a.groups.length).map(a=>a.effect))];
- return {state,combat:combatOptions(m,viewer),combatActor:m.battle?.defender??null,phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
+ return {state,triggerOrder:m.triggerOrderPending?{actor:m.triggerOrderPending.actor,ids:m.triggerOrderPending.actor===viewer?m.triggerOrderPending.ids:undefined}:null,combat:combatOptions(m,viewer),combatActor:m.battle?.defender??null,phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
 }
