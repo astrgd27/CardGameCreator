@@ -345,3 +345,14 @@ test("hidden search offers named cards in private decision interface",async({pag
  await page.getByRole("button",{name:/Choose (Blade|blade) c7/}).click();
  await expect(page.locator(".private-decision")).toHaveCount(0);
 });
+
+test("turn scheduler editor enables initiative and alternating pass-out",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.locator("#editor-fields summary").filter({hasText:/^Turn scheduler$/}).click();
+ await page.getByLabel("Turn scheduling mode",{exact:true}).selectOption("alternate");
+ await page.getByLabel("Initiative claims",{exact:true}).selectOption("yes");
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await page.getByRole("button",{name:"Claim initiative",exact:true}).click();
+ await page.getByRole("button",{name:"Pass out",exact:true}).click();
+ await expect(page.getByRole("button",{name:"Claim initiative",exact:true})).toBeVisible();
+});
