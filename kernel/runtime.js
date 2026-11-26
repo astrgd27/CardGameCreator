@@ -12,6 +12,7 @@ import {selectCards} from "./selectors.js";
 import {shuffleZone,drawCards} from "./draw.js";
 import {paymentPlans,payPlan,paymentOptions} from "./card-costs.js";
 import {expireStatuses,cleanupTokens} from "./card-state.js";
+import {combatOptions,declareCombat,resolveGroupCombat} from "./group-combat.js";
 import {assertModuleV2} from "./module-v2.js";
 const check=(ok,m)=>{if(!ok)throw Error(m)};
 const own=(o,k)=>typeof k==="string"&&Object.hasOwn(o??{},k);
@@ -42,7 +43,7 @@ function eligible(m,actor,id,e,source){
 function finish(m,events){
  if(!m.pending&&m.rules.tokenPolicy?.zones){const r=cleanupTokens(m.state,m.rules.tokenPolicy.zones);m.state=r.state;if(r.events.length)events=[...events,...(!m.timing.resolving?enqueue(m,r.events):r.events)]}
  assertInvariants(m.state);assertAttachments(m.state);
- if(!m.openingQueue?.length&&!m.pending&&!m.timing.resolving&&!m.timing.queue.length&&m.rules.victory?.length){
+ if(!m.openingQueue?.length&&!m.battle&&!m.pending&&!m.timing.resolving&&!m.timing.queue.length&&m.rules.victory?.length){
   const r=evaluateVictory(m.state,m.rules.victory);
   if(r.winner!==null||r.draw)m.result=r;
  }
@@ -73,6 +74,7 @@ export function applyMatchAction(match,actor,action){
   if(!q.remaining||!q.ids.length)m.openingQueue.shift();
   return finish(m,[{type:"openingRedrawn",actor,count:n}]);
  }
+ if(m.battle){check(action.type==="block","Blocking decision required");events=enqueue(m,resolveGroupCombat(m,actor,action.blocks));return finish(m,events)}
  if(m.pending){
   check(action.type==="choose","Choice pending");
   events=resolve(m,resumeEffect(m.state,m.timing,m.pending,{actor,value:action.value}));
@@ -99,9 +101,10 @@ export function applyMatchAction(match,actor,action){
    events=[...events,...resolve(m,beginEffect(m.state,m.timing,e.program,m.rules.triggers??[]))];
   }break;
  }
+ case "declareCombat":{events=declareCombat(m,actor,action.attacks);break}
  case "attack":{
   const c=m.rules.combat;
-  check(allows(m,"attack")&&c&&Array.isArray(c.zones)&&c.zones.length&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Combat unavailable");
+  check(!c?.group&&allows(m,"attack")&&c&&Array.isArray(c.zones)&&c.zones.length&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Combat unavailable");
   check(selectCards(m.state,actor,{zones:c.zones,controller:"self",face:"up",orientation:"ready"}).includes(action.attacker),"Invalid attacker");
   check(selectCards(m.state,actor,{zones:c.zones,controller:"opponent",face:"up"}).includes(action.defender),"Invalid defender");
   const r=resolveCombat(m.state,{...c,attacker:action.attacker,defender:action.defender,turn:m.turn});
@@ -137,7 +140,7 @@ export function applyMatchAction(match,actor,action){
 export function matchView(m,viewer){
  const state=projectState(m.state,viewer);
  const activations=[];
- if(!m.result&&!m.openingQueue?.length&&!m.pending&&m.timing.priority===viewer)for(const [id,e] of Object.entries(m.rules.effects)){const sources=e.sourceDefinition?selectCards(m.state,viewer,{zones:e.sourceZones,controller:"self",definition:e.sourceDefinition,face:"up"}):[undefined];for(const source of sources)if(eligible(m,viewer,id,e,source))for(const p of paymentPlans(e)){const option=paymentOptions(m.state,viewer,p);if(option)activations.push({effect:id,source,...option})}}
+ if(!m.result&&!m.battle&&!m.openingQueue?.length&&!m.pending&&m.timing.priority===viewer)for(const [id,e] of Object.entries(m.rules.effects)){const sources=e.sourceDefinition?selectCards(m.state,viewer,{zones:e.sourceZones,controller:"self",definition:e.sourceDefinition,face:"up"}):[undefined];for(const source of sources)if(eligible(m,viewer,id,e,source))for(const p of paymentPlans(e)){const option=paymentOptions(m.state,viewer,p);if(option)activations.push({effect:id,source,...option})}}
  const available=[...new Set(activations.filter(a=>a.source===undefined&&a.id==="default"&&!a.groups.length).map(a=>a.effect))];
- return {state,phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
+ return {state,combat:combatOptions(m,viewer),combatActor:m.battle?.defender??null,phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
 }
