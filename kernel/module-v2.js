@@ -37,7 +37,18 @@ export function validateModuleV2(m){
   if(e.requiresCard!==undefined)require(record(e.requiresCard)&&key(e.requiresCard.id)&&zids.has(e.requiresCard.zone),"effect: invalid activation source "+id);
   if(e.actors!==undefined)require(Array.isArray(e.actors)&&e.actors.every(p=>players.includes(p)),"effect: invalid actors "+id);
   for(const c of list(e.costs??[],"costs "+id))require(record(c)&&resources.has(c.resource)&&integer(c.amount)&&["spend","threshold"].includes(c.kind),"effect: invalid cost "+id);
-  const choices=new Set();
+  if(e.sourceDefinition!==undefined)require(defs.includes(e.sourceDefinition)&&Array.isArray(e.sourceZones)&&e.sourceZones.length>0&&e.sourceZones.every(z=>zids.has(z)),"effect: invalid source definition "+id);
+  if(e.limit!==undefined)require(record(e.limit)&&["turn","match"].includes(e.limit.scope)&&integer(e.limit.count)&&e.limit.count>=1&&e.limit.count<=100,"effect: invalid usage limit "+id);
+  const validateCardCosts=costs=>{let total=0;for(const c of list(costs??[],"card costs "+id,10)){require(record(c)&&["discard","sacrifice"].includes(c.kind)&&zids.has(c.from)&&zids.has(c.to)&&c.from!==c.to&&integer(c.count)&&c.count>=1&&c.count<=10,"effect: invalid card cost "+id);total+=c?.count??0}require(total<=20,"effect: payment card limit "+id)};
+  validateCardCosts(e.cardCosts);
+  const planIds=new Set(["default"]);
+  for(const p of list(e.alternatives??[],"alternative costs "+id,10)){
+   if(!record(p)){errors.push("Invalid payment plan");continue}
+   require(key(p.id)&&!planIds.has(p.id),"effect: invalid payment plan "+id);planIds.add(p.id);
+   for(const c of list(p.costs??[],"alternative resource costs "+id))require(record(c)&&resources.has(c.resource)&&integer(c.amount)&&["spend","threshold"].includes(c.kind),"effect: invalid alternative cost "+id);
+   validateCardCosts(p.cardCosts);
+  }
+  const choices=new Set(e.sourceDefinition?["source"]:[]);
   for(const op of list(e.program,"program "+id,64)){
    if(!record(op)){errors.push("effect: invalid operation "+id);continue}
    if(op.type==="choose"){require(key(op.name)&&!choices.has(op.name)&&Array.isArray(op.options)&&op.options.length>0&&op.options.length<=100&&op.options.every(key)&&new Set(op.options).size===op.options.length,"effect: invalid choice "+id);choices.add(op.name)}
@@ -48,7 +59,7 @@ export function validateModuleV2(m){
    else if(op.type==="token")require(defs.includes(op.definition)&&zids.has(op.zone)&&integer(op.count)&&op.count>=1&&op.count<=20&&["up","down"].includes(op.face??"up"),"effect: invalid token "+id);
    else if(["counter","status","transform","flip","control","orient"].includes(op.type)){
     require((key(op.id)&&op.choice===undefined)||(op.id===undefined&&choices.has(op.choice)),"effect: invalid state target "+id);
-    const ok=op.type==="counter"?key(op.counter)&&Number.isSafeInteger(op.delta)&&Math.abs(op.delta)<=10000:op.type==="status"?key(op.status)&&["add","remove"].includes(op.operation):op.type==="transform"?defs.includes(op.definition):op.type==="flip"?["up","down","toggle"].includes(op.face):op.type==="control"?op.player==="self"||players.includes(op.player):["ready","resting","tapped"].includes(op.orientation);
+    const ok=op.type==="counter"?key(op.counter)&&Number.isSafeInteger(op.delta)&&Math.abs(op.delta)<=10000:op.type==="status"?key(op.status)&&["add","remove"].includes(op.operation)&&(op.duration===undefined||(integer(op.duration)&&op.duration<=100)):op.type==="transform"?defs.includes(op.definition):op.type==="flip"?["up","down","toggle"].includes(op.face):op.type==="control"?op.player==="self"||players.includes(op.player):["ready","resting","tapped"].includes(op.orientation);
     require(ok,"effect: invalid state operation "+id);
    }
    else if(op.type==="draw")require(zids.has(op.from)&&zids.has(op.to)&&op.from!==op.to&&integer(op.count)&&op.count<=100,"effect: invalid draw "+id);
@@ -88,6 +99,7 @@ export function validateModuleV2(m){
    if(record(row))seen.add(row.zone);
   }
  }
+ if(m.tokenPolicy!==undefined)require(record(m.tokenPolicy)&&Array.isArray(m.tokenPolicy.zones)&&m.tokenPolicy.zones.every(z=>zids.has(z)),"tokenPolicy: invalid cleanup zones");
  return errors;
 }
 export function assertModuleV2(m){const errors=validateModuleV2(m);if(errors.length)throw Error(errors.join("; "));return m}
