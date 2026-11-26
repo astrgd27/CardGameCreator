@@ -172,3 +172,31 @@ test("campaign route and reward controls persist a selected branch",async({page}
  await expect(page.getByRole("heading",{name:"deck-a · 1",exact:true})).toBeVisible();
  await page.reload();await expect(page.getByRole("heading",{name:"Castle",exact:true})).toBeVisible();
 });
+
+test("visual deck workshop edits a draft and returns it to the module editor",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.getByLabel("Module name").fill("Workshop test");
+ await page.locator("#editor-fields summary").filter({hasText:/^Deck construction$/}).click();
+ await page.getByRole("button",{name:"Open visual deck workshop"}).click();
+ await expect(page.getByRole("heading",{name:"Deck workshop",exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"New deck",exact:true}).click();
+ await page.getByLabel("Name",{exact:true}).fill("Guardians");
+ await page.getByLabel("Search",{exact:true}).fill("sentinel");
+ await expect(page.locator("#card-gallery article")).toHaveCount(1);
+ await page.getByRole("button",{name:"Add sentinel",exact:true}).click();
+ await page.getByRole("button",{name:"Add copy of sentinel",exact:true}).click();
+ await expect(page.locator("#deck-stats")).toContainText("2 cards");
+ await page.getByRole("button",{name:"Validate deck",exact:true}).click();
+ await expect(page.locator("#deck-error")).toHaveText("Deck is legal.");
+ await page.getByRole("button",{name:"Apply to module editor"}).click();
+ await expect(page.getByLabel("Module name")).toHaveValue("Workshop test");
+ const m=JSON.parse(await page.locator("#source").inputValue());
+ expect(m.decks[0].name).toBe("Guardians");expect(m.decks[0].cards).toEqual([{definition:"sentinel",count:2}]);
+});
+test("gameplay announces actions and highlights potential targets",async({page})=>{
+ await page.goto("/duel.html");
+ await page.getByRole("button",{name:"Sentinel c1",exact:true}).click();
+ await expect(page.getByRole("button",{name:"Raider c2",exact:true})).toHaveClass(/potential-target/);
+ await page.getByRole("button",{name:"Attack raider c2",exact:true}).click();
+ await expect(page.locator(".action-banner")).toContainText("Player A attacked with Sentinel");
+});
