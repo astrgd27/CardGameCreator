@@ -11,7 +11,7 @@ export function simulateMatch(module,{seed=1,profiles={},maxActions=250,maxTurns
  if(m.result)reason=m.result.draw?"draw":"winner";else if(m.turn>maxTurns)reason="turn-limit";
  return {seed,actions,turns:m.turn,reason,winner:m.result?.winner??null,error,types,...(profileTiming?{decisionMs:durations}: {})};
 }
-export function benchmarkAI(module,{games=10,seed=1,profiles={},maxActions=250,maxTurns=40}={}){
+export function benchmarkAI(module,{games=10,seed=1,profiles={},maxActions=250,maxTurns=40,profileTiming=false}={}){
  if(!Number.isSafeInteger(games)||games<1||games>200)throw Error("Invalid game count");
  const results=[],wins=Object.fromEntries(module.players.map(p=>[p,0])),reasons={},actions={};
  for(let i=0;i<games;i++){
