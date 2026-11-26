@@ -62,7 +62,7 @@ export function moveWithAttachments(s,action){
   }
   const components=next.objects[a.id].components;
   const r=moveCard(next,a);next=r.state;events.push(r.event);
-  if(a.from!==a.to&&a.reset&&components?.length){const host=next.objects[a.id],dst=next.zones[a.to];if(dst.cards.length+components.length>dst.capacity)throw Error("Stack separation exceeds capacity");host.definition=host.baseDefinition;delete host.baseDefinition;delete host.components;for(const c of components){next.objects[c.id]={id:c.id,definition:c.physicalDefinition,owner:c.owner,controller:c.owner,face:"up",orientation:"ready",damage:0,counters:{}};dst.cards.push(c.id);events.push({type:"componentSeparated",id:c.id,host:a.id,to:a.to})}}
+  if(a.from!==a.to&&a.reset&&components?.length){const host=next.objects[a.id],dst=next.zones[a.to];if(dst.cards.length+components.length>dst.capacity)throw Error("Stack separation exceeds capacity");host.definition=host.baseDefinition;delete host.baseDefinition;delete host.components;for(const c of components){next.objects[c.id]={id:c.id,definition:c.physicalDefinition,owner:c.owner,controller:c.owner,face:a.face??"up",orientation:"ready",damage:0,counters:{}};dst.cards.push(c.id);events.push({type:"componentSeparated",id:c.id,host:a.id,to:a.to})}}
   if(a.from!==a.to)for(const [id,link] of children)if(link.onHostMove==="follow")move({id,from:a.from,to:a.to});
  };
  move(action);assertAttachments(next);return {state:next,events};
