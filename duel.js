@@ -2,6 +2,8 @@ import {demoModule} from "./kernel/demo-module.js";
 import {createMatch,applyMatchAction,matchView} from "./kernel/runtime.js";
 import {chooseDemoAction} from "./kernel/demo-ai.js";
 import {encounterModule,validateCampaign,readProgress,saveProgress,newCampaign,recordEncounter,nextRoutes} from "./kernel/campaign.js";
+import {legalCardTargets} from "./kernel/legal-targets.js";
+import {readSettings,saveSettings,animationDuration} from "./tabletop-settings.js";
 import {readPlaytest} from "./module-library.js";
 const root=document.querySelector("#duel");
 const params=new URLSearchParams(location.search),campaignMode=params.has("campaign"),custom=params.has("custom")||campaignMode;
@@ -11,31 +13,34 @@ if(custom){try{rules=readPlaytest();if(!rules)throw Error("No staged module");cr
 if(campaignMode&&!startupError){try{campaignBase=rules;const errors=validateCampaign(campaignBase);if(errors.length)throw Error(errors.join(" · "));progress=readProgress(campaignBase);rules=encounterModule(campaignBase,campaignBase.campaign.encounters[Math.min(progress.index,campaignBase.campaign.encounters.length-1)],progress.complete?null:progress)}catch(e){startupError=e.message;campaignBase=null;progress=null;rules=demoModule()}}
 const players=rules.players;
 const human=campaignBase?.campaign.player??players[0],computer=players.find(p=>p!==human);
+let settings=readSettings(),preview=null,previewTimer=null,targets=[],movement=[];
 let mode=campaignBase?"computer":"hotseat",timer=null,lastEvents=[],lastAction=null,aiMoves=0,actionSummary="";
 const inspector=document.createElement("dialog");inspector.className="duel-inspector";document.body.append(inspector);
 function presentation(o){return Object.hasOwn(rules.cardPresentation??{},o.definition)?rules.cardPresentation[o.definition]:{}}
 function cardName(o){return presentation(o).name|| (o.definition?o.definition[0].toUpperCase()+o.definition.slice(1):"Hidden card")}
 function artwork(o,cls){const data=presentation(o);if(/^data:image\/(png|jpeg|webp);base64,/.test(data.art??"")){const img=el("img",cls+" custom-art");img.src=data.art;img.alt="";return img}return el("span",cls,({sentinel:"♜",raider:"⚔",blade:"†",ward:"◈"})[o.definition]??"◆")}
 function inspect(o){
- if(!o.definition||inspector.open)return;
+ if(!o.definition||inspector.open||preview)return;
  clearTimeout(timer);inspector.replaceChildren();
  const name=cardName(o),stats=match.rules.combat?.stats?.[o.definition];
  inspector.append(el("h2","",name),artwork(o,"inspect-symbol"),el("p","",presentation(o).type??""),el("p","",presentation(o).text??""),el("p","",stats?stats.attack+" attack · "+stats.health+" maximum health":"No combat statistics"),el("p","","Damage: "+o.damage+" · "+o.orientation),el("p","",match.rules.attachment?.definitions?.includes(o.definition)?"Equipment: select this card and a friendly host to attach.":"Unit: select this card and an enemy to attack."),button("Close inspection",()=>inspector.close()));
  inspector.showModal();
 }
 inspector.addEventListener("close",()=>scheduleOpponent());
-function scheduleOpponent(){clearTimeout(timer);if(!inspector.open&&mode==="computer"&&!match.result&&(match.openingQueue?.[0]?.player??match.pending?.actor??match.timing.priority)===computer){timer=setTimeout(()=>{if(++aiMoves>100){error="Opponent action budget reached; switch to hot-seat to continue.";render(false);return}const action=chooseDemoAction(match,computer);if(action)act(computer,action);else{error="Opponent has no valid action";render(false)}},650)}}
+function scheduleOpponent(){clearTimeout(timer);clearTimeout(previewTimer);if(preview)return;if(!inspector.open&&mode==="computer"&&!match.result&&(match.openingQueue?.[0]?.player??match.pending?.actor??match.timing.priority)===computer){timer=setTimeout(()=>{if(++aiMoves>100){error="Opponent action budget reached; switch to hot-seat to continue.";render(false);return}const action=chooseDemoAction(match,computer);if(action){if(settings.opponentPreview&&animationDuration(settings)>0&&action.type!=="pass"){preview=describeAction(computer,action);render(false);previewTimer=setTimeout(()=>{preview=null;act(computer,action)},animationDuration(settings)+250)}else act(computer,action)}else{error="Opponent has no valid action";render(false)}},Math.max(150,animationDuration(settings)+200))}}
 let match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]}),selected=null,log=[],error="";
 const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n};
 const button=(label,fn)=>{const b=el("button","",label);b.type="button";b.addEventListener("click",fn);return b};
 function describeAction(actor,action){const who="Player "+actor.toUpperCase();const name=id=>{const o=match.state.objects[id];return o&&matchView(match,human).state.zones.some(z=>z.cards?.some(c=>c.id===id))?cardName(o):"a card"};switch(action.type){case "activate":return who+" activated "+action.effect;case "attack":return who+" attacked with "+name(action.attacker)+" → "+name(action.defender);case "attach":return who+" attached "+name(action.id)+" to "+name(action.host);case "pass":return who+" passed priority";case "choose":return who+" made a choice";case "endTurn":return who+" ended their turn";case "nextPhase":return who+" advanced the phase";case "mulligan":return who+" redrew their opening hand";default:return who+" completed "+action.type}}
 function act(actor,action){
- try{const summary=describeAction(actor,action);const r=applyMatchAction(match,actor,action);match=r.match;actionSummary=summary;lastAction=action;lastEvents=r.events;log.push(...r.events.map(e=>[e.type,e.id??e.actor??"",e.amount??""].filter(Boolean).join(" ")));error="";selected=null}
+ if(preview)return;
+ const before=new Map([...root.querySelectorAll("[data-card-id]")].map(n=>[n.dataset.cardId,n.getBoundingClientRect()]));
+ try{const summary=describeAction(actor,action);const r=applyMatchAction(match,actor,action);match=r.match;movement=r.events.filter(e=>e.type==="cardMoved").map(e=>({id:e.id,from:before.get(e.id)}));actionSummary=summary;lastAction=action;lastEvents=r.events;log.push(...r.events.map(e=>[e.type,e.id??e.actor??"",e.amount??""].filter(Boolean).join(" ")));error="";selected=null}
  catch(e){error=e.message}
  render();
 }
 function card(o,viewer){
- const b=button("",()=>{selected=o.id;render()});b.className="duel-card"+(selected===o.id?" selected":"")+(o.orientation==="resting"?" resting":"");
+ const b=button("",()=>{if(preview||!o.id)return;const options=targets.filter(t=>t.id===o.id);if(options.length===1){act(viewer,options[0].action);return}selected=o.id===selected?null:o.id;render()});b.className="duel-card"+(selected===o.id?" selected":"")+(o.orientation==="resting"?" resting":"");
  const name=cardName(o);
  b.append(el("strong","",name),artwork(o,"card-symbol"),el("small","",presentation(o).type??""));
  const stats=match.rules.combat?.stats?.[o.definition];
@@ -45,7 +50,9 @@ function card(o,viewer){
  if(o.orientation==="resting")b.append(el("small","","Rested"));
  b.setAttribute("aria-label",name+" "+(o.id??""));
  if(!o.definition)b.classList.add("concealed");
- if(o.id&&selected!==null&&o.id!==selected&&o.face==="up"){const source=match.state.objects[selected];if(source?.controller===viewer&&o.controller!==viewer)b.classList.add("potential-target")}
+ if(o.id)b.dataset.cardId=o.id;
+ if(targets.some(t=>t.id===o.id))b.classList.add("potential-target","legal-target");
+ const frame=presentation(o).frame;if(["steel","crimson","gold","arcane","neutral","verdant"].includes(frame))b.dataset.frame=frame;
  if(presentation(o).text)b.append(el("span","card-rules",presentation(o).text));
  if(lastEvents.some(e=>e.id===o.id&&e.type==="cardMoved"))b.classList.add("arriving");
  if(lastEvents.some(e=>e.id===o.id&&e.type==="damageDealt"))b.classList.add("hit");
@@ -60,6 +67,16 @@ function card(o,viewer){
  return b;
 }
 function startEncounter(){const encounter=campaignBase.campaign.encounters[progress.index];rules=encounterModule(campaignBase,encounter,progress);match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]});recorded=false;selected=null;log=[];actionSummary="";error="";aiMoves=0;lastEvents=[];lastAction=null;render()}
+function openSettings(){
+ if(preview)return;clearTimeout(timer);
+ const dialog=el("dialog","duel-inspector settings-dialog");dialog.append(el("h2","","Gameplay settings"));
+ const draft={...settings};
+ for(const [key,label,values] of [["speed","Animation speed",["off","fast","normal","slow"]],["scale","Card scale",["compact","normal","large"]],["opponentPreview","Opponent action preview",["on","off"]]]){
+  const l=el("label","",label+" "),select=el("select");for(const value of values){const o=el("option","",value);o.value=value;select.append(o)}select.value=key==="opponentPreview"?(draft[key]?"on":"off"):draft[key];select.onchange=()=>draft[key]=key==="opponentPreview"?select.value==="on":select.value;l.append(select);dialog.append(l);
+ }
+ dialog.append(button("Save settings",()=>{try{settings=saveSettings(draft);dialog.close()}catch(e){error=e.message;dialog.close()}}),button("Cancel",()=>dialog.close()));
+ document.body.append(dialog);dialog.addEventListener("close",()=>{dialog.remove();render()});dialog.showModal();
+}
 function render(schedule=true){
  root.replaceChildren();
  if(campaignBase&&progress.complete){root.append(el("h1","","Campaign complete"),el("p","","Wins: "+progress.wins+" · Losses: "+progress.losses),button("Reset campaign",()=>{if(confirm("Reset all campaign progress?")){progress=newCampaign(campaignBase);saveProgress(progress);startEncounter()}}),button("Back to editor",()=>location.href="module-editor.html"));return}
@@ -67,9 +84,12 @@ function render(schedule=true){
  if(actor!==computer)aiMoves=0;
  const viewer=mode==="computer"?human:actor;
  const view=matchView(match,viewer);
+ targets=preview||actor!==viewer?[]:legalCardTargets(match,viewer,selected);
+ root.dataset.scale=settings.scale;root.dataset.theme=["forest","midnight","stone","ember"].includes(rules.tabletop?.theme)?rules.tabletop.theme:"forest";root.dataset.back=["diamond","rune","spiral"].includes(rules.tabletop?.back)?rules.tabletop.back:"diamond";root.style.setProperty("--motion",animationDuration(settings)+"ms");
  const top=el("div","duel-top");
- top.append(el("h1","",rules.name??"Custom duel"),el("span","","Turn "+view.turn+" · Active "+view.active.toUpperCase()+" · Priority "+actor.toUpperCase()),button("Restart",()=>{match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]});selected=null;log=[];actionSummary="";lastEvents=[];lastAction=null;error="";render()}));
- if(players.length===2&&!campaignBase)top.append(button(mode==="computer"?"Switch to hot-seat":"Play vs computer",()=>{mode=mode==="computer"?"hotseat":"computer";selected=null;aiMoves=0;render()}));if(campaignBase){const encounter=campaignBase.campaign.encounters[progress.index];top.append(el("h2","",encounter.name),el("p","",encounter.intro??""),el("span","","Encounter "+(progress.index+1)+" / "+campaignBase.campaign.encounters.length+" · Wins "+progress.wins+" · Losses "+progress.losses));if(progress.rewards.length)top.append(el("p","","Earned cards: "+progress.rewards.map(r=>r.definition+" ×"+r.count).join(", ")));}if(view.phase)top.append(el("span","","Phase: "+view.phase));root.append(top);if(custom)top.append(button("Back to editor",()=>location.href="module-editor.html"));if(startupError)root.append(el("p","duel-error","Custom module could not load: "+startupError));
+ top.append(el("h1","",rules.name??"Custom duel"),el("span","","Turn "+view.turn+" · Active "+view.active.toUpperCase()+" · Priority "+actor.toUpperCase()),button("Restart",()=>{if(preview)return;match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]});selected=null;log=[];actionSummary="";lastEvents=[];lastAction=null;error="";render()}));
+ if(players.length===2&&!campaignBase)top.append(button(mode==="computer"?"Switch to hot-seat":"Play vs computer",()=>{if(preview)return;mode=mode==="computer"?"hotseat":"computer";selected=null;aiMoves=0;render()}));if(campaignBase){const encounter=campaignBase.campaign.encounters[progress.index];top.append(el("h2","",encounter.name),el("p","",encounter.intro??""),el("span","","Encounter "+(progress.index+1)+" / "+campaignBase.campaign.encounters.length+" · Wins "+progress.wins+" · Losses "+progress.losses));if(progress.rewards.length)top.append(el("p","","Earned cards: "+progress.rewards.map(r=>r.definition+" ×"+r.count).join(", ")));}if(view.phase)top.append(el("span","","Phase: "+view.phase));top.append(button("Gameplay settings",openSettings));root.append(top);if(custom)top.append(button("Back to editor",()=>location.href="module-editor.html"));if(startupError)root.append(el("p","duel-error","Custom module could not load: "+startupError));
+ if(preview){const cue=el("div","opponent-preview","Opponent move: "+preview);cue.setAttribute("role","status");root.append(cue)}
  if(actionSummary){const banner=el("div","action-banner",actionSummary);banner.setAttribute("role","status");root.append(banner)}
  const board=el("div","duel-board"),field={cards:view.state.zones.filter(z=>z.id==="field"||(custom&&(rules.combat?.zones??[]).includes(z.id))).flatMap(z=>z.cards??[])};
  for(const p of custom?[]:[...players].reverse()){
@@ -92,7 +112,7 @@ function render(schedule=true){
  const controls=el("section","duel-controls");
  controls.append(el("h2","","Actions · Player "+viewer.toUpperCase()));
  if(view.result){controls.append(el("strong","",view.result.draw?"Draw":"Winner: "+view.result.winner));if(campaignBase){const win=view.result.winner===human&&!view.result.draw;const advance=route=>{try{if(!recorded){const next=recordEncounter(campaignBase,progress,progress.index,view.result,route);saveProgress(next);progress=next;recorded=true}if(progress.complete)render();else startEncounter()}catch(e){error=e.message;render()}};if(win){const encounter=campaignBase.campaign.encounters[progress.index],routes=nextRoutes(campaignBase,progress.index);if(encounter.rewards?.length)controls.append(el("p","","Reward: "+encounter.rewards.map(r=>r.definition+" ×"+r.count).join(", ")));if(routes.length)for(const r of routes)controls.append(button(r.label,()=>advance(r.to)));else controls.append(button("Continue campaign",()=>advance()))}else controls.append(button("Retry encounter",()=>advance()))}}
- else if(mode==="computer"&&actor===computer)controls.append(el("p","","Opponent is considering a move…"));
+ else if(preview||mode==="computer"&&actor===computer)controls.append(el("p","","Opponent is considering a move…"));
  else if(view.opening){controls.append(el("p","","Opening hand · "+view.opening.remaining+" mulligans remaining"),button("Keep opening hand",()=>act(viewer,{type:"keep"})),button("Mulligan",()=>act(viewer,{type:"mulligan"})))}
  else if(view.choice){for(const value of view.choice.options??[])controls.append(button("Choose "+value,()=>act(viewer,{type:"choose",value})))}
  else{
@@ -102,14 +122,15 @@ function render(schedule=true){
   const candidates=custom?view.state.zones.flatMap(z=>z.cards??[]):field.cards;
   const o=candidates.find(c=>c.id===selected);
   if(o&&o.controller===viewer&&view.active===viewer&&!view.queue.length&&!view.windowClosed){
-   if(view.phaseActions.includes("attack")&&match.rules.combat&&o.orientation==="ready")for(const target of field.cards.filter(c=>c.controller!==viewer&&c.face==="up"))controls.append(button("Attack "+target.definition+" "+target.id,()=>act(viewer,{type:"attack",attacker:o.id,defender:target.id})));
-   if(view.phaseActions.includes("attach")&&match.rules.attachment?.definitions?.includes(o.definition))for(const target of candidates.filter(c=>c.controller===viewer&&c.id!==o.id))controls.append(button("Attach to "+target.definition+" "+target.id,()=>act(viewer,{type:"attach",id:o.id,host:target.id})));
+   for(const t of targets.filter(t=>t.action.type==="attack")){const target=candidates.find(c=>c.id===t.id);if(target)controls.append(button("Attack "+target.definition+" "+target.id,()=>act(viewer,t.action)))}
+   for(const t of targets.filter(t=>t.action.type==="attach")){const target=candidates.find(c=>c.id===t.id);if(target)controls.append(button("Attach to "+target.definition+" "+target.id,()=>act(viewer,t.action)))}
   }
  }
  controls.append(el("p","duel-error",error),el("p","","Stack: "+(view.queue.map(e=>e.effect).join(" · ")||"empty")));
  sidebar.append(controls);
  const history=el("section","duel-log");history.append(el("h2","","Recent events"));for(const line of log.slice(-8).reverse())history.append(el("div","",line));sidebar.append(history);
- lastEvents=[];lastAction=null;
+ if(animationDuration(settings)>0&&!window.matchMedia("(prefers-reduced-motion: reduce)").matches){for(const m of movement){const dest=[...root.querySelectorAll("[data-card-id]")].find(n=>n.dataset.cardId===m.id);if(!dest)continue;const end=dest.getBoundingClientRect();if(m.from)dest.animate([{transform:"translate("+(m.from.left-end.left)+"px,"+(m.from.top-end.top)+"px)",opacity:.7},{transform:"none",opacity:1}],{duration:animationDuration(settings),easing:"ease-out"});else dest.animate([{opacity:0,transform:"translateY(30px) scale(.8)"},{opacity:1,transform:"none"}],{duration:animationDuration(settings)})}}
+ movement=[];lastEvents=[];lastAction=null;
  if(schedule)scheduleOpponent();
 }
 render();
