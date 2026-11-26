@@ -46,6 +46,12 @@ export function validateModuleV2(m){
    else errors.push("effect: unsupported operation "+id);
   }
  }
+ if(m.phases!==undefined){
+  const phases=list(m.phases,"phases",20),ids=new Set();
+  require(phases.length>0,"phases: empty");
+  for(const p of phases){require(record(p)&&key(p.id)&&!ids.has(p.id)&&Array.isArray(p.actions)&&p.actions.every(a=>["activate","attack","attach"].includes(a)),"phase: invalid");if(record(p))ids.add(p.id)}
+  for(const e of Object.values(effects))if(e?.phases!==undefined)require(Array.isArray(e.phases)&&e.phases.every(id=>ids.has(id)),"effect: invalid phase restriction");
+ }
  const triggers=new Set();
  for(const t of list(m.triggers??[],"triggers")){
   require(record(t)&&key(t.id)&&!triggers.has(t.id)&&key(t.event)&&Object.hasOwn(effects,t.effect)&&players.includes(t.actor),"trigger: invalid reference");
