@@ -9,9 +9,11 @@ import {collectTriggers} from "./triggers.js";
 import {beginEffect,resumeEffect,choiceView} from "./effects.js";
 import {resolveCombat,evaluateVictory} from "./combat.js";
 import {selectCards} from "./selectors.js";
+import {assertModuleV2} from "./module-v2.js";
 const check=(ok,m)=>{if(!ok)throw Error(m)};
 const own=(o,k)=>typeof k==="string"&&Object.hasOwn(o??{},k);
 export function createMatch(module){
+ if(module?.schemaVersion===2)assertModuleV2(module);
  const rules=structuredClone(module);
  let state=createState(rules);
  for(const card of rules.setup??[])state=addCard(state,card).state;
@@ -26,7 +28,7 @@ function effect(m,id){
  check(own(m.rules.effects,id),"Unknown effect");return m.rules.effects[id];
 }
 function eligible(m,actor,id,e){
- return e.available===true&&(e.actors===undefined||e.actors.includes(actor))&&quotePayment(m.state,actor,e.costs??[]).legal;
+ return e.available===true&&(e.actors===undefined||e.actors.includes(actor))&&(!e.requiresCard||m.state.zones[e.requiresCard.zone]?.cards.includes(e.requiresCard.id))&&quotePayment(m.state,actor,e.costs??[]).legal;
 }
 function finish(m,events){
  assertInvariants(m.state);assertAttachments(m.state);
