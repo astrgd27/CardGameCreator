@@ -153,6 +153,7 @@ function advancedEditor(key,section){
    p.append(actionButton("Add predicate",()=>{t.where??={};let k="id";if(Object.hasOwn(t.where,k))k="to";if(!Object.hasOwn(t.where,k))t.where[k]="";render(key)}));
   },key);
  }else if(key==="combat"){
+  if(module.combat&&!module.combat.group){const c=module.combat;for(const k of ["attackerDefinitions","defenderDefinitions"])field(section,k+" (comma separated; blank = any)",(c[k]??[]).join(","),"text",v=>{if(v.trim())c[k]=v.split(",").map(x=>x.trim()).filter(Boolean);else delete c[k]});for(const d of module.definitions)for(const resource of module.definitions)field(section,"Attached cost "+d+" / "+resource,c.attachedCosts?.[d]?.[resource]??0,"number",v=>{c.attachedCosts??={};c.attachedCosts[d]??={};if(v>0)c.attachedCosts[d][resource]=v;else delete c.attachedCosts[d][resource]})}
   if(module.combat)field(section,"Target orientation",module.combat.targetOrientation??"any",["any","ready","resting"],v=>{if(v==="any")delete module.combat.targetOrientation;else module.combat.targetOrientation=v});
   if(!module.combat){section.append(actionButton("Enable combat",()=>{module.combat={zones:[first("zones")],stats:{},defeatZones:{}};render(key)}));return}
   const c=module.combat;c.stats??={};c.defeatZones??={};
