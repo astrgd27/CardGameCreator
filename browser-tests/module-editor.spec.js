@@ -154,3 +154,21 @@ test("campaign editor launches encounters and persists completion",async({page})
  await page.reload();
  await expect(page.getByRole("heading",{name:"Campaign complete"})).toBeVisible();
 });
+
+test("campaign route and reward controls persist a selected branch",async({page})=>{
+ await page.goto("/module-editor.html");
+ const source=page.locator("#source"),m=JSON.parse(await source.inputValue());
+ m.zones.push({id:"deck-a",owner:"a",visibility:"hidden",capacity:10});
+ const overrides={victory:[{type:"emptyZone",player:"b",zone:"discard-b"}]};
+ m.campaign={id:"branch-test",player:"a",rewardZone:"deck-a",encounters:[{id:"start",name:"Crossroads",overrides,routes:[{to:"left",label:"Left path"},{to:"right",label:"Right path"}],rewards:[{definition:"sentinel",count:1}]},{id:"left",name:"Forest",overrides},{id:"right",name:"Castle",overrides}]};
+ await page.locator("summary").filter({hasText:/^Advanced module JSON$/}).click();
+ await source.fill(JSON.stringify(m));await page.getByRole("button",{name:"Apply JSON changes"}).click();
+ await page.locator("#editor-fields summary").filter({hasText:/^Campaign builder$/}).click();
+ await expect(page.getByLabel("Route label",{exact:true}).first()).toHaveValue("Left path");
+ await expect(page.getByLabel("Reward copies",{exact:true}).first()).toHaveValue("1");
+ await page.getByRole("button",{name:"Play campaign",exact:true}).click();
+ await page.getByRole("button",{name:"Right path",exact:true}).click();
+ await expect(page.getByRole("heading",{name:"Castle",exact:true})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"deck-a · 1",exact:true})).toBeVisible();
+ await page.reload();await expect(page.getByRole("heading",{name:"Castle",exact:true})).toBeVisible();
+});
