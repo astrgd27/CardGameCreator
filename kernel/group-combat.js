@@ -1,3 +1,4 @@
+import {inRange} from "./spatial.js";
 import {damageCards} from "./hidden-zones.js";
 import {hasRule} from "./keywords.js";
 // Opt-in two-seat declaration combat. All assignments use the pre-damage state.
@@ -21,12 +22,12 @@ export function combatOptions(m,actor){
  if(m.result||m.openingQueue?.length||m.triggerOrderPending||m.timing.active!==actor||m.timing.priority!==actor||m.windowClosed||m.pending||m.timing.queue.length||m.timing.resolving||m.rules.phases&&!m.rules.phases[m.phaseIndex].actions.includes("attack")||m.combatUsed===m.turn)return null;
  const targets=units(m,actor,"opponent").filter(id=>!hasRule(m.state,id,"cannotBeAttacked")).map(id=>({kind:"card",id}));
  if(c.lifeResource||c.lifeCards?.[enemy])targets.push({kind:"player",id:enemy});
- return {stage:"declare",attackers:units(m,actor,"self",true).filter(id=>!hasRule(m.state,id,"cannotAttack")),targets,max:c.maxAttackers??10};
+ return {stage:"declare",attackers:units(m,actor,"self",true).filter(id=>!hasRule(m.state,id,"cannotAttack")),targets,targetsByAttacker:Object.fromEntries(units(m,actor,"self",true).map(id=>[id,targets.filter(t=>t.kind==="player"||inRange(m.state,id,t.id))])),max:c.maxAttackers??10};
 }
 export function declareCombat(m,actor,attacks){
  const options=combatOptions(m,actor);check(options?.stage==="declare","Cannot declare attacks");
  check(Array.isArray(attacks)&&attacks.length>0&&attacks.length<=options.max&&new Set(attacks.map(a=>a.attacker)).size===attacks.length,"Invalid attackers");
- for(const a of attacks)check(options.attackers.includes(a.attacker)&&options.targets.some(t=>t.kind===a.kind&&t.id===a.target),"Invalid attack target");
+ for(const a of attacks)check(options.attackers.includes(a.attacker)&&options.targetsByAttacker[a.attacker]?.some(t=>t.kind===a.kind&&t.id===a.target),"Invalid attack target");
  const defender=m.state.players.find(p=>p!==actor);
  m.battle={stage:"block",actor,defender,attacks:structuredClone(attacks),boosts:{},used:[]};m.combatUsed=m.turn;
  return [{type:"attackersDeclared",actor,count:attacks.length}];
@@ -36,6 +37,7 @@ export function advanceBattle(m,actor,action){
  if(b.stage==="block"){
   check(action.type==="block","Blocking decision required");const blocks=action.blocks;
   check(Array.isArray(blocks)&&blocks.length<=20&&new Set(blocks.map(x=>x.blocker)).size===blocks.length&&blocks.every(x=>v.blockers.includes(x.blocker)&&v.attackers.includes(x.attacker)),"Invalid blocks");
+  check(blocks.every(x=>inRange(m.state,x.blocker,x.attacker,m.state.spatial?.blockRange)),"Blocker outside range");
   if(p.intercept==="direct")check(blocks.every(x=>b.attacks.find(a=>a.attacker===x.attacker).kind==="player"),"Only direct attacks can be intercepted");
   b.blocks=structuredClone(blocks);
   if(p.reactions?.length){b.stage="react";return [{type:"blockersDeclared",actor,count:blocks.length}]}
