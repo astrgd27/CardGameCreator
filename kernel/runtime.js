@@ -81,6 +81,7 @@ function startTurn(m,actor){let events=[];
   for(const id of Object.values(m.state.zones).filter(z=>m.rules.combat?.zones.includes(z.id)||(m.rules.generators??[]).some(g=>g.zones.includes(z.id))).flatMap(z=>z.cards))if(m.state.objects[id].controller===next)m.state.objects[id].orientation="ready";
   const r=refreshResources(m.state,next,{includeShared:!!m.rules.refreshShared});
   m.state=r.state;events=[...expired.events,{type:"turnStarted",actor:next},...r.events];if(phase(m))events.push({type:"phaseStarted",actor:next,phase:phase(m).id});
+  for(const p of m.rules.resourceDrawPolicies??[])if(p.player===next){const n=Math.min(p.perTurn,m.state.zones[p.deck].cards.length,m.state.zones[p.pool].capacity-m.state.zones[p.pool].cards.length);const drawn=drawCards(m.state,p.deck,p.pool,n);m.state=drawn.state;events.push(...drawn.events)}
   for(const p of m.rules.drawPolicies??[])if(p.player===next&&p.perTurn){if(p.exhaustion==="lose"&&m.state.zones[p.deck].cards.length<p.perTurn){m.state.ruleLosses??=[];if(!m.state.ruleLosses.includes(next))m.state.ruleLosses.push(next);events.push({type:"deckExhausted",actor:next})}const n=Math.min(p.perTurn,m.state.zones[p.deck].cards.length,m.state.zones[p.hand].capacity-m.state.zones[p.hand].cards.length);const drawn=drawCards(m.state,p.deck,p.hand,n);m.state=drawn.state;events.push(...drawn.events)}
  return enqueue(m,events);
 }
