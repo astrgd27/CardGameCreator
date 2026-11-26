@@ -24,7 +24,7 @@ export function createMatch(module,{seed=1}={}){
  const rules=structuredClone(module);
  let state=createState(rules);if(rules.keywordRules)state.keywordRules=structuredClone(rules.keywordRules);
  for(const card of rules.setup??[])state=addCard(state,card).state;
- state=initializeResources(state,rules.resources??[]);
+ state=initializeResources(state,rules.resources??[]);state.hiddenSeed=seed>>>0;
  for(const p of rules.drawPolicies??[]){if(p.shuffle){const r=shuffleZone(state,p.deck,seed);state=r.state;seed=r.seed}if(p.opening)state=drawCards(state,p.deck,p.hand,p.opening).state}
  const openingQueue=(rules.drawPolicies??[]).filter(p=>(p.mulligans??0)>0&&(p.opening??0)>0).map(p=>({player:p.player,remaining:p.mulligans,ids:(p.opening??0)>0?state.zones[p.hand].cards.slice(-p.opening):[]}));
  const timing=createTiming(state.players,rules.timing);
@@ -47,7 +47,8 @@ function eligible(m,actor,id,e,source){
 function finish(m,events){
  if(!m.pending&&m.rules.tokenPolicy?.zones){const r=cleanupTokens(m.state,m.rules.tokenPolicy.zones);m.state=r.state;if(r.events.length)events=[...events,...(!m.timing.resolving?enqueue(m,r.events):r.events)]}
  assertInvariants(m.state);assertAttachments(m.state);
- if(!m.openingQueue?.length&&!m.battle&&!m.pending&&!m.timing.resolving&&!m.timing.queue.length&&m.rules.victory?.length){
+ if(!m.openingQueue?.length&&!m.battle&&!m.pending&&!m.timing.resolving&&!m.timing.queue.length&&m.state.ruleLosses?.length){const losers=[...m.state.ruleLosses],remaining=m.state.players.filter(p=>!losers.includes(p));if(remaining.length<=1)m.result={losers,winner:remaining[0]??null,draw:!remaining.length}}
+ if(!m.result&&!m.openingQueue?.length&&!m.battle&&!m.pending&&!m.timing.resolving&&!m.timing.queue.length&&m.rules.victory?.length){
   const r=evaluateVictory(m.state,m.rules.victory);
   if(r.winner!==null||r.draw)m.result=r;
  }
@@ -140,7 +141,7 @@ export function applyMatchAction(match,actor,action){
   for(const id of Object.values(m.state.zones).filter(z=>m.rules.combat?.zones.includes(z.id)||(m.rules.generators??[]).some(g=>g.zones.includes(z.id))).flatMap(z=>z.cards))if(m.state.objects[id].controller===next)m.state.objects[id].orientation="ready";
   const r=refreshResources(m.state,next,{includeShared:!!m.rules.refreshShared});
   m.state=r.state;events=[...expired.events,{type:"turnStarted",actor:next},...r.events];if(phase(m))events.push({type:"phaseStarted",actor:next,phase:phase(m).id});
-  for(const p of m.rules.drawPolicies??[])if(p.player===next&&p.perTurn){const n=Math.min(p.perTurn,m.state.zones[p.deck].cards.length,m.state.zones[p.hand].capacity-m.state.zones[p.hand].cards.length);const drawn=drawCards(m.state,p.deck,p.hand,n);m.state=drawn.state;events.push(...drawn.events)}
+  for(const p of m.rules.drawPolicies??[])if(p.player===next&&p.perTurn){if(p.exhaustion==="lose"&&m.state.zones[p.deck].cards.length<p.perTurn){m.state.ruleLosses??=[];if(!m.state.ruleLosses.includes(next))m.state.ruleLosses.push(next);events.push({type:"deckExhausted",actor:next})}const n=Math.min(p.perTurn,m.state.zones[p.deck].cards.length,m.state.zones[p.hand].capacity-m.state.zones[p.hand].cards.length);const drawn=drawCards(m.state,p.deck,p.hand,n);m.state=drawn.state;events.push(...drawn.events)}
   events=enqueue(m,events);break;
  }
  default:throw Error("Unknown action");
@@ -152,5 +153,5 @@ export function matchView(m,viewer){
  const activations=[];
  if(!m.result&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&!m.pending&&m.timing.priority===viewer)for(const [id,e] of Object.entries(m.rules.effects)){const sources=e.sourceDefinition?selectCards(m.state,viewer,{zones:e.sourceZones,controller:"self",face:"up"}).filter(id=>inheritedDefinition(m.state.objects[id],e.sourceDefinition)):[undefined];for(const source of sources)if(eligible(m,viewer,id,e,source))for(const p of paymentPlans(e)){const option=dynamicOptions(m,viewer,e,source,p);if(option)activations.push({effect:id,source,...option})}}
  const available=[...new Set(activations.filter(a=>a.source===undefined&&a.id==="default"&&!a.groups.length&&!a.dynamic).map(a=>a.effect))];
- return {state,stackOptions:stackOptions(m,viewer),triggerOrder:m.triggerOrderPending?{actor:m.triggerOrderPending.actor,ids:m.triggerOrderPending.actor===viewer?m.triggerOrderPending.ids:undefined}:null,combat:combatOptions(m,viewer),combatActor:m.battle?.defender??null,phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,generators:!m.result&&!m.pending&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&m.timing.priority===viewer&&allows(m,"activate")&&!m.windowClosed?generatorOptions(m,viewer):[],windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
+ return {state,reveals:Object.entries(m.state.reveals??{}).filter(([id,r])=>r.viewers.includes(viewer)&&m.state.zones[r.zone]?.cards.includes(id)&&m.state.objects[id]?.definition===r.definition).map(([id,r])=>({id,zone:r.zone,definition:r.definition})),stackOptions:stackOptions(m,viewer),triggerOrder:m.triggerOrderPending?{actor:m.triggerOrderPending.actor,ids:m.triggerOrderPending.actor===viewer?m.triggerOrderPending.ids:undefined}:null,combat:combatOptions(m,viewer),combatActor:m.battle?.defender??null,phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,generators:!m.result&&!m.pending&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&m.timing.priority===viewer&&allows(m,"activate")&&!m.windowClosed?generatorOptions(m,viewer):[],windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
 }
