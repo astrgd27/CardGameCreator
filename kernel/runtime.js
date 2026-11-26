@@ -9,15 +9,17 @@ import {collectTriggers} from "./triggers.js";
 import {beginEffect,resumeEffect,choiceView} from "./effects.js";
 import {resolveCombat,evaluateVictory} from "./combat.js";
 import {selectCards} from "./selectors.js";
+import {shuffleZone,drawCards} from "./draw.js";
 import {assertModuleV2} from "./module-v2.js";
 const check=(ok,m)=>{if(!ok)throw Error(m)};
 const own=(o,k)=>typeof k==="string"&&Object.hasOwn(o??{},k);
-export function createMatch(module){
+export function createMatch(module,{seed=1}={}){
  if(module?.schemaVersion===2)assertModuleV2(module);
  const rules=structuredClone(module);
  let state=createState(rules);
  for(const card of rules.setup??[])state=addCard(state,card).state;
  state=initializeResources(state,rules.resources??[]);
+ for(const p of rules.drawPolicies??[]){if(p.shuffle){const r=shuffleZone(state,p.deck,seed);state=r.state;seed=r.seed}if(p.opening)state=drawCards(state,p.deck,p.hand,p.opening).state}
  const timing=createTiming(state.players,rules.timing);
  check(rules.effects&&typeof rules.effects==="object"&&!Array.isArray(rules.effects),"Missing effects");
  for(const e of Object.values(rules.effects))check(e&&Array.isArray(e.program)&&Array.isArray(e.costs??[]),"Invalid effect");
@@ -95,7 +97,9 @@ export function applyMatchAction(match,actor,action){
   m.timing=changeActive(m.timing,next);m.turn++;m.windowClosed=false;
   for(const id of Object.values(m.state.zones).filter(z=>m.rules.combat?.zones.includes(z.id)).flatMap(z=>z.cards))if(m.state.objects[id].controller===next)m.state.objects[id].orientation="ready";
   const r=refreshResources(m.state,next,{includeShared:!!m.rules.refreshShared});
-  m.state=r.state;events=enqueue(m,[{type:"turnStarted",actor:next},...r.events]);break;
+  m.state=r.state;events=[{type:"turnStarted",actor:next},...r.events];
+  for(const p of m.rules.drawPolicies??[])if(p.player===next&&p.perTurn){const n=Math.min(p.perTurn,m.state.zones[p.deck].cards.length,m.state.zones[p.hand].capacity-m.state.zones[p.hand].cards.length);const drawn=drawCards(m.state,p.deck,p.hand,n);m.state=drawn.state;events.push(...drawn.events)}
+  events=enqueue(m,events);break;
  }
  default:throw Error("Unknown action");
  }
