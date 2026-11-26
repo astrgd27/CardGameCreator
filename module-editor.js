@@ -207,11 +207,43 @@ function deckEditor(section){
  },"decks");
 }
 
+
+function drawPolicyEditor(section){
+ module.drawPolicies??=[];
+ listEditor(section,module.drawPolicies,"Draw policy",()=>{
+  const player=module.players.find(p=>!module.drawPolicies.some(d=>d.player===p))??first("players");
+  return {player,deck:module.zones.find(z=>z.owner===player&&z.visibility==="hidden")?.id??"",hand:module.zones.find(z=>z.owner===player&&z.visibility==="owner")?.id??"",opening:0,perTurn:1,shuffle:true,mulligans:0,mulliganPenalty:0};
+ },(p,d)=>{
+  field(p,"Draw player",d.player,"players",v=>{d.player=v;d.deck=module.zones.find(z=>z.owner===v&&z.visibility==="hidden")?.id??"";d.hand=module.zones.find(z=>z.owner===v&&z.visibility==="owner")?.id??"";render("drawPolicies")});
+  field(p,"Draw pile",d.deck,module.zones.filter(z=>z.owner===d.player&&z.visibility==="hidden").map(z=>z.id),v=>d.deck=v);
+  field(p,"Opening hand destination",d.hand,module.zones.filter(z=>z.owner===d.player&&z.visibility==="owner").map(z=>z.id),v=>d.hand=v);
+  field(p,"Opening hand size",d.opening??0,"number",v=>d.opening=v);
+  field(p,"Draw per turn",d.perTurn??0,"number",v=>d.perTurn=v);
+  field(p,"Shuffle at start",d.shuffle?"yes":"no",["yes","no"],v=>d.shuffle=v==="yes");
+  field(p,"Allowed mulligans",d.mulligans??0,"number",v=>d.mulligans=v);
+  field(p,"Cards lost per mulligan",d.mulliganPenalty??0,"number",v=>d.mulliganPenalty=v);
+ },"drawPolicies");
+}
+function layoutEditor(section){
+ if(!module.battlefield){section.append(actionButton("Configure battlefield",()=>{module.battlefield={columns:2,zones:module.zones.map(z=>({zone:z.id,label:z.id,display:"cards",span:1}))};render("battlefield")}));return}
+ const b=module.battlefield;b.zones??=[];
+ field(section,"Battlefield columns",String(b.columns??1),["1","2","3"],v=>b.columns=Number(v));
+ section.append(node("p","Zones appear in this order. Unlisted zones remain visible after configured zones. Hidden cards stay hidden."));
+ listEditor(section,b.zones,"Zone layout",()=>({zone:module.zones.find(z=>!b.zones.some(r=>r.zone===z.id))?.id??first("zones"),label:"",display:"cards",span:1}),(p,r,i)=>{
+  field(p,"Layout zone",r.zone,"zones",v=>r.zone=v);
+  field(p,"Zone label",r.label??"","text",v=>r.label=v);
+  field(p,"Zone display",r.display??"cards",["cards","count"],v=>r.display=v);
+  field(p,"Zone width",String(r.span??1),["1","2","3"],v=>r.span=Number(v));
+  if(i>0)p.append(actionButton("Move zone up",()=>{[b.zones[i-1],b.zones[i]]=[b.zones[i],b.zones[i-1]];render("battlefield")}));
+ },"battlefield");
+ section.append(actionButton("Reset battlefield layout",()=>{delete module.battlefield;render("battlefield")}));
+}
+
 function render(openKey){
  const root=$("editor-fields");root.replaceChildren();
  const label=node("label","Module name ");const input=node("input");input.value=module.name??"";input.addEventListener("input",()=>{module.name=input.value;sync()});label.append(input);root.append(label);
- for(const [key,title] of [["players","Players"],["definitions","Card definitions"],["cardPresentation","Card designer"],["zones","Zones"],["setup","Starting cards"],["decks","Deck construction"],["resources","Resources"],["effects","Effects"],["triggers","Triggers"],["combat","Combat"],["attachment","Attachments"],["timing","Timing"],["chain","Chains"],["modifiers","Continuous modifiers"],["replacements","Damage replacements"],["victory","Victory conditions"]]){
-  const section=node("details");section.open=key===openKey;section.append(node("summary",title));if(key==="decks"){deckEditor(section);root.append(section);continue}if(["attachment","timing","chain","modifiers","replacements"].includes(key)){advancedPolicies(key,section);root.append(section);continue}if(key==="cardPresentation"){cardDesigner(section);root.append(section);continue}if(fields[key]){tableEditor(key,section);root.append(section);continue}if(["effects","triggers","combat","victory"].includes(key)){advancedEditor(key,section);root.append(section);continue}const area=node("textarea");area.rows=8;area.style.width="100%";area.setAttribute("aria-label",title);area.value=JSON.stringify(module[key]??null,null,2);
+ for(const [key,title] of [["players","Players"],["definitions","Card definitions"],["cardPresentation","Card designer"],["zones","Zones"],["setup","Starting cards"],["decks","Deck construction"],["drawPolicies","Draw and mulligan policies"],["battlefield","Battlefield layout"],["resources","Resources"],["effects","Effects"],["triggers","Triggers"],["combat","Combat"],["attachment","Attachments"],["timing","Timing"],["chain","Chains"],["modifiers","Continuous modifiers"],["replacements","Damage replacements"],["victory","Victory conditions"]]){
+  const section=node("details");section.open=key===openKey;section.append(node("summary",title));if(key==="drawPolicies"){drawPolicyEditor(section);root.append(section);continue}if(key==="battlefield"){layoutEditor(section);root.append(section);continue}if(key==="decks"){deckEditor(section);root.append(section);continue}if(["attachment","timing","chain","modifiers","replacements"].includes(key)){advancedPolicies(key,section);root.append(section);continue}if(key==="cardPresentation"){cardDesigner(section);root.append(section);continue}if(fields[key]){tableEditor(key,section);root.append(section);continue}if(["effects","triggers","combat","victory"].includes(key)){advancedEditor(key,section);root.append(section);continue}const area=node("textarea");area.rows=8;area.style.width="100%";area.setAttribute("aria-label",title);area.value=JSON.stringify(module[key]??null,null,2);
   const apply=node("button","Apply "+title.toLowerCase());apply.type="button";apply.onclick=()=>{try{const v=JSON.parse(area.value);if(v===null)delete module[key];else module[key]=v;sync();status(title+" updated; validate before exporting.")}catch(e){status("Invalid JSON: "+e.message)}};section.append(area,apply);root.append(section);
  }sync();
 }

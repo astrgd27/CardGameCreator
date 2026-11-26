@@ -97,3 +97,25 @@ test("advanced rule controls serialize engine policies",async({page})=>{
  expect(m.attachment.max).toBe(2);expect(m.chain.maxLinks).toBe(5);
  expect(m.combat.modifiers[0].value).toBe(2);expect(m.combat.replacements[0].op).toBe("prevent");
 });
+
+test("custom layout and mulligan policy carry into play",async({page})=>{
+ await page.goto("/module-editor.html");
+ const source=page.locator("#source"),m=JSON.parse(await source.inputValue());
+ m.zones.push({id:"deck-a",owner:"a",visibility:"hidden",capacity:10});
+ for(const definition of ["sentinel","raider","blade"])m.setup.push({definition,owner:"a",zone:"deck-a"});
+ m.drawPolicies=[{player:"a",deck:"deck-a",hand:"hand-a",opening:2,perTurn:1,shuffle:true,mulligans:1,mulliganPenalty:1}];
+ await page.locator("summary").filter({hasText:/^Advanced module JSON$/}).click();
+ await source.fill(JSON.stringify(m));
+ await page.getByRole("button",{name:"Apply JSON changes"}).click();
+ await page.locator("#editor-fields summary").filter({hasText:/^Draw and mulligan policies$/}).click();
+ await expect(page.getByLabel("Opening hand size",{exact:true})).toHaveValue("2");
+ await page.locator("#editor-fields summary").filter({hasText:/^Battlefield layout$/}).click();
+ await page.getByRole("button",{name:"Configure battlefield"}).click();
+ await page.getByLabel("Zone label",{exact:true}).first().fill("Arena");
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await expect(page.getByRole("heading",{name:"Arena · 4",exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"Mulligan",exact:true}).click();
+ await expect(page.getByRole("heading",{name:"hand-a · 2",exact:true})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Pass priority"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"deck-a · 2",exact:true})).toBeVisible();
+});
