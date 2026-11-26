@@ -423,3 +423,18 @@ test("objective editor configures score victory and gameplay scoreboard",async({
  await page.getByRole("button",{name:"Playtest module"}).click();
  await expect(page.locator(".objective-scoreboard")).toContainText("Score 0");
 });
+
+test("editor section search filters and restores navigation without losing draft",async({page})=>{
+ await page.goto("/module-editor.html");const original=await page.locator("#source").inputValue();
+ await page.getByLabel("Find editor section",{exact:true}).fill("spatial");
+ await expect(page.locator("#editor-fields summary").filter({hasText:/^Spatial battlefield designer$/})).toBeVisible();
+ await expect(page.locator("#editor-fields summary").filter({hasText:/^Card designer$/})).toBeHidden();
+ await page.getByRole("button",{name:"Clear",exact:true}).click();
+ await expect(page.locator("#editor-fields summary").filter({hasText:/^Card designer$/})).toBeVisible();
+ expect(await page.locator("#source").inputValue()).toBe(original);
+});
+test("card keyboard selection keeps focus and supports inspection",async({page})=>{
+ await page.goto("/duel.html");const card=page.getByRole("button",{name:"Sentinel c1",exact:true});
+ await card.focus();await card.press("Enter");await expect(card).toBeFocused();await expect(card).toHaveAttribute("aria-pressed","true");
+ await card.press("i");await expect(page.getByRole("button",{name:"Close inspection"})).toBeVisible();
+});

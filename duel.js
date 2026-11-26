@@ -35,8 +35,8 @@ const button=(label,fn)=>{const b=el("button","",label);b.type="button";b.addEve
 function describeAction(actor,action){const who="Player "+actor.toUpperCase();const name=id=>{const o=match.state.objects[id];return o&&matchView(match,human).state.zones.some(z=>z.cards?.some(c=>c.id===id))?cardName(o):"a card"};switch(action.type){case "activate":return who+" activated "+action.effect;case "declareCombat":return who+" declared "+action.attacks.length+" attackers";case "block":return who+" assigned "+action.blocks.length+" blockers";case "attack":return who+" attacked with "+name(action.attacker)+" → "+name(action.defender);case "attach":return who+" attached "+name(action.id)+" to "+name(action.host);case "pass":return who+" passed priority";case "choose":return who+" made a choice";case "endTurn":return who+" ended their turn";case "nextPhase":return who+" advanced the phase";case "mulligan":return who+" redrew their opening hand";default:return who+" completed "+action.type}}
 function act(actor,action){
  if(preview)return;
- const before=new Map([...root.querySelectorAll("[data-card-id]")].map(n=>[n.dataset.cardId,n.getBoundingClientRect()]));
- try{const summary=describeAction(actor,action);const r=applyMatchAction(match,actor,action);match=r.match;movement=r.events.filter(e=>e.type==="cardMoved").map(e=>({id:e.id,from:before.get(e.id)}));actionSummary=summary;lastAction=action;lastEvents=r.events;log.push(...r.events.map(e=>[e.type,e.actor??"",e.amount??""].filter(Boolean).join(" ")));error="";selected=null}
+ const before=new Map();if(animationDuration(settings)>0&&!window.matchMedia("(prefers-reduced-motion: reduce)").matches)for(const n of root.querySelectorAll("[data-card-id]"))before.set(n.dataset.cardId,n.getBoundingClientRect());
+ try{const summary=describeAction(actor,action);const r=applyMatchAction(match,actor,action);match=r.match;movement=[...new Set(r.events.filter(e=>e.type==="cardMoved").map(e=>e.id))].map(id=>({id,from:before.get(id)}));actionSummary=summary;lastAction=action;lastEvents=r.events;log.push(...r.events.map(e=>[e.type,e.actor??"",e.amount??""].filter(Boolean).join(" ")));if(log.length>200)log.splice(0,log.length-200);error="";selected=null}
  catch(e){error=e.message}
  render();
 }
@@ -52,7 +52,7 @@ function card(o,viewer){
  if(o.definition){const badges=el("div","card-state-badges");if(o.token)badges.append(el("span","","Token"));if(o.components?.length){b.classList.add("composite-card");badges.append(el("span","","Stack ×"+(o.components.length+1)));for(const c of o.components)badges.append(el("span","",c.definition+(c.inherit?" · inherited":"")))}for(const k of o.keywords??[])if(!o.statuses?.includes(k))badges.append(el("span","",k));for(const [k,v] of Object.entries(o.counters??{}))badges.append(el("span","",k+" ×"+v));for(const status of o.statuses??[])badges.append(el("span","",status+(o.statusDurations?.[status]?" ("+o.statusDurations[status]+")":"")));if(o.controller!==o.owner)badges.append(el("span","","Controlled by "+o.controller));if(o.face==="down")badges.append(el("span","","Face down"));if(badges.childNodes.length)b.append(badges)}
  if(lastEvents.some(e=>e.id===o.id&&["cardFlipped","cardTransformed"].includes(e.type)))b.classList.add("flipping");
  if(lastEvents.some(e=>e.id===o.id&&e.type==="tokenCreated"))b.classList.add("arriving");
- b.setAttribute("aria-label",name+" "+(o.id??""));
+ b.setAttribute("aria-label",name+" "+(o.id??""));b.setAttribute("aria-pressed",String(!!o.id&&selected===o.id));
  if(!o.definition)b.classList.add("concealed");
  if(o.id)b.dataset.cardId=o.id;
  if(targets.some(t=>t.id===o.id))b.classList.add("potential-target","legal-target");
@@ -60,14 +60,15 @@ function card(o,viewer){
  if(presentation(o).text)b.append(el("span","card-rules",presentation(o).text));
  if(lastEvents.some(e=>e.id===o.id&&e.type==="cardMoved"))b.classList.add("arriving");
  if(lastEvents.some(e=>e.id===o.id&&e.type==="damageDealt"))b.classList.add("hit");
- if(lastAction?.type==="attack"&&lastAction.attacker===o.id)b.classList.add("striking");
+ if(lastAction?.type==="attack"&&lastAction.attacker===o.id||lastAction?.type==="declareCombat"&&lastAction.attacks.some(a=>a.attacker===o.id))b.classList.add("striking");
+ if(lastEvents.some(e=>e.id===o.id&&e.type==="orientationChanged"))b.classList.add("orientation-changing");
  if(lastAction?.type==="attach"&&lastAction.id===o.id)b.classList.add("equipping");
  b.addEventListener("contextmenu",e=>{e.preventDefault();inspect(o)});
  let hold=null,long=false;
  b.addEventListener("pointerdown",e=>{if(e.pointerType==="touch"){long=false;hold=setTimeout(()=>{long=true;inspect(o)},550)}});
  for(const event of ["pointerup","pointercancel","pointerleave"])b.addEventListener(event,()=>clearTimeout(hold));
  b.addEventListener("click",e=>{if(long){e.stopImmediatePropagation();long=false}},true);
- b.addEventListener("keydown",e=>{if(e.key==="i"){e.preventDefault();inspect(o)}});
+ b.addEventListener("keydown",e=>{if(e.key.toLowerCase()==="i"){e.preventDefault();inspect(o)}});
  return b;
 }
 function startEncounter(){const encounter=campaignBase.campaign.encounters[progress.index];rules=encounterModule(campaignBase,encounter,progress);opponentProfile=aiProfile(rules.ai??{});match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]});recorded=false;selected=null;log=[];actionSummary="";error="";aiMoves=0;lastEvents=[];lastAction=null;render()}
@@ -114,7 +115,7 @@ function combatControls(parent,viewer,c){
  parent.append(field);
 }
 function render(schedule=true){
- root.replaceChildren();
+ const focused=document.activeElement?.dataset?.cardId;root.replaceChildren();
  if(campaignBase&&progress.complete){root.append(el("h1","","Campaign complete"),el("p","","Wins: "+progress.wins+" · Losses: "+progress.losses),button("Reset campaign",()=>{if(confirm("Reset all campaign progress?")){progress=newCampaign(campaignBase);saveProgress(progress);startEncounter()}}),button("Back to editor",()=>location.href="module-editor.html"));return}
  const actor=match.triggerOrderPending?.actor??(match.battle?.stage==="assign"?match.battle.actor:match.battle?.defender)??match.openingQueue?.[0]?.player??match.pending?.actor??match.timing.priority??match.timing.active;
  if(actor!==computer)aiMoves=0;
@@ -142,7 +143,7 @@ function render(schedule=true){
  const discard=view.state.zones.find(z=>z.id==="discard-"+p)??{count:0};
  seat.append(el("small","discard-count","Discard · "+discard.count));board.append(seat);
  }
- if(custom){const config=rules.battlefield??{},columns=config.columns??1;board.style.setProperty("--zone-columns",String(columns));board.classList.add("custom-board");for(const p of players){const resources=view.resources["player-"+p]??{};board.append(el("h2","","Player "+p+" · "+Object.entries(resources).map(([k,v])=>k+": "+v).join(" · ")))}const layouts=config.zones??[];const ordered=[...layouts.map(r=>view.state.zones.find(z=>z.id===r.zone)).filter(Boolean),...view.state.zones.filter(z=>!layouts.some(r=>r.zone===z.id))];if(view.spatial){const grid=el("section","spatial-grid");grid.setAttribute("aria-label","Spatial battlefield");const slots=view.spatial.slots;grid.style.gridTemplateColumns="repeat("+Math.max(1,...slots.map(s=>s.x+1))+",minmax(120px,1fr))";for(const s of slots){const z=view.state.zones.find(z=>z.id===s.zone),control=view.spatial.control.find(c=>c.zone===s.zone),p=el("section","spatial-slot");p.style.gridColumn=String(s.x+1);p.style.gridRow=String(s.y+1);p.dataset.zone=s.zone;p.append(el("h2","",s.label??s.zone),el("p","",s.blocked?"Blocked":control?.contested?"Contested":control?.controller?"Controlled by "+control.controller:"Uncontrolled"));const row=el("div","duel-row");for(const o of z.cards??[])row.append(card(o,viewer));p.append(row);for(const move of view.spatial.moves.filter(m=>m.to===s.zone)){const o=view.state.zones.flatMap(z=>z.cards??[]).find(o=>o.id===move.id);if(o)p.append(button("Move "+cardName(o)+" "+o.id+" to "+s.zone+" ("+move.cost+")",()=>act(viewer,{type:"moveSpatial",id:move.id,to:move.to})))}grid.append(p)}board.append(grid)}for(const z of ordered.filter(z=>!view.spatial?.slots.some(s=>s.zone===z.id))){const r=layouts.find(r=>r.zone===z.id)??{};const section=el("section","duel-seat");section.style.setProperty("--zone-span",String(Math.min(columns,r.span??1)));section.append(el("h2","",(r.label||z.id)+" · "+z.count));const row=el("div","duel-row");if(r.display==="count"){row.append(el("span","","Cards: "+z.count))}else if(z.cards)for(const o of z.cards)row.append(card(o,viewer));else row.append(el("span","","Hidden cards: "+z.count));section.append(row);board.append(section)}}
+ if(custom){const config=rules.battlefield??{},columns=config.columns??1;board.style.setProperty("--zone-columns",String(columns));board.classList.add("custom-board");for(const p of players){const resources=view.resources["player-"+p]??{};board.append(el("h2","","Player "+p+" · "+Object.entries(resources).map(([k,v])=>k+": "+v).join(" · ")))}const layouts=config.zones??[];const ordered=[...layouts.map(r=>view.state.zones.find(z=>z.id===r.zone)).filter(Boolean),...view.state.zones.filter(z=>!layouts.some(r=>r.zone===z.id))];if(view.spatial){const grid=el("section","spatial-grid");grid.setAttribute("aria-label","Spatial battlefield");const slots=view.spatial.slots;grid.style.gridTemplateColumns="repeat("+Math.max(1,...slots.map(s=>s.x+1))+",minmax(120px,1fr))";for(const s of slots){const z=view.state.zones.find(z=>z.id===s.zone),control=view.spatial.control.find(c=>c.zone===s.zone),p=el("section","spatial-slot");p.style.gridColumn=String(s.x+1);p.style.gridRow=String(s.y+1);p.dataset.zone=s.zone;p.append(el("h2","",s.label??s.zone),el("p","",s.blocked?"Blocked":control?.contested?"Contested":control?.controller?"Controlled by "+control.controller:"Uncontrolled"));const row=el("div","duel-row");for(const o of z.cards??[])row.append(card(o,viewer));p.append(row);for(const move of view.spatial.moves.filter(m=>m.to===s.zone)){const o=view.state.zones.flatMap(z=>z.cards??[]).find(o=>o.id===move.id);if(o)p.append(button("Move "+cardName(o)+" "+o.id+" to "+s.zone+" ("+move.cost+")",()=>act(viewer,{type:"moveSpatial",id:move.id,to:move.to})))}grid.append(p)}board.append(grid)}for(const z of ordered.filter(z=>!view.spatial?.slots.some(s=>s.zone===z.id))){const r=layouts.find(r=>r.zone===z.id)??{};const section=el("section","duel-seat");section.style.setProperty("--zone-span",String(Math.min(columns,r.span??1)));section.append(el("h2","",(r.label||z.id)+" · "+z.count));const row=el("div","duel-row"+(z.visibility==="owner"&&z.owner===viewer?" hand":""));if(r.display==="count"){row.append(el("span","","Cards: "+z.count))}else if(z.cards)for(const o of z.cards)row.append(card(o,viewer));else row.append(el("span","","Hidden cards: "+z.count));section.append(row);board.append(section)}}
  const layout=el("div","duel-layout");layout.append(board);root.append(layout);
  const sidebar=el("aside","duel-sidebar");layout.append(sidebar);
  const controls=el("section","duel-controls");
@@ -172,7 +173,8 @@ function render(schedule=true){
  controls.append(el("p","duel-error",error),el("p","","Stack: "+(view.queue.map(e=>e.effect).join(" · ")||"empty")));
  sidebar.append(controls);
  const history=el("section","duel-log");history.append(el("h2","","Recent events"));for(const line of log.slice(-8).reverse())history.append(el("div","",line));sidebar.append(history);
- if(animationDuration(settings)>0&&!window.matchMedia("(prefers-reduced-motion: reduce)").matches){for(const m of movement){const dest=[...root.querySelectorAll("[data-card-id]")].find(n=>n.dataset.cardId===m.id);if(!dest)continue;const end=dest.getBoundingClientRect();if(m.from)dest.animate([{transform:"translate("+(m.from.left-end.left)+"px,"+(m.from.top-end.top)+"px)",opacity:.7},{transform:"none",opacity:1}],{duration:animationDuration(settings),easing:"ease-out"});else dest.animate([{opacity:0,transform:"translateY(30px) scale(.8)"},{opacity:1,transform:"none"}],{duration:animationDuration(settings)})}}
+ if(focused){const n=[...root.querySelectorAll("[data-card-id]")].find(n=>n.dataset.cardId===focused);n?.focus({preventScroll:true})}
+ if(animationDuration(settings)>0&&!window.matchMedia("(prefers-reduced-motion: reduce)").matches){const destinations=new Map([...root.querySelectorAll("[data-card-id]")].map(n=>[n.dataset.cardId,n]));for(const m of movement){const dest=destinations.get(m.id);if(!dest)continue;const end=dest.getBoundingClientRect();if(m.from)dest.animate([{transform:"translate("+(m.from.left-end.left)+"px,"+(m.from.top-end.top)+"px)",opacity:.7},{transform:"none",opacity:1}],{duration:animationDuration(settings),easing:"ease-out"});else dest.animate([{opacity:0,transform:"translateY(30px) scale(.8)"},{opacity:1,transform:"none"}],{duration:animationDuration(settings)})}}
  movement=[];lastEvents=[];lastAction=null;
  if(schedule)scheduleOpponent();
 }
