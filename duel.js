@@ -1,14 +1,14 @@
 import {demoModule} from "./kernel/demo-module.js";
 import {createMatch,applyMatchAction,matchView} from "./kernel/runtime.js";
 import {chooseDemoAction} from "./kernel/demo-ai.js";
-import {encounterModule,validateCampaign,readProgress,saveProgress,newCampaign,recordEncounter} from "./kernel/campaign.js";
+import {encounterModule,validateCampaign,readProgress,saveProgress,newCampaign,recordEncounter,nextRoutes} from "./kernel/campaign.js";
 import {readPlaytest} from "./module-library.js";
 const root=document.querySelector("#duel");
 const params=new URLSearchParams(location.search),campaignMode=params.has("campaign"),custom=params.has("custom")||campaignMode;
 let campaignBase=null,progress=null,recorded=false;
 let rules=demoModule(),startupError="";
 if(custom){try{rules=readPlaytest();if(!rules)throw Error("No staged module");createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]})}catch(e){startupError=e.message;rules=demoModule()}}
-if(campaignMode&&!startupError){try{campaignBase=rules;const errors=validateCampaign(campaignBase);if(errors.length)throw Error(errors.join(" · "));progress=readProgress(campaignBase);rules=encounterModule(campaignBase,campaignBase.campaign.encounters[Math.min(progress.index,campaignBase.campaign.encounters.length-1)])}catch(e){startupError=e.message;campaignBase=null;progress=null;rules=demoModule()}}
+if(campaignMode&&!startupError){try{campaignBase=rules;const errors=validateCampaign(campaignBase);if(errors.length)throw Error(errors.join(" · "));progress=readProgress(campaignBase);rules=encounterModule(campaignBase,campaignBase.campaign.encounters[Math.min(progress.index,campaignBase.campaign.encounters.length-1)],progress.complete?null:progress)}catch(e){startupError=e.message;campaignBase=null;progress=null;rules=demoModule()}}
 const players=rules.players;
 const human=campaignBase?.campaign.player??players[0],computer=players.find(p=>p!==human);
 let mode=campaignBase?"computer":"hotseat",timer=null,lastEvents=[],lastAction=null,aiMoves=0;
@@ -55,7 +55,7 @@ function card(o,viewer){
  b.addEventListener("keydown",e=>{if(e.key==="i"){e.preventDefault();inspect(o)}});
  return b;
 }
-function startEncounter(){const encounter=campaignBase.campaign.encounters[progress.index];rules=encounterModule(campaignBase,encounter);match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]});recorded=false;selected=null;log=[];error="";aiMoves=0;lastEvents=[];lastAction=null;render()}
+function startEncounter(){const encounter=campaignBase.campaign.encounters[progress.index];rules=encounterModule(campaignBase,encounter,progress);match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]});recorded=false;selected=null;log=[];error="";aiMoves=0;lastEvents=[];lastAction=null;render()}
 function render(schedule=true){
  root.replaceChildren();
  if(campaignBase&&progress.complete){root.append(el("h1","","Campaign complete"),el("p","","Wins: "+progress.wins+" · Losses: "+progress.losses),button("Reset campaign",()=>{if(confirm("Reset all campaign progress?")){progress=newCampaign(campaignBase);saveProgress(progress);startEncounter()}}),button("Back to editor",()=>location.href="module-editor.html"));return}
@@ -65,7 +65,7 @@ function render(schedule=true){
  const view=matchView(match,viewer);
  const top=el("div","duel-top");
  top.append(el("h1","",rules.name??"Custom duel"),el("span","","Turn "+view.turn+" · Active "+view.active.toUpperCase()+" · Priority "+actor.toUpperCase()),button("Restart",()=>{match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]});selected=null;log=[];lastEvents=[];lastAction=null;error="";render()}));
- if(players.length===2&&!campaignBase)top.append(button(mode==="computer"?"Switch to hot-seat":"Play vs computer",()=>{mode=mode==="computer"?"hotseat":"computer";selected=null;aiMoves=0;render()}));if(campaignBase){const encounter=campaignBase.campaign.encounters[progress.index];top.append(el("h2","",encounter.name),el("p","",encounter.intro??""),el("span","","Encounter "+(progress.index+1)+" / "+campaignBase.campaign.encounters.length+" · Wins "+progress.wins+" · Losses "+progress.losses));}if(view.phase)top.append(el("span","","Phase: "+view.phase));root.append(top);if(custom)top.append(button("Back to editor",()=>location.href="module-editor.html"));if(startupError)root.append(el("p","duel-error","Custom module could not load: "+startupError));
+ if(players.length===2&&!campaignBase)top.append(button(mode==="computer"?"Switch to hot-seat":"Play vs computer",()=>{mode=mode==="computer"?"hotseat":"computer";selected=null;aiMoves=0;render()}));if(campaignBase){const encounter=campaignBase.campaign.encounters[progress.index];top.append(el("h2","",encounter.name),el("p","",encounter.intro??""),el("span","","Encounter "+(progress.index+1)+" / "+campaignBase.campaign.encounters.length+" · Wins "+progress.wins+" · Losses "+progress.losses));if(progress.rewards.length)top.append(el("p","","Earned cards: "+progress.rewards.map(r=>r.definition+" ×"+r.count).join(", ")));}if(view.phase)top.append(el("span","","Phase: "+view.phase));root.append(top);if(custom)top.append(button("Back to editor",()=>location.href="module-editor.html"));if(startupError)root.append(el("p","duel-error","Custom module could not load: "+startupError));
  const board=el("div","duel-board"),field={cards:view.state.zones.filter(z=>z.id==="field"||(custom&&(rules.combat?.zones??[]).includes(z.id))).flatMap(z=>z.cards??[])};
  for(const p of custom?[]:[...players].reverse()){
   const seat=el("section","duel-seat "+(p===viewer?"friendly":"opposing")+(p===view.active?" active-seat":""));
@@ -86,7 +86,7 @@ function render(schedule=true){
  const sidebar=el("aside","duel-sidebar");layout.append(sidebar);
  const controls=el("section","duel-controls");
  controls.append(el("h2","","Actions · Player "+viewer.toUpperCase()));
- if(view.result){controls.append(el("strong","",view.result.draw?"Draw":"Winner: "+view.result.winner));if(campaignBase){controls.append(button(view.result.winner===human?"Continue campaign":"Retry encounter",()=>{try{if(!recorded){const next=recordEncounter(campaignBase,progress,progress.index,view.result);saveProgress(next);progress=next;recorded=true}if(progress.complete)render();else startEncounter()}catch(e){error=e.message;render()}}))}}
+ if(view.result){controls.append(el("strong","",view.result.draw?"Draw":"Winner: "+view.result.winner));if(campaignBase){const win=view.result.winner===human&&!view.result.draw;const advance=route=>{try{if(!recorded){const next=recordEncounter(campaignBase,progress,progress.index,view.result,route);saveProgress(next);progress=next;recorded=true}if(progress.complete)render();else startEncounter()}catch(e){error=e.message;render()}};if(win){const encounter=campaignBase.campaign.encounters[progress.index],routes=nextRoutes(campaignBase,progress.index);if(encounter.rewards?.length)controls.append(el("p","","Reward: "+encounter.rewards.map(r=>r.definition+" ×"+r.count).join(", ")));if(routes.length)for(const r of routes)controls.append(button(r.label,()=>advance(r.to)));else controls.append(button("Continue campaign",()=>advance()))}else controls.append(button("Retry encounter",()=>advance()))}}
  else if(mode==="computer"&&actor===computer)controls.append(el("p","","Opponent is considering a move…"));
  else if(view.opening){controls.append(el("p","","Opening hand · "+view.opening.remaining+" mulligans remaining"),button("Keep opening hand",()=>act(viewer,{type:"keep"})),button("Mulligan",()=>act(viewer,{type:"mulligan"})))}
  else if(view.choice){for(const value of view.choice.options??[])controls.append(button("Choose "+value,()=>act(viewer,{type:"choose",value})))}
