@@ -10,7 +10,7 @@ export function scoreObjectives(m,events){
   const c=control.find(x=>x.zone===r.zone);if(!c)continue;
   const previous=o.captures[r.zone]??null,now=c.controller&&!o.eliminated.includes(c.controller)?c.controller:null;
   const next=now??(r.persistent&&!o.eliminated.includes(previous)?previous:null);
-  if(next!==previous){o.captures[r.zone]=next;out.push({type:"objectiveCaptured",zone:r.zone,actor:next??"none"});if(next&&r.capturePoints){o.scores[next]=Math.min(Number.MAX_SAFE_INTEGER,o.scores[next]+r.capturePoints);out.push({type:"objectiveScored",actor:next,amount:r.capturePoints,zone:r.zone})}}
+  if(next!==previous){o.captures[r.zone]=next;out.push({type:"objectiveCaptured",zone:r.zone,actor:next??"none"});if(next&&r.capturePoints&&(!previous||teamOf(m,previous)!==teamOf(m,next))){o.scores[next]=Math.min(Number.MAX_SAFE_INTEGER,o.scores[next]+r.capturePoints);out.push({type:"objectiveScored",actor:next,amount:r.capturePoints,zone:r.zone})}}
   if(next&&r.holdPoints&&events.some(e=>e.type==="turnStarted"&&e.actor===next)){o.scores[next]=Math.min(Number.MAX_SAFE_INTEGER,o.scores[next]+r.holdPoints);out.push({type:"objectiveScored",actor:next,amount:r.holdPoints,zone:r.zone})}
  }
  for(const e of events)if(e.type==="scoreAwarded"&&!o.eliminated.includes(e.actor)){o.scores[e.actor]=Math.min(Number.MAX_SAFE_INTEGER,o.scores[e.actor]+e.amount);out.push({type:"objectiveScored",actor:e.actor,amount:e.amount})}
