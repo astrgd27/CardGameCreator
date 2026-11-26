@@ -10,7 +10,7 @@ import {scoreObjectives} from "../kernel/objectives.js";
 const act=(m,p,a)=>applyMatchAction(m,p,a).match;
 test("group declaration after elimination selects living opponent",()=>{
  const r=demoModule();r.players.push("c");r.zones.push({id:"discard-c",owner:"c",visibility:"public",capacity:10});r.combat.defeatZones.c="discard-c";r.multiplayer={};r.combat.group={lifeResource:"energy"};
- const m=createMatch(r);m.objectives.eliminated=["b"];m.timing.players=["a","c"];
+ const m=createMatch(r);assert.equal(matchView(m,"a").combat,null);m.objectives.eliminated=["b"];m.timing.players=["a","c"];
  const n=act(m,"a",{type:"declareCombat",attacks:[{attacker:"c1",kind:"player",target:"c"}]});assert.equal(n.battle.defender,"c");assert.doesNotThrow(()=>act(n,"c",{type:"block",blocks:[]}));
 });
 test("allied occupants transferring capture do not earn another capture award",()=>{
