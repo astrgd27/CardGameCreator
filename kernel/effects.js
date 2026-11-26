@@ -32,7 +32,7 @@ function advance(state,timing,program,triggerRules,frame){
   if(op.type==="skipUnlessChoice"){if(!Object.hasOwn(choices,op.choice)||choices[op.choice]!==op.value)pc+=op.skip;continue}
   if(op.type==="skipUnless"){if(selectCards(next,actor,op.selector).length<op.minimum)pc+=op.skip;continue}
   if(op.type==="choose"||op.type==="target"){
-   const options=op.type==="target"?selectCards(next,actor,op.selector):op.options;
+   const options=op.type==="target"?selectCards(next,actor,{...op.selector,targetable:true}):op.options;
    if(!options.length){const finished=finishResolution(timing,timing.resolving.id);return {state,timing:finished.timing,pending:null,fizzled:true,events:[{type:"effectFizzled",actor},...finished.events]}}
    return {state:next,timing:structuredClone(timing),pending:{effectId:timing.resolving.id,actor,pc,name:op.name,options:[...options],choices,events},events:[]};
   }
