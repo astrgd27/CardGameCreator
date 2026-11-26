@@ -102,7 +102,7 @@ export function applyMatchAction(match,actor,action){
   if(!q.remaining||!q.ids.length)m.openingQueue.shift();
   return finish(m,[{type:"openingRedrawn",actor,count:n}]);
  }
- if(m.triggerOrderPending){const p=m.triggerOrderPending;check(actor===p.actor&&action.type==="orderTriggers"&&Array.isArray(action.ids)&&action.ids.length===p.ids.length&&new Set(action.ids).size===p.ids.length&&action.ids.every(id=>p.ids.includes(id)),"Invalid trigger order");const items=m.timing.queue.filter(q=>p.ids.includes(q.id));let i=0;m.timing.queue=m.timing.queue.map(q=>p.ids.includes(q.id)?items.find(x=>x.id===action.ids[i++]):q);m.triggerOrderPending=m.triggerOrderRemaining?.shift()??null;return done([{type:"triggersOrdered",actor}])}
+ if(m.triggerOrderPending){const p=m.triggerOrderPending;check(actor===p.actor&&action.type==="orderTriggers"&&Array.isArray(action.ids)&&action.ids.length===p.ids.length&&new Set(action.ids).size===p.ids.length&&action.ids.every(id=>p.ids.includes(id)),"Invalid trigger order");const items=m.timing.queue.filter(q=>p.ids.includes(q.id));let i=0;m.timing.queue=m.timing.queue.map(q=>{if(!p.ids.includes(q.id))return q;const id=action.ids[i++];return items.find(x=>x.id===id)});m.triggerOrderPending=m.triggerOrderRemaining?.shift()??null;return done([{type:"triggersOrdered",actor}])}
  if(m.battle){check(action.type==="block","Blocking decision required");events=enqueue(m,resolveGroupCombat(m,actor,action.blocks));return done(events)}
  if(m.pending){
   check(action.type==="choose","Choice pending");
