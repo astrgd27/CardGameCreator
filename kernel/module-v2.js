@@ -64,7 +64,12 @@ export function validateModuleV2(m){
   }
   for(const op of list(e.program,"program "+id,64)){
    if(!record(op)){errors.push("effect: invalid operation "+id);continue}
-   if(op.type==="choose"){require(key(op.name)&&!choices.has(op.name)&&Array.isArray(op.options)&&op.options.length>0&&op.options.length<=100&&op.options.every(key)&&new Set(op.options).size===op.options.length,"effect: invalid choice "+id);choices.add(op.name)}
+   if(["search","randomHidden"].includes(op.type)){require(key(op.name)&&!choices.has(op.name)&&zids.has(op.zone)&&(op.top===undefined||integer(op.top)&&op.top>=1&&op.top<=100)&&(op.definition===undefined||defs.includes(op.definition)),"invalid hidden selection");choices.add(op.name)}
+   else if(op.type==="optional"){require(key(op.name)&&!choices.has(op.name)&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"invalid optional choice");choices.add(op.name)}
+   else if(op.type==="reveal")require(choices.has(op.choice)&&["self","all"].includes(op.audience),"invalid reveal");
+   else if(op.type==="reorder")require(choices.has(op.choice)&&zids.has(op.zone)&&["top","bottom"].includes(op.position),"invalid reorder");
+   else if(op.type==="lifeDamage")require((op.player==="self"||players.includes(op.player))&&zids.has(op.zone)&&zids.has(op.destination)&&op.zone!==op.destination&&integer(op.count)&&op.count<=100&&(op.emptyLoss===undefined||typeof op.emptyLoss==="boolean"),"invalid life damage");
+   else if(op.type==="choose"){require(key(op.name)&&!choices.has(op.name)&&Array.isArray(op.options)&&op.options.length>0&&op.options.length<=100&&op.options.every(key)&&new Set(op.options).size===op.options.length,"effect: invalid choice "+id);choices.add(op.name)}
    else if(op.type==="skipUnlessResource")require(resources.has(op.resource)&&["atLeast","atMost","equal"].includes(op.comparison)&&integer(op.amount)&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"effect: invalid resource condition "+id);
    else if(op.type==="skipUnlessChoice")require(choices.has(op.choice)&&key(op.value)&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"effect: invalid choice condition "+id);
    else if(op.type==="skipUnless"){require(record(op.selector)&&integer(op.minimum)&&op.minimum<=100&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"effect: invalid condition "+id)}
@@ -104,7 +109,7 @@ export function validateModuleV2(m){
  const drawPlayers=new Set();
  for(const p of list(m.drawPolicies??[],"drawPolicies",8)){
   const deck=zones.find(z=>z?.id===p?.deck),hand=zones.find(z=>z?.id===p?.hand);
-  require(record(p)&&players.includes(p.player)&&!drawPlayers.has(p.player)&&deck?.owner===p.player&&hand?.owner===p.player&&deck?.visibility==="hidden"&&hand?.visibility==="owner"&&p.deck!==p.hand&&integer(p.opening??0)&&(p.opening??0)<=100&&integer(p.perTurn??0)&&(p.perTurn??0)<=100&&(p.shuffle===undefined||typeof p.shuffle==="boolean")&&integer(p.mulligans??0)&&(p.mulligans??0)<=10&&integer(p.mulliganPenalty??0)&&(p.mulliganPenalty??0)<=100,"drawPolicies: invalid configuration");
+  require(record(p)&&players.includes(p.player)&&!drawPlayers.has(p.player)&&deck?.owner===p.player&&hand?.owner===p.player&&deck?.visibility==="hidden"&&hand?.visibility==="owner"&&p.deck!==p.hand&&integer(p.opening??0)&&(p.opening??0)<=100&&integer(p.perTurn??0)&&(p.perTurn??0)<=100&&(p.shuffle===undefined||typeof p.shuffle==="boolean")&&integer(p.mulligans??0)&&(p.mulligans??0)<=10&&integer(p.mulliganPenalty??0)&&(p.mulliganPenalty??0)<=100&&(p.exhaustion===undefined||["ignore","lose"].includes(p.exhaustion)),"drawPolicies: invalid configuration");
   if(record(p))drawPlayers.add(p.player);
  }
  if(m.battlefield!==undefined){
@@ -141,6 +146,7 @@ export function validateModuleV2(m){
   require(record(r)&&key(r.id)&&!roleIds.has(r.id)&&Array.isArray(r.zones)&&r.zones.length>0&&r.zones.every(z=>zids.has(z))&&["required","providesTags","requiresProvidedTags"].every(k=>r[k]===undefined||typeof r[k]==="boolean")&&(r.rules===undefined||record(r.rules)&&["min","max","copies"].every(k=>r.rules[k]===undefined||integer(r.rules[k])&&r.rules[k]<=1000)),"deck role: invalid");if(record(r))roleIds.add(r.id);
  }
  if(m.linkedDeckRules!==undefined)require(record(m.linkedDeckRules)&&(m.linkedDeckRules.combinedCopies===undefined||integer(m.linkedDeckRules.combinedCopies)&&m.linkedDeckRules.combinedCopies<=1000),"linked deck rules: invalid");
+ for(const [player,p] of Object.entries(m.combat?.group?.lifeCards??{}))require(players.includes(player)&&record(p)&&zids.has(p.zone)&&zids.has(p.destination)&&p.zone!==p.destination&&m.zones.find(z=>z.id===p.zone)?.owner===player&&m.zones.find(z=>z.id===p.destination)?.owner===player&&(p.emptyLoss===undefined||typeof p.emptyLoss==="boolean")&&(p.perAttack===undefined||typeof p.perAttack==="boolean"),"invalid combat life card policy");
  return errors;
 }
 export function assertModuleV2(m){const errors=validateModuleV2(m);if(errors.length)throw Error(errors.join("; "));return m}
