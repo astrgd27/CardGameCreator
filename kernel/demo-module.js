@@ -21,8 +21,8 @@ export function demoModule(){
   ],
   resources:[{id:"energy",scope:"player",initial:3,max:6,refresh:2,refreshMode:"add"}],
   effects:{
-   musterA:{available:true,actors:["a"],costs:[{resource:"energy",amount:2,kind:"spend"}],program:[{type:"move",id:"c5",from:"hand-a",to:"field"}]},
-   musterB:{available:true,actors:["b"],costs:[{resource:"energy",amount:2,kind:"spend"}],program:[{type:"move",id:"c6",from:"hand-b",to:"field"}]},
+   musterA:{requiresCard:{id:"c5",zone:"hand-a"},available:true,actors:["a"],costs:[{resource:"energy",amount:2,kind:"spend"}],program:[{type:"move",id:"c5",from:"hand-a",to:"field"}]},
+   musterB:{requiresCard:{id:"c6",zone:"hand-b"},available:true,actors:["b"],costs:[{resource:"energy",amount:2,kind:"spend"}],program:[{type:"move",id:"c6",from:"hand-b",to:"field"}]},
    salvageA:{program:[{type:"resource",resource:"energy",delta:1}]},
    salvageB:{program:[{type:"resource",resource:"energy",delta:1}]}
   },
