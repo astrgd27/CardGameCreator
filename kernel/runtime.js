@@ -9,7 +9,7 @@ import {hasRule,keywords} from "./keywords.js";
 import {createState,addCard,projectState,assertInvariants} from "./objects.js";
 import {initializeResources,payResources,refreshResources,quotePayment} from "./resources.js";
 import {attachCard,assertAttachments,moveWithAttachments} from "./attachments.js";
-import {createTiming,submitEffect,passPriority,changeActive} from "./timing.js";
+import {createTiming,submitEffect,passPriority,changeActive,finishResolution} from "./timing.js";
 import {submitChainLink} from "./chains.js";
 import {collectTriggers} from "./triggers.js";
 import {beginEffect,resumeEffect,choiceView} from "./effects.js";
@@ -141,7 +141,7 @@ export function applyMatchAction(match,actor,action){
   m.windowClosed=events.some(e=>e.type==="windowClosed");
   if(m.timing.resolving){
    const e=effect(m,m.timing.resolving.effect);
-   events=[...events,...resolve(m,beginEffect(m.state,m.timing,e.program,(m.rules.triggers??[]).filter(t=>m.timing.players.includes(t.actor))))];
+   let resolved;try{resolved=beginEffect(m.state,m.timing,e.program,(m.rules.triggers??[]).filter(t=>m.timing.players.includes(t.actor)))}catch(err){const finished=finishResolution(m.timing,m.timing.resolving.id);resolved={state:m.state,timing:finished.timing,pending:null,events:[{type:"effectFizzled",actor:m.timing.resolving.actor},...finished.events]}}events=[...events,...resolve(m,resolved)];
   }break;
  }
  case "declareCombat":{events=declareCombat(m,actor,action.attacks);break}
