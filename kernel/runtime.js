@@ -1,3 +1,4 @@
+import {idle,scheduleState,nextSeat,triggerGroups,scheduleView} from "./scheduler.js";
 import {stackOptions,stackCard,inheritedDefinition} from "./composites.js";
 import {hasRule,keywords} from "./keywords.js";
 // First unified runtime: trusted module definitions, untrusted player action IDs.
@@ -39,6 +40,7 @@ function effect(m,id){
 function phase(m){return m.rules.phases?.[m.phaseIndex??0]}
 function allows(m,type){return !phase(m)||phase(m).actions.includes(type)}
 function eligible(m,actor,id,e,source){
+ if(e.windows&&!e.windows.includes(m.timing.queue.length?(m.rules.scheduler?.responseWindow??"response"):(phase(m)?.window??"main")))return false;
  if(source&&hasRule(m.state,source,"cannotActivate"))return false;
  if(e.sourceDefinition){if(!source||!selectCards(m.state,actor,{zones:e.sourceZones,controller:"self",face:"up"}).filter(id=>inheritedDefinition(m.state.objects[id],e.sourceDefinition)).includes(source))return false}else if(source!==undefined)return false;
  const useKey=JSON.stringify([actor,id,source??null]);const usage=m.uses?.[useKey];if(e.limit&&usage&&(e.limit.scope==="match"?usage.total:usage.turn===m.turn?usage.count:0)>=e.limit.count)return false;
@@ -57,16 +59,35 @@ function finish(m,events){
 function enqueue(m,events){
  const start=m.timing.queue.length;
  const r=collectTriggers(m.timing,m.rules.triggers??[],events);
- m.timing=r.timing;if(m.rules.triggerOrder==="player"&&r.events.length>1){const batch=m.timing.queue.slice(start);m.triggerOrderPending={actor:m.timing.active,ids:batch.map(x=>x.id)}}return [...events,...r.events];
+ m.timing=r.timing;if(r.events.length>1){const batch=m.timing.queue.slice(start);if(m.rules.triggerOrder==="player")m.triggerOrderPending={actor:m.timing.active,ids:batch.map(x=>x.id)};else if(m.rules.triggerOrder==="owner")triggerGroups(m,batch.map(x=>x.id))}return [...events,...r.events];
 }
 function resolve(m,r){
  m.state=r.state;m.timing=r.timing;m.pending=r.pending;
- if(m.rules.triggerOrder==="player"&&!r.pending){const ids=r.events.filter(e=>e.type==="triggerQueued").map(e=>e.id);if(ids.length>1)m.triggerOrderPending={actor:m.timing.active,ids}}
+ if(!r.pending){const ids=r.events.filter(e=>e.type==="triggerQueued").map(e=>e.id);if(ids.length>1){if(m.rules.triggerOrder==="player")m.triggerOrderPending={actor:m.timing.active,ids};else if(m.rules.triggerOrder==="owner")triggerGroups(m,ids)}}
  return r.events;
+}
+function startTurn(m,actor){let events=[];
+  const next=nextSeat(m,actor);
+  const expired=expireStatuses(m.state);m.state=expired.state;
+  m.timing=changeActive(m.timing,next);const ss=scheduleState(m);ss.passed=[];ss.handoff=false;m.turn++;m.phaseIndex=0;m.windowClosed=false;
+  for(const id of Object.values(m.state.zones).filter(z=>m.rules.combat?.zones.includes(z.id)||(m.rules.generators??[]).some(g=>g.zones.includes(z.id))).flatMap(z=>z.cards))if(m.state.objects[id].controller===next)m.state.objects[id].orientation="ready";
+  const r=refreshResources(m.state,next,{includeShared:!!m.rules.refreshShared});
+  m.state=r.state;events=[...expired.events,{type:"turnStarted",actor:next},...r.events];if(phase(m))events.push({type:"phaseStarted",actor:next,phase:phase(m).id});
+  for(const p of m.rules.drawPolicies??[])if(p.player===next&&p.perTurn){if(p.exhaustion==="lose"&&m.state.zones[p.deck].cards.length<p.perTurn){m.state.ruleLosses??=[];if(!m.state.ruleLosses.includes(next))m.state.ruleLosses.push(next);events.push({type:"deckExhausted",actor:next})}const n=Math.min(p.perTurn,m.state.zones[p.deck].cards.length,m.state.zones[p.hand].capacity-m.state.zones[p.hand].cards.length);const drawn=drawCards(m.state,p.deck,p.hand,n);m.state=drawn.state;events.push(...drawn.events)}
+ return enqueue(m,events);
+}
+function settleSchedule(m,actor,action,events){
+ const p=m.rules.scheduler;if(!p||!idle(m)||m.result)return events;
+ const s=scheduleState(m);
+ if(p.gauge&&m.state.resourcePools.shared[p.gauge.resource]>=p.gauge.threshold){m.state.resourcePools.shared[p.gauge.resource]=p.gauge.reset??0;return [...events,...startTurn(m,m.timing.active)]}
+ if(p.mode==="alternate"&&s.handoff){s.handoff=false;const players=m.state.players,at=players.indexOf(m.timing.active),next=Array.from({length:players.length},(_,i)=>players[(at+i+1)%players.length]).find(x=>!s.passed.includes(x));if(!next)return [...events,...startTurn(m,m.timing.active)];m.timing=changeActive(m.timing,next);m.windowClosed=false;events.push({type:"actionSeatChanged",actor:next})}
+ if(m.windowClosed&&phase(m)?.autoAdvance){if((m.phaseIndex??0)<m.rules.phases.length-1){m.phaseIndex++;m.windowClosed=false;events.push(...enqueue(m,[{type:"phaseStarted",actor:m.timing.active,phase:phase(m).id}]))}else events.push(...startTurn(m,m.timing.active))}
+ return events;
 }
 export function applyMatchAction(match,actor,action){
  check(match.state.players.includes(actor)&&!match.result&&action&&typeof action.type==="string","Action unavailable");
  const m=structuredClone(match);let events=[];
+ const done=events=>finish(m,settleSchedule(m,actor,action,events));
  if(m.openingQueue?.length){
   const q=m.openingQueue[0];check(actor===q.player,"Opening decision belongs to another player");
   if(action.type==="keep"){m.openingQueue.shift();return finish(m,[{type:"openingKept",actor}])}
@@ -81,15 +102,19 @@ export function applyMatchAction(match,actor,action){
   if(!q.remaining||!q.ids.length)m.openingQueue.shift();
   return finish(m,[{type:"openingRedrawn",actor,count:n}]);
  }
- if(m.triggerOrderPending){const p=m.triggerOrderPending;check(actor===p.actor&&action.type==="orderTriggers"&&Array.isArray(action.ids)&&action.ids.length===p.ids.length&&new Set(action.ids).size===p.ids.length&&action.ids.every(id=>p.ids.includes(id)),"Invalid trigger order");const items=m.timing.queue.filter(q=>p.ids.includes(q.id));m.timing.queue=m.timing.queue.filter(q=>!p.ids.includes(q.id)).concat(action.ids.map(id=>items.find(q=>q.id===id)));m.triggerOrderPending=null;return finish(m,[{type:"triggersOrdered",actor}])}
+ if(m.triggerOrderPending){const p=m.triggerOrderPending;check(actor===p.actor&&action.type==="orderTriggers"&&Array.isArray(action.ids)&&action.ids.length===p.ids.length&&new Set(action.ids).size===p.ids.length&&action.ids.every(id=>p.ids.includes(id)),"Invalid trigger order");const items=m.timing.queue.filter(q=>p.ids.includes(q.id));let i=0;m.timing.queue=m.timing.queue.map(q=>p.ids.includes(q.id)?items.find(x=>x.id===action.ids[i++]):q);m.triggerOrderPending=m.triggerOrderRemaining?.shift()??null;return done([{type:"triggersOrdered",actor}])}
  if(m.battle){check(action.type==="block","Blocking decision required");events=enqueue(m,resolveGroupCombat(m,actor,action.blocks));return finish(m,events)}
  if(m.pending){
   check(action.type==="choose","Choice pending");
   events=resolve(m,resumeEffect(m.state,m.timing,m.pending,{actor,value:action.value}));
-  return finish(m,events);
+  return done(events);
  }
  check(m.timing.resolving===null&&m.timing.priority===actor,"No priority");
+ const policy=m.rules.scheduler,ss=policy?scheduleState(m):null;
+ if(policy?.mode==="alternate"&&["activate","attack","attach","stack","generate","declareCombat"].includes(action.type)&&!m.timing.queue.length){check(actor===m.timing.active&&!ss.passed.includes(actor),"Not your action seat");ss.handoff=true}
  switch(action.type){
+ case "claimInitiative":{check(scheduleView(m,actor)?.canClaim,"Initiative unavailable");ss.initiative=actor;events=[{type:"initiativeClaimed",actor}];break}
+ case "passOut":{check(scheduleView(m,actor)?.canPassOut,"Pass out unavailable");if(!ss.passed.includes(actor))ss.passed.push(actor);ss.handoff=true;events=[{type:"playerPassedOut",actor}];break}
  case "stack":{const r=stackCard(m,actor,action);m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break}
  case "generate":{check(allows(m,"activate")&&!m.windowClosed,"Generation unavailable");const r=generate(m,actor,action);m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break}
  case "activate":{
@@ -135,23 +160,17 @@ export function applyMatchAction(match,actor,action){
  }
  case "endTurn":{
   check(m.windowClosed&&m.timing.active===actor&&!m.timing.queue.length&&(!m.rules.phases||(m.phaseIndex??0)===m.rules.phases.length-1),"Window must close or phases remain");
-  const players=m.state.players,next=players[(players.indexOf(actor)+1)%players.length];
-  const expired=expireStatuses(m.state);m.state=expired.state;
-  m.timing=changeActive(m.timing,next);m.turn++;m.phaseIndex=0;m.windowClosed=false;
-  for(const id of Object.values(m.state.zones).filter(z=>m.rules.combat?.zones.includes(z.id)||(m.rules.generators??[]).some(g=>g.zones.includes(z.id))).flatMap(z=>z.cards))if(m.state.objects[id].controller===next)m.state.objects[id].orientation="ready";
-  const r=refreshResources(m.state,next,{includeShared:!!m.rules.refreshShared});
-  m.state=r.state;events=[...expired.events,{type:"turnStarted",actor:next},...r.events];if(phase(m))events.push({type:"phaseStarted",actor:next,phase:phase(m).id});
-  for(const p of m.rules.drawPolicies??[])if(p.player===next&&p.perTurn){if(p.exhaustion==="lose"&&m.state.zones[p.deck].cards.length<p.perTurn){m.state.ruleLosses??=[];if(!m.state.ruleLosses.includes(next))m.state.ruleLosses.push(next);events.push({type:"deckExhausted",actor:next})}const n=Math.min(p.perTurn,m.state.zones[p.deck].cards.length,m.state.zones[p.hand].capacity-m.state.zones[p.hand].cards.length);const drawn=drawCards(m.state,p.deck,p.hand,n);m.state=drawn.state;events.push(...drawn.events)}
-  events=enqueue(m,events);break;
+  events=startTurn(m,actor);break;
+
  }
  default:throw Error("Unknown action");
  }
- return finish(m,events);
+ return done(events);
 }
 export function matchView(m,viewer){
  const state=projectState(m.state,viewer);for(const z of state.zones)for(const o of z.cards??[])if(o.id){o.keywords=keywords(m.state,o.id)}
  const activations=[];
  if(!m.result&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&!m.pending&&m.timing.priority===viewer)for(const [id,e] of Object.entries(m.rules.effects)){const sources=e.sourceDefinition?selectCards(m.state,viewer,{zones:e.sourceZones,controller:"self",face:"up"}).filter(id=>inheritedDefinition(m.state.objects[id],e.sourceDefinition)):[undefined];for(const source of sources)if(eligible(m,viewer,id,e,source))for(const p of paymentPlans(e)){const option=dynamicOptions(m,viewer,e,source,p);if(option)activations.push({effect:id,source,...option})}}
  const available=[...new Set(activations.filter(a=>a.source===undefined&&a.id==="default"&&!a.groups.length&&!a.dynamic).map(a=>a.effect))];
- return {state,reveals:Object.entries(m.state.reveals??{}).filter(([id,r])=>r.viewers.includes(viewer)&&m.state.zones[r.zone]?.cards.includes(id)&&m.state.objects[id]?.definition===r.definition).map(([id,r])=>({id,zone:r.zone,definition:r.definition})),stackOptions:stackOptions(m,viewer),triggerOrder:m.triggerOrderPending?{actor:m.triggerOrderPending.actor,ids:m.triggerOrderPending.actor===viewer?m.triggerOrderPending.ids:undefined}:null,combat:combatOptions(m,viewer),combatActor:m.battle?.defender??null,phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,generators:!m.result&&!m.pending&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&m.timing.priority===viewer&&allows(m,"activate")&&!m.windowClosed?generatorOptions(m,viewer):[],windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
+ return {state,scheduler:scheduleView(m,viewer),reveals:Object.entries(m.state.reveals??{}).filter(([id,r])=>r.viewers.includes(viewer)&&m.state.zones[r.zone]?.cards.includes(id)&&m.state.objects[id]?.definition===r.definition).map(([id,r])=>({id,zone:r.zone,definition:r.definition})),stackOptions:stackOptions(m,viewer),triggerOrder:m.triggerOrderPending?{actor:m.triggerOrderPending.actor,ids:m.triggerOrderPending.actor===viewer?m.triggerOrderPending.ids:undefined}:null,combat:combatOptions(m,viewer),combatActor:m.battle?.defender??null,phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,generators:!m.result&&!m.pending&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&m.timing.priority===viewer&&allows(m,"activate")&&!m.windowClosed?generatorOptions(m,viewer):[],windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
 }
