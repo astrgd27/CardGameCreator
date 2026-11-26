@@ -56,7 +56,12 @@ function advance(state,timing,program,triggerRules,frame){
    result=moveWithAttachments(next,{id,from:op.from,to:op.to});
   }else if(op.type==="token")result=createTokens(next,actor,op);
   else if(["counter","status","transform","flip","control","orient"].includes(op.type)){const id=op.id??(Object.hasOwn(choices,op.choice)?choices[op.choice]:undefined);result=changeCardState(next,actor,id,op)}
-  else if(op.type==="draw")result=drawCards(next,op.from,op.to,Math.min(op.count,next.zones[op.from].cards.length,next.zones[op.to].capacity-next.zones[op.to].cards.length));
+  else if(op.type==="draw"){
+   let count=op.count,to=op.to;
+   const rules=(next.eventReplacements??[]).filter(r=>r.event==="draw"&&(r.from===undefined||r.from===op.from)&&(r.when===undefined||evaluate(r.when,next,ctx)===true)).sort((a,b)=>(a.order??0)-(b.order??0));
+   for(const r of rules){if(r.op==="prevent")count=0;else if(r.op==="reduce")count=Math.max(0,count-r.amount);else if(r.op==="redirect")to=r.to;events.push({type:"drawReplaced",actor,rule:r.id})}
+   result=drawCards(next,op.from,to,Math.min(count,next.zones[op.from].cards.length,next.zones[to].capacity-next.zones[to].cards.length));
+  }
   else result=changeResource(next,actor,op.resource,op.delta,{overflow:op.overflow??"reject"});
   next=result.state;events.push(...result.events);
   check(events.length<=100,"Effect event budget exceeded");
