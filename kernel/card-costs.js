@@ -1,9 +1,9 @@
 // Payment plans are trusted rules; choices are untrusted instance IDs.
 import {selectCards} from "./selectors.js";
 import {payResources} from "./resources.js";
-import {moveWithAttachments,detachCard} from "./attachments.js";
+import {moveWithAttachments,detachCard,attachCard} from "./attachments.js";
 const check=(ok,msg)=>{if(!ok)throw Error(msg)};
-export function materialEligible(state,id,c){const a=state.attributes?.[state.objects[id].definition]??{};return (!c.definition||state.objects[id].definition===c.definition)&&(!c.attribute||a[c.attribute]===c.value)&&(!c.attachedTo||state.attachments?.[id]?.host===c.attachedTo)&&(c.kind!=="detach"||!!state.attachments?.[id])}
+export function materialEligible(state,id,c){const a=state.attributes?.[state.objects[id].definition]??{};return (!c.definition||state.objects[id].definition===c.definition)&&(!c.attribute||a[c.attribute]===c.value)&&(c.kind==="material"||!c.attachedTo||state.attachments?.[id]?.host===c.attachedTo)&&(c.kind!=="detach"||!!state.attachments?.[id])}
 export function paymentPlans(effect){return [{id:"default",costs:effect.costs??[],cardCosts:effect.cardCosts??[]},...(effect.alternatives??[])]}
 export function payPlan(state,actor,plan,ids=[]){
  check(Array.isArray(ids)&&new Set(ids).size===ids.length,"Duplicate payment cards");
@@ -14,8 +14,8 @@ export function payPlan(state,actor,plan,ids=[]){
   const eligible=selectCards(next,actor,{zones:[cost.from],controller:"self",...(cost.definition?{definition:cost.definition}:{}),...(cost.kind==="discard"?{owner:"self"}:{face:"up"})});
   check(chosen.every(id=>eligible.includes(id)&&materialEligible(next,id,cost)),"Invalid payment card");
   if(cost.totalLevel!==undefined)check(chosen.reduce((n,id)=>n+(next.attributes?.[next.objects[id].definition]?.level??0),0)===cost.totalLevel,"Incorrect material level total");
-  if(cost.totalRating!==undefined)check(chosen.reduce((n,id)=>n+(next.attributes?.[next.objects[id].definition]?.linkRating??1),0)===cost.totalRating,"Incorrect material rating total");
-  for(const id of chosen){if(cost.kind==="detach"){const d=detachCard(next,id);next=d.state;events.push(...d.events)}const r=moveWithAttachments(next,{id,from:cost.from,to:cost.to,face:"up"});next=r.state;events.push(...r.events,{type:cost.kind==="detach"?"materialDetached":cost.kind==="discard"?"cardDiscarded":"cardSacrificed",id,actor})}
+  if(cost.totalRating!==undefined){let sums=new Set([0]);for(const id of chosen){const rating=next.attributes?.[next.objects[id].definition]?.linkRating??1;sums=new Set([...sums].flatMap(n=>[n+1,n+rating]))}check(sums.has(cost.totalRating),"Incorrect material rating total")}
+  for(const id of chosen){if(cost.kind==="detach"){const d=detachCard(next,id);next=d.state;events.push(...d.events)}const r=moveWithAttachments(next,{id,from:cost.from,to:cost.to,face:"up"});next=r.state;if(cost.kind==="material"){const host=next.objects[cost.attachedTo];check(host&&host.controller===actor&&next.zones[cost.to].cards.includes(host.id),"Invalid material host");const attached=attachCard(next,{id,host:host.id,onHostMove:"follow"});next=attached.state;events.push(...attached.events)}events.push(...r.events,{type:cost.kind==="detach"?"materialDetached":cost.kind==="discard"?"cardDiscarded":"cardSacrificed",id,actor})}
  }
  check(offset===ids.length,"Unexpected payment cards");return {state:next,events};
 }
