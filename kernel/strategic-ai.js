@@ -74,7 +74,8 @@ function projectedScore(match,actor,action,profile,initial,next){
  if(action.type==="declareCombat")return action.attacks.reduce((n,a)=>n+stats(a.attacker).attack*.7,0);
  if(action.type==="block")return action.blocks.reduce((n,b)=>n+Math.min(stats(b.blocker).health,stats(b.attacker).attack)-Math.max(0,stats(b.attacker).attack-stats(b.blocker).health)*.5,0);
  if(action.type==="moveSpatial"){const r=initial.spatial?.moves.find(x=>x.id===action.id&&x.to===action.to),objective=rules.objectives?.locations?.find(x=>x.zone===action.to);return (objective&&initial.objectives?.captures[action.to]!==actor?(objective.capturePoints??0)*5+1:0)-(r?.cost??0)*.5}
- if(action.type==="stack")return 2;
+ if(action.type==="stack")return 2+Math.max(0,stats(action.material).attack-stats(action.host).attack);
+ if(action.type==="attack"){const a=stats(action.attacker),d=stats(action.defender);return Math.min(a.attack,d.health-(card(action.defender)?.damage??0))*.7-Math.min(d.attack,a.health-(card(action.attacker)?.damage??0))*.6+(a.attack>=d.health-(card(action.defender)?.damage??0)?3:0)}
  if(action.type==="activate"){const e=rules.effects[action.effect];return 1+(e.program.filter(op=>["token","move","awardScore","lifeDamage","draw"].includes(op.type)).length)-(action.cards?.length??0)*.6-(action.payment?.generators?.length??0)*.15}
  if(!publicSimulationSafe(match,initial,action))return 0;
  return evaluatePosition(matchView(next,actor),rules,actor,profile)-evaluatePosition(initial,rules,actor,profile);
