@@ -299,3 +299,21 @@ test("keyword editor and deck policy authoring serialize to module",async({page}
  await expect(page.locator("#editor-status")).toContainText("passed");
  const m=JSON.parse(await page.locator("#source").inputValue());expect(m.keywordRules.keywords.keyword1.restrictions).toEqual(["cannotAttack"]);expect(m.keywordRules.passives[0].value).toBe(2);expect(m.deckRules.banned).toEqual(["raider"]);
 });
+
+test("dynamic payment dialog cancels before resources or cards change",async({page})=>{
+ await page.goto("/module-editor.html");
+ const source=page.locator("#source"),m=JSON.parse(await source.inputValue());
+ m.effects.cast={available:true,sourceDefinition:"sentinel",sourceZones:["hand-a"],dynamicPayment:{modes:["deploy"],variable:{resource:"energy",min:1,max:2}},program:[{type:"move",choice:"source",from:"hand-a",to:"field"}]};
+ await page.locator("summary").filter({hasText:/^Advanced module JSON$/}).click();
+ await source.fill(JSON.stringify(m));await page.getByRole("button",{name:"Apply JSON changes"}).click();
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await page.getByRole("button",{name:"cast · Sentinel c5",exact:true}).click();
+ await page.getByLabel("Variable amount",{exact:true}).fill("2");
+ await page.getByRole("button",{name:"Cancel",exact:true}).click();
+ await expect(page.getByRole("button",{name:"cast · Sentinel c5",exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"cast · Sentinel c5",exact:true}).click();
+ await page.getByRole("button",{name:"Pay and activate"}).click();
+ await page.getByRole("button",{name:"Pass priority"}).click();
+ await page.getByRole("button",{name:"Pass priority"}).click();
+ await expect(page.getByRole("button",{name:"cast · Sentinel c5",exact:true})).toHaveCount(0);
+});

@@ -84,9 +84,17 @@ function openSettings(){
 }
 function choosePayment(actor,a){
  const dialog=el("dialog","duel-inspector");dialog.append(el("h2","","Choose payment cards"));
- const selects=[];
- for(const g of a.groups)for(let i=0;i<g.count;i++){const l=el("label","",g.kind+" "+(i+1)+" "),s=el("select");s.setAttribute("aria-label",g.kind+" "+(selects.length+1));for(const id of g.ids){const o=el("option","",cardName(match.state.objects[id])+" "+id);o.value=id;s.append(o)}s.value=a.example[selects.length];selects.push(s);l.append(s);dialog.append(l)}
- dialog.append(button("Pay and activate",()=>{const cards=selects.map(s=>s.value);dialog.close();act(actor,{type:"activate",effect:a.effect,source:a.source,plan:a.id,cards})}),button("Cancel",()=>dialog.close()));
+ const selects=[],payment={targets:{},hybrid:[],generators:[]};
+ function pick(label,items,change){const l=el("label","",label+" "),s=el("select");s.setAttribute("aria-label",label);for(const [v,t] of items){const o=el("option","",t);o.value=v;s.append(o)}s.onchange=()=>change(s.value);change(s.value);l.append(s);dialog.append(l)}
+ if(a.dynamic){const d=a.dynamic;
+  pick("Mode",d.modes.map(v=>[v,v]),v=>payment.mode=v);
+  const l=el("label","","Variable amount "),x=el("input");x.type="number";x.min=d.xMin;x.max=d.xMax;x.value=d.xMin;x.setAttribute("aria-label","Variable amount");payment.x=d.xMin;x.oninput=()=>payment.x=Number(x.value);l.append(x);dialog.append(l);
+  for(const t of d.targets)pick("Target "+t.name,t.ids.map(id=>[id,cardName(match.state.objects[id])+" "+id]),v=>payment.targets[t.name]=v);
+  d.hybrid.forEach((h,i)=>pick("Hybrid payment "+(i+1),h.resources.map(r=>[r,r+" ×"+h.amount]),v=>payment.hybrid[i]=v));
+  for(const g of d.generators){const l=el("label","","Generate "+g.resource+" ×"+g.amount+" from "+cardName(match.state.objects[g.id])+" "+g.id),c=el("input");c.type="checkbox";c.onchange=()=>{payment.generators=payment.generators.filter(x=>x.id!==g.id);if(c.checked)payment.generators.push({id:g.id,generator:g.generator})};l.append(c);dialog.append(l)}
+ }
+ for(const g of a.groups)for(let i=0;i<g.count;i++){const l=el("label","",g.kind+" "+(i+1)+" "),s=el("select");s.setAttribute("aria-label",g.kind+" "+(selects.length+1));for(const id of g.ids){const o=el("option","",cardName(match.state.objects[id])+" "+id);o.value=id;s.append(o)}if(a.example[selects.length])s.value=a.example[selects.length];selects.push(s);l.append(s);dialog.append(l)}
+ dialog.append(button("Pay and activate",()=>{const cards=selects.map(s=>s.value);dialog.close();act(actor,{type:"activate",effect:a.effect,source:a.source,plan:a.id,cards,...(a.dynamic?{payment}:{})})}),button("Cancel",()=>dialog.close()));
  document.body.append(dialog);dialog.addEventListener("close",()=>dialog.remove());dialog.showModal();
 }
 function combatControls(parent,viewer,c){
@@ -143,7 +151,8 @@ function render(schedule=true){
  else if(view.choice){for(const value of view.choice.options??[])controls.append(button("Choose "+value,()=>act(viewer,{type:"choose",value})))}
  else{
   if(view.combat?.stage==="declare")combatControls(controls,viewer,view.combat);
-  for(const a of view.activations??[]){const label=(!custom&&a.effect.startsWith("muster")?"Deploy from hand":a.effect)+(a.source?" · "+cardName(match.state.objects[a.source])+" "+a.source:"")+(a.id!=="default"?" · "+a.id:"");controls.append(button(label,()=>a.groups.length?choosePayment(viewer,a):act(viewer,{type:"activate",effect:a.effect,source:a.source,plan:a.id})))}
+  for(const g of view.generators??[])controls.append(button("Generate "+g.resource+" · "+cardName(match.state.objects[g.id])+" "+g.id,()=>act(viewer,{type:"generate",id:g.id,generator:g.generator})));
+  for(const a of view.activations??[]){const label=(!custom&&a.effect.startsWith("muster")?"Deploy from hand":a.effect)+(a.source?" · "+cardName(match.state.objects[a.source])+" "+a.source:"")+(a.id!=="default"?" · "+a.id:"");controls.append(button(label,()=>a.groups.length||a.dynamic?choosePayment(viewer,a):act(viewer,{type:"activate",effect:a.effect,source:a.source,plan:a.id})))}
   controls.append(button("Pass priority",()=>act(viewer,{type:"pass"})));
   if(view.windowClosed&&view.active===viewer)controls.append(button(view.hasNextPhase?"Next phase":"End turn",()=>act(viewer,{type:view.hasNextPhase?"nextPhase":"endTurn"})));
   const candidates=custom?view.state.zones.flatMap(z=>z.cards??[]):field.cards;

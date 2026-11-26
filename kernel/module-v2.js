@@ -49,6 +49,19 @@ export function validateModuleV2(m){
    validateCardCosts(p.cardCosts);
   }
   const choices=new Set(e.sourceDefinition?["source"]:[]);
+  if(e.dynamicPayment!==undefined){
+   const d=e.dynamicPayment;require(record(d),"dynamic payment: expected object");
+   if(record(d)){
+    choices.add("mode");choices.add("x");
+    if(d.modes!==undefined)require(Array.isArray(d.modes)&&d.modes.length>0&&d.modes.length<=20&&d.modes.every(key)&&new Set(d.modes).size===d.modes.length,"dynamic modes");
+    if(d.variable!==undefined)require(record(d.variable)&&resources.has(d.variable.resource)&&integer(d.variable.min)&&integer(d.variable.max)&&d.variable.min<=d.variable.max&&d.variable.max<=100,"variable payment");
+    for(const h of list(d.hybrid??[],"hybrid costs",20))require(record(h)&&Array.isArray(h.resources)&&h.resources.length>=2&&h.resources.length<=10&&h.resources.every(r=>resources.has(r))&&integer(h.amount)&&h.amount<=100,"hybrid cost");
+    for(const t of list(d.targets??[],"precommit targets",10)){
+     require(record(t)&&key(t.name)&&!choices.has(t.name)&&record(t.selector),"precommit target");if(record(t))choices.add(t.name);
+    }
+    for(const mod of list(d.modifiers??[],"cost modifiers",20))require(record(mod)&&defs.includes(mod.definition)&&Array.isArray(mod.zones)&&mod.zones.every(z=>zids.has(z))&&resources.has(mod.resource)&&Number.isSafeInteger(mod.delta)&&Math.abs(mod.delta)<=100,"cost modifier");
+   }
+  }
   for(const op of list(e.program,"program "+id,64)){
    if(!record(op)){errors.push("effect: invalid operation "+id);continue}
    if(op.type==="choose"){require(key(op.name)&&!choices.has(op.name)&&Array.isArray(op.options)&&op.options.length>0&&op.options.length<=100&&op.options.every(key)&&new Set(op.options).size===op.options.length,"effect: invalid choice "+id);choices.add(op.name)}
@@ -75,6 +88,7 @@ export function validateModuleV2(m){
   for(const e of Object.values(effects))if(e?.phases!==undefined)require(Array.isArray(e.phases)&&e.phases.every(id=>ids.has(id)),"effect: invalid phase restriction");
  }
  if(m.triggerOrder!==undefined)require(["fixed","player"].includes(m.triggerOrder),"invalid trigger ordering");
+ const generatorIds=new Set();for(const g of list(m.generators??[],"generators",100)){require(record(g)&&key(g.id)&&!generatorIds.has(g.id)&&defs.includes(g.definition)&&Array.isArray(g.zones)&&g.zones.length>0&&g.zones.every(z=>zids.has(z))&&resources.has(g.resource)&&integer(g.amount)&&g.amount>=1&&g.amount<=100,"invalid resource generator");if(record(g))generatorIds.add(g.id)}
  const triggers=new Set();
  for(const t of list(m.triggers??[],"triggers")){
   require(record(t)&&key(t.id)&&!triggers.has(t.id)&&key(t.event)&&Object.hasOwn(effects,t.effect)&&players.includes(t.actor),"trigger: invalid reference");

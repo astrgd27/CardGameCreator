@@ -14,6 +14,7 @@ import {shuffleZone,drawCards} from "./draw.js";
 import {paymentPlans,payPlan,paymentOptions} from "./card-costs.js";
 import {expireStatuses,cleanupTokens} from "./card-state.js";
 import {combatOptions,declareCombat,resolveGroupCombat} from "./group-combat.js";
+import {dynamicOptions,commitDynamic,generate,generatorOptions} from "./dynamic-payments.js";
 import {assertModuleV2} from "./module-v2.js";
 const check=(ok,m)=>{if(!ok)throw Error(m)};
 const own=(o,k)=>typeof k==="string"&&Object.hasOwn(o??{},k);
@@ -40,7 +41,7 @@ function eligible(m,actor,id,e,source){
  if(source&&hasRule(m.state,source,"cannotActivate"))return false;
  if(e.sourceDefinition){if(!source||!selectCards(m.state,actor,{zones:e.sourceZones,controller:"self",definition:e.sourceDefinition,face:"up"}).includes(source))return false}else if(source!==undefined)return false;
  const useKey=JSON.stringify([actor,id,source??null]);const usage=m.uses?.[useKey];if(e.limit&&usage&&(e.limit.scope==="match"?usage.total:usage.turn===m.turn?usage.count:0)>=e.limit.count)return false;
- return allows(m,"activate")&&(!e.phases||e.phases.includes(phase(m)?.id))&&(!e.requiresCard||!m.timing.queue.some(q=>q.effect===id))&&e.available===true&&(e.actors===undefined||e.actors.includes(actor))&&(!e.requiresCard||m.state.zones[e.requiresCard.zone]?.cards.includes(e.requiresCard.id))&&paymentPlans(e).some(p=>paymentOptions(m.state,actor,p));
+ return allows(m,"activate")&&(!e.phases||e.phases.includes(phase(m)?.id))&&(!e.requiresCard||!m.timing.queue.some(q=>q.effect===id))&&e.available===true&&(e.actors===undefined||e.actors.includes(actor))&&(!e.requiresCard||m.state.zones[e.requiresCard.zone]?.cards.includes(e.requiresCard.id))&&paymentPlans(e).some(p=>dynamicOptions(m,actor,e,source,p));
 }
 function finish(m,events){
  if(!m.pending&&m.rules.tokenPolicy?.zones){const r=cleanupTokens(m.state,m.rules.tokenPolicy.zones);m.state=r.state;if(r.events.length)events=[...events,...(!m.timing.resolving?enqueue(m,r.events):r.events)]}
@@ -87,13 +88,14 @@ export function applyMatchAction(match,actor,action){
  }
  check(m.timing.resolving===null&&m.timing.priority===actor,"No priority");
  switch(action.type){
+ case "generate":{check(allows(m,"activate")&&!m.windowClosed,"Generation unavailable");const r=generate(m,actor,action);m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break}
  case "activate":{
   const e=effect(m,action.effect);
   check(eligible(m,actor,action.effect,e,action.source),"Effect unavailable");
   const plan=paymentPlans(e).find(p=>p.id===(action.plan??"default"));check(plan,"Unknown payment plan");
-  const payment=payPlan(m.state,actor,plan,action.cards??[]);
+  const payment=commitDynamic(m,actor,e,action.source,plan,action);
   const useKey=JSON.stringify([actor,action.effect,action.source??null]);m.uses??={};const old=m.uses[useKey];m.uses[useKey]={turn:m.turn,count:(old?.turn===m.turn?old.count:0)+1,total:(old?.total??0)+1};
-  const entry={actor,effect:action.effect,choices:action.source?{source:action.source}:{}};
+  const entry={actor,effect:action.effect,choices:payment.choices};
   const r=m.rules.chain?submitChainLink(m.timing,entry,m.rules.chain):submitEffect(m.timing,entry);
   m.state=payment.state;m.timing=r.timing;m.windowClosed=false;
   events=[...r.events,...enqueue(m,payment.events)];break;
@@ -133,7 +135,7 @@ export function applyMatchAction(match,actor,action){
   const players=m.state.players,next=players[(players.indexOf(actor)+1)%players.length];
   const expired=expireStatuses(m.state);m.state=expired.state;
   m.timing=changeActive(m.timing,next);m.turn++;m.phaseIndex=0;m.windowClosed=false;
-  for(const id of Object.values(m.state.zones).filter(z=>m.rules.combat?.zones.includes(z.id)).flatMap(z=>z.cards))if(m.state.objects[id].controller===next)m.state.objects[id].orientation="ready";
+  for(const id of Object.values(m.state.zones).filter(z=>m.rules.combat?.zones.includes(z.id)||(m.rules.generators??[]).some(g=>g.zones.includes(z.id))).flatMap(z=>z.cards))if(m.state.objects[id].controller===next)m.state.objects[id].orientation="ready";
   const r=refreshResources(m.state,next,{includeShared:!!m.rules.refreshShared});
   m.state=r.state;events=[...expired.events,{type:"turnStarted",actor:next},...r.events];if(phase(m))events.push({type:"phaseStarted",actor:next,phase:phase(m).id});
   for(const p of m.rules.drawPolicies??[])if(p.player===next&&p.perTurn){const n=Math.min(p.perTurn,m.state.zones[p.deck].cards.length,m.state.zones[p.hand].capacity-m.state.zones[p.hand].cards.length);const drawn=drawCards(m.state,p.deck,p.hand,n);m.state=drawn.state;events.push(...drawn.events)}
@@ -146,7 +148,7 @@ export function applyMatchAction(match,actor,action){
 export function matchView(m,viewer){
  const state=projectState(m.state,viewer);for(const z of state.zones)for(const o of z.cards??[])if(o.id){o.keywords=keywords(m.state,o.id)}
  const activations=[];
- if(!m.result&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&!m.pending&&m.timing.priority===viewer)for(const [id,e] of Object.entries(m.rules.effects)){const sources=e.sourceDefinition?selectCards(m.state,viewer,{zones:e.sourceZones,controller:"self",definition:e.sourceDefinition,face:"up"}):[undefined];for(const source of sources)if(eligible(m,viewer,id,e,source))for(const p of paymentPlans(e)){const option=paymentOptions(m.state,viewer,p);if(option)activations.push({effect:id,source,...option})}}
- const available=[...new Set(activations.filter(a=>a.source===undefined&&a.id==="default"&&!a.groups.length).map(a=>a.effect))];
- return {state,triggerOrder:m.triggerOrderPending?{actor:m.triggerOrderPending.actor,ids:m.triggerOrderPending.actor===viewer?m.triggerOrderPending.ids:undefined}:null,combat:combatOptions(m,viewer),combatActor:m.battle?.defender??null,phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
+ if(!m.result&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&!m.pending&&m.timing.priority===viewer)for(const [id,e] of Object.entries(m.rules.effects)){const sources=e.sourceDefinition?selectCards(m.state,viewer,{zones:e.sourceZones,controller:"self",definition:e.sourceDefinition,face:"up"}):[undefined];for(const source of sources)if(eligible(m,viewer,id,e,source))for(const p of paymentPlans(e)){const option=dynamicOptions(m,viewer,e,source,p);if(option)activations.push({effect:id,source,...option})}}
+ const available=[...new Set(activations.filter(a=>a.source===undefined&&a.id==="default"&&!a.groups.length&&!a.dynamic).map(a=>a.effect))];
+ return {state,triggerOrder:m.triggerOrderPending?{actor:m.triggerOrderPending.actor,ids:m.triggerOrderPending.actor===viewer?m.triggerOrderPending.ids:undefined}:null,combat:combatOptions(m,viewer),combatActor:m.battle?.defender??null,phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,generators:!m.result&&!m.pending&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&m.timing.priority===viewer&&allows(m,"activate")&&!m.windowClosed?generatorOptions(m,viewer):[],windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
 }
