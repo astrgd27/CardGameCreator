@@ -33,3 +33,31 @@ test("effect, trigger and victory controls modify module data",async({page})=>{
  expect(m.triggers.length).toBe(3);
  expect(m.victory[0].type).toBe("resourceAtMost");
 });
+
+test("custom module library survives reload and launches a playable match",async({page})=>{
+ const errors=[];page.on("pageerror",e=>errors.push(e.message));
+ await page.goto("/module-editor.html");
+ await page.getByLabel("Module name").fill("Library Test Duel");
+ await page.getByRole("button",{name:"Save",exact:true}).click();
+ await expect(page.locator("#editor-status")).toContainText("saved locally");
+ await page.reload();
+ await expect(page.locator("#library option")).toHaveText("Library Test Duel");
+ page.once("dialog",d=>d.accept());
+ await page.getByRole("button",{name:"Load",exact:true}).click();
+ await expect(page.getByLabel("Module name")).toHaveValue("Library Test Duel");
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await expect(page.getByRole("heading",{name:"Library Test Duel",exact:true})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Sentinel c1",exact:true})).toHaveCount(1);
+ await expect(page.getByRole("button",{name:"Raider c6",exact:true})).toHaveCount(0);
+ await page.getByRole("button",{name:"musterA",exact:true}).click();
+ await page.getByRole("button",{name:"Pass priority"}).click();
+ await page.getByRole("button",{name:"Pass priority"}).click();
+ await expect(page.getByRole("heading",{name:"field · 5",exact:true})).toBeVisible();
+ expect(errors).toEqual([]);
+});
+test("workshop exposes generalized module editor",async({page})=>{
+ await page.goto("/");
+ await page.locator("#modes").getByRole("button",{name:"Play",exact:true}).click();
+ await page.getByRole("link",{name:"Generalized module editor",exact:true}).click();
+ await expect(page.getByRole("heading",{name:"Generalized module editor"})).toBeVisible();
+});
