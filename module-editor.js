@@ -131,6 +131,8 @@ function advancedEditor(key,section){
   const c=module.combat;c.stats??={};c.defeatZones??={};
   field(section,"Combat zones (comma separated)",(c.zones??[]).join(","),"text",v=>c.zones=v.split(",").map(x=>x.trim()).filter(Boolean));
   field(section,"Retaliation",c.retaliate===false?"no":"yes",["yes","no"],v=>c.retaliate=v==="yes");
+  field(section,"Combat mode",c.group?"group":"single",["single","group"],v=>{if(v==="group")c.group={maxAttackers:10,assignment:"lethal",readyBlockers:true};else delete c.group;render(key)});
+  if(c.group){const g=c.group;field(section,"Maximum attackers",g.maxAttackers,"number",v=>g.maxAttackers=v);field(section,"Damage assignment",g.assignment,["lethal","even"],v=>g.assignment=v);field(section,"Ready blockers required",g.readyBlockers!==false?"yes":"no",["yes","no"],v=>g.readyBlockers=v==="yes");field(section,"Guard status (optional)",g.guardStatus??"","text",v=>{if(v)g.guardStatus=v;else delete g.guardStatus});field(section,"Direct attack resource",g.lifeResource??"",["",...(module.resources??[]).filter(r=>r.scope==="player").map(r=>r.id)],v=>{if(v)g.lifeResource=v;else delete g.lifeResource})}
   for(const d of module.definitions??[]){const p=panel(section,d),st=c.stats[d]??{attack:0,health:1};field(p,"Attack "+d,st.attack,"number",v=>{c.stats[d]??={...st};c.stats[d].attack=v});field(p,"Health "+d,st.health,"number",v=>{c.stats[d]??={...st};c.stats[d].health=v})}
   for(const p of module.players??[])field(section,"Defeat zone "+p,c.defeatZones[p],"zones",v=>c.defeatZones[p]=v);
   section.append(actionButton("Disable combat",()=>{delete module.combat;render(key)}));
@@ -177,6 +179,7 @@ function advancedPolicies(key,section){
   field(section,"Maximum attachments",a.max??1,"number",v=>a.max=v);
   field(section,"Host movement",a.onHostMove??"detach",["detach","follow","reject"],v=>a.onHostMove=v);disable();
  }else if(key==="timing"){
+  field(section,"Trigger ordering",module.triggerOrder??"fixed",["fixed","player"],v=>module.triggerOrder=v);
   module.timing??={};field(section,"Resolution order",module.timing.order??"lifo",["lifo","fifo"],v=>module.timing.order=v);
   bool(section,"Refresh shared resources",module.refreshShared,v=>module.refreshShared=v);
  }else if(key==="chain"){
