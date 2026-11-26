@@ -329,3 +329,19 @@ test("composite recipe appears as a layered card in gameplay",async({page})=>{
  await expect(page.getByRole("button",{name:"Raider c1",exact:true})).toHaveClass(/composite-card/);
  await expect(page.getByRole("button",{name:"Raider c1",exact:true})).toContainText("Stack ×2");
 });
+
+test("hidden search offers named cards in private decision interface",async({page})=>{
+ await page.goto("/module-editor.html");
+ const source=page.locator("#source"),m=JSON.parse(await source.inputValue());
+ m.zones.push({id:"deck-a",owner:"a",visibility:"hidden",capacity:10});m.setup.push({definition:"blade",owner:"a",zone:"deck-a",face:"down"});
+ m.effects.search={available:true,actors:["a"],program:[{type:"search",name:"found",zone:"deck-a"},{type:"move",choice:"found",from:"deck-a",to:"hand-a"}]};
+ await page.locator("summary").filter({hasText:/^Advanced module JSON$/}).click();
+ await source.fill(JSON.stringify(m));await page.getByRole("button",{name:"Apply JSON changes"}).click();
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await page.getByRole("button",{name:"search",exact:true}).click();
+ await page.getByRole("button",{name:"Pass priority"}).click();
+ await page.getByRole("button",{name:"Pass priority"}).click();
+ await expect(page.locator(".private-decision")).toBeVisible();
+ await page.getByRole("button",{name:/Choose (Blade|blade) c7/}).click();
+ await expect(page.locator(".private-decision")).toHaveCount(0);
+});

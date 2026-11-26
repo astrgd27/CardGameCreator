@@ -36,7 +36,7 @@ function describeAction(actor,action){const who="Player "+actor.toUpperCase();co
 function act(actor,action){
  if(preview)return;
  const before=new Map([...root.querySelectorAll("[data-card-id]")].map(n=>[n.dataset.cardId,n.getBoundingClientRect()]));
- try{const summary=describeAction(actor,action);const r=applyMatchAction(match,actor,action);match=r.match;movement=r.events.filter(e=>e.type==="cardMoved").map(e=>({id:e.id,from:before.get(e.id)}));actionSummary=summary;lastAction=action;lastEvents=r.events;log.push(...r.events.map(e=>[e.type,e.id??e.actor??"",e.amount??""].filter(Boolean).join(" ")));error="";selected=null}
+ try{const summary=describeAction(actor,action);const r=applyMatchAction(match,actor,action);match=r.match;movement=r.events.filter(e=>e.type==="cardMoved").map(e=>({id:e.id,from:before.get(e.id)}));actionSummary=summary;lastAction=action;lastEvents=r.events;log.push(...r.events.map(e=>[e.type,e.actor??"",e.amount??""].filter(Boolean).join(" ")));error="";selected=null}
  catch(e){error=e.message}
  render();
 }
@@ -148,9 +148,10 @@ function render(schedule=true){
  else if(view.triggerOrder){const ids=[...view.triggerOrder.ids];const order=el("div","combat-declarations");function drawOrder(){order.replaceChildren();for(const [i,id] of ids.entries()){const line=el("div","",view.queue.find(q=>q.id===id)?.effect??id);if(i)line.append(button("Move up",()=>{[ids[i-1],ids[i]]=[ids[i],ids[i-1]];drawOrder()}));order.append(line)}order.append(button("Confirm trigger order",()=>act(viewer,{type:"orderTriggers",ids})))}drawOrder();controls.append(order)}
  else if(view.combat?.stage==="block"){combatControls(controls,viewer,view.combat)}
  else if(view.opening){controls.append(el("p","","Opening hand · "+view.opening.remaining+" mulligans remaining"),button("Keep opening hand",()=>act(viewer,{type:"keep"})),button("Mulligan",()=>act(viewer,{type:"mulligan"})))}
- else if(view.choice){for(const value of view.choice.options??[])controls.append(button("Choose "+value,()=>act(viewer,{type:"choose",value})))}
+ else if(view.choice){const p=el("section","private-decision");p.append(el("h2","","Private decision: "+(view.choice.name??"waiting")));for(const value of view.choice.options??[]){const label=view.choice.labels?.[value];p.append(button("Choose "+(label?(rules.cardPresentation?.[label]?.name??label)+" "+value:value),()=>act(viewer,{type:"choose",value})))}controls.append(p)}
  else{
   if(view.combat?.stage==="declare")combatControls(controls,viewer,view.combat);
+  if(view.reveals?.length){const p=el("section","private-decision");p.append(el("h2","","Revealed cards"));for(const r of view.reveals)p.append(el("p","",(rules.cardPresentation?.[r.definition]?.name??r.definition)+" · "+r.zone));controls.append(p)}
   for(const o of view.stackOptions??[])controls.append(button("Stack "+cardName(match.state.objects[o.material])+" "+o.material+" on "+cardName(match.state.objects[o.host])+" "+o.host,()=>act(viewer,{type:"stack",...o})));
   for(const g of view.generators??[])controls.append(button("Generate "+g.resource+" · "+cardName(match.state.objects[g.id])+" "+g.id,()=>act(viewer,{type:"generate",id:g.id,generator:g.generator})));
   for(const a of view.activations??[]){const label=(!custom&&a.effect.startsWith("muster")?"Deploy from hand":a.effect)+(a.source?" · "+cardName(match.state.objects[a.source])+" "+a.source:"")+(a.id!=="default"?" · "+a.id:"");controls.append(button(label,()=>a.groups.length||a.dynamic?choosePayment(viewer,a):act(viewer,{type:"activate",effect:a.effect,source:a.source,plan:a.id})))}

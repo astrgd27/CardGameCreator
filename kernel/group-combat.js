@@ -1,3 +1,4 @@
+import {damageCards} from "./hidden-zones.js";
 import {hasRule} from "./keywords.js";
 // Opt-in two-seat declaration combat. All assignments use the pre-damage state.
 import {selectCards} from "./selectors.js";
@@ -13,7 +14,7 @@ export function combatOptions(m,actor){
  if(battle)return battle.stage==="block"&&battle.defender===actor?{stage:"block",attackers:battle.attacks.map(a=>a.attacker),blockers:units(m,actor,"self",c.readyBlockers!==false).filter(id=>!hasRule(m.state,id,"cannotBlock")).filter(id=>!c.guardStatus||m.state.objects[id].statuses?.includes(c.guardStatus)),attacks:battle.attacks}:null;
  if(m.result||m.openingQueue?.length||m.triggerOrderPending||m.timing.active!==actor||m.timing.priority!==actor||m.windowClosed||m.pending||m.timing.queue.length||m.timing.resolving||m.rules.phases&&!m.rules.phases[m.phaseIndex].actions.includes("attack")||m.combatUsed===m.turn)return null;
  const targets=units(m,actor,"opponent").filter(id=>!hasRule(m.state,id,"cannotBeAttacked")).map(id=>({kind:"card",id}));
- if(c.lifeResource)targets.push({kind:"player",id:enemy});
+ if(c.lifeResource||c.lifeCards?.[enemy])targets.push({kind:"player",id:enemy});
  return {stage:"declare",attackers:units(m,actor,"self",true).filter(id=>!hasRule(m.state,id,"cannotAttack")),targets,max:c.maxAttackers??10};
 }
 export function declareCombat(m,actor,attacks){
@@ -42,7 +43,7 @@ export function resolveGroupCombat(m,actor,blocks){
  }
  let result=next;
  for(const [id,n] of damage){check(Number.isSafeInteger(n+result.objects[id].damage),"Damage overflow");result.objects[id].damage+=n}
- for(const [player,n] of life){const r=changeResource(result,player,policy.lifeResource,-n,{overflow:"clamp"});result=r.state;events.push(...r.events)}
+ for(const [player,n] of life){const r=policy.lifeCards?.[player]?damageCards(result,player,policy.lifeCards[player],policy.lifeCards[player].perAttack?b.attacks.filter(a=>a.kind==="player"&&a.target===player&&!blocks.some(x=>x.attacker===a.attacker)).length:n):changeResource(result,player,policy.lifeResource,-n,{overflow:"clamp"});result=r.state;events.push(...r.events)}
  const defeated=[...damage.keys()].filter(id=>result.objects[id].damage>=stat(id,"health"));
  for(const id of defeated){const from=Object.values(result.zones).find(z=>z.cards.includes(id)).id,to=c.defeatZones[result.objects[id].owner];const r=moveWithAttachments(result,{id,from,to,reset:true});result=r.state;events.push({type:"combatDefeat",id},...r.events)}
  m.state=result;m.battle=null;m.timing.passes=0;return [{type:"combatResolved",actor},...events];
