@@ -1,0 +1,307 @@
+{
+  "catalogVersion": "0.2",
+  "baselineCommit": "9a2e6b3518b8e2cfd95fc68243e706d0294328ea",
+  "note": "Static triage only; partial indicates relevant implementation, not measured evidence. Official evidence remains empty.",
+  "cases": [
+    {
+      "id": "pokmontcg-01",
+      "assessment": "partial",
+      "gap": "active/bench capacity, pre-payment capacity gate missing"
+    },
+    {
+      "id": "pokmontcg-02",
+      "assessment": "partial",
+      "gap": "hidden life transfer; knockout/prize award binding missing"
+    },
+    {
+      "id": "pokmontcg-03",
+      "assessment": "partial",
+      "gap": "effect limits; attachment/evolution/attack combined turn limits missing"
+    },
+    {
+      "id": "pokmontcg-04",
+      "assessment": "partial",
+      "gap": "mulligan; eligible creature and compensation missing"
+    },
+    {
+      "id": "pokmontcg-05",
+      "assessment": "pending",
+      "gap": "independent attack layout"
+    },
+    {
+      "id": "pokmontcg-06",
+      "assessment": "pending",
+      "gap": "payment-driven energy symbols"
+    },
+    {
+      "id": "pokmontcg-07",
+      "assessment": "pending",
+      "gap": "typed creature characteristics"
+    },
+    {
+      "id": "pokmontcg-08",
+      "assessment": "pending",
+      "gap": "category-specific trainer frames"
+    },
+    {
+      "id": "pokmontcg-09",
+      "assessment": "partial",
+      "gap": "composite retention fixture; condition clearing missing"
+    },
+    {
+      "id": "pokmontcg-10",
+      "assessment": "partial",
+      "gap": "card costs; atomic exchange and attached-only costs missing"
+    },
+    {
+      "id": "pokmontcg-11",
+      "assessment": "partial",
+      "gap": "statuses and scheduling; switch clearing/check rules missing"
+    },
+    {
+      "id": "pokmontcg-12",
+      "assessment": "partial",
+      "gap": "hidden damage; variable prize knockout binding missing"
+    },
+    {
+      "id": "magicthegathering-01",
+      "assessment": "partial",
+      "gap": "three-link LIFO fixture; visual authoring evidence missing"
+    },
+    {
+      "id": "magicthegathering-02",
+      "assessment": "partial",
+      "gap": "phase policy; complete window fixture missing"
+    },
+    {
+      "id": "magicthegathering-03",
+      "assessment": "partial",
+      "gap": "group combat; full assignment fixture missing"
+    },
+    {
+      "id": "magicthegathering-04",
+      "assessment": "partial",
+      "gap": "deck constraints; sideboard authoring/play missing"
+    },
+    {
+      "id": "magicthegathering-05",
+      "assessment": "partial",
+      "gap": "transform; independent face inspection missing"
+    },
+    {
+      "id": "magicthegathering-06",
+      "assessment": "pending",
+      "gap": "payment-driven symbol renderer"
+    },
+    {
+      "id": "magicthegathering-07",
+      "assessment": "partial",
+      "gap": "card presentation; responsive binding evidence missing"
+    },
+    {
+      "id": "magicthegathering-08",
+      "assessment": "pending",
+      "gap": "loyalty frame binding"
+    },
+    {
+      "id": "magicthegathering-09",
+      "assessment": "partial",
+      "gap": "ordered replacements; affected-player choice missing"
+    },
+    {
+      "id": "magicthegathering-10",
+      "assessment": "partial",
+      "gap": "continuous modifiers; complete expiry fixture missing"
+    },
+    {
+      "id": "magicthegathering-11",
+      "assessment": "partial",
+      "gap": "trigger order; simultaneous cross-seat fixture missing"
+    },
+    {
+      "id": "magicthegathering-12",
+      "assessment": "partial",
+      "gap": "stale single-target fixture; partial multi-target handling missing"
+    },
+    {
+      "id": "yugioh-01",
+      "assessment": "partial",
+      "gap": "chain speed fixture; authoring evidence missing"
+    },
+    {
+      "id": "yugioh-02",
+      "assessment": "partial",
+      "gap": "zone capacity; linked destination rule missing"
+    },
+    {
+      "id": "yugioh-03",
+      "assessment": "partial",
+      "gap": "orientation; defense damage policy missing"
+    },
+    {
+      "id": "yugioh-04",
+      "assessment": "partial",
+      "gap": "deck roles; Extra Deck access fixture missing"
+    },
+    {
+      "id": "yugioh-05",
+      "assessment": "pending",
+      "gap": "eight independent arrows"
+    },
+    {
+      "id": "yugioh-06",
+      "assessment": "pending",
+      "gap": "independently bound pendulum panels"
+    },
+    {
+      "id": "yugioh-07",
+      "assessment": "pending",
+      "gap": "conditional characteristic layouts"
+    },
+    {
+      "id": "yugioh-08",
+      "assessment": "pending",
+      "gap": "subtype frame/icon binding"
+    },
+    {
+      "id": "yugioh-09",
+      "assessment": "partial",
+      "gap": "distinct sacrifice fixture; multiple material predicates missing"
+    },
+    {
+      "id": "yugioh-10",
+      "assessment": "partial",
+      "gap": "optional effect; latest-event timing missing"
+    },
+    {
+      "id": "yugioh-11",
+      "assessment": "pending",
+      "gap": "separate activation/effect negation"
+    },
+    {
+      "id": "yugioh-12",
+      "assessment": "partial",
+      "gap": "attachment; detach-specific cost missing"
+    },
+    {
+      "id": "onepiece-01",
+      "assessment": "partial",
+      "gap": "group reactions and life transfer; combined Life Trigger missing"
+    },
+    {
+      "id": "onepiece-02",
+      "assessment": "partial",
+      "gap": "resource refresh and deck roles; acquisition fixture missing"
+    },
+    {
+      "id": "onepiece-03",
+      "assessment": "partial",
+      "gap": "deck constraints; leader-specific life and colors missing"
+    },
+    {
+      "id": "onepiece-04",
+      "assessment": "partial",
+      "gap": "orientation; opponent rested-only target rule missing"
+    },
+    {
+      "id": "onepiece-05",
+      "assessment": "pending",
+      "gap": "leader-specific field bindings"
+    },
+    {
+      "id": "onepiece-06",
+      "assessment": "pending",
+      "gap": "counter field in reaction UI"
+    },
+    {
+      "id": "onepiece-07",
+      "assessment": "pending",
+      "gap": "separate trigger text"
+    },
+    {
+      "id": "onepiece-08",
+      "assessment": "pending",
+      "gap": "multiple identity accents"
+    },
+    {
+      "id": "onepiece-09",
+      "assessment": "partial",
+      "gap": "attachment modifier; turn restriction fixture missing"
+    },
+    {
+      "id": "onepiece-10",
+      "assessment": "partial",
+      "gap": "life transfer fixture; accept/decline trigger missing"
+    },
+    {
+      "id": "onepiece-11",
+      "assessment": "partial",
+      "gap": "return-resource payment fixture; authoring proof missing"
+    },
+    {
+      "id": "onepiece-12",
+      "assessment": "partial",
+      "gap": "modifiers; battle versus turn expiry missing"
+    },
+    {
+      "id": "riftbound-01",
+      "assessment": "partial",
+      "gap": "capture scoring; contested conflict fixture missing"
+    },
+    {
+      "id": "riftbound-02",
+      "assessment": "partial",
+      "gap": "score policies; full scoring window trace missing"
+    },
+    {
+      "id": "riftbound-03",
+      "assessment": "partial",
+      "gap": "priority; location showdown policy missing"
+    },
+    {
+      "id": "riftbound-04",
+      "assessment": "partial",
+      "gap": "separate resource deck fixture; champion/battlefield setup missing"
+    },
+    {
+      "id": "riftbound-05",
+      "assessment": "pending",
+      "gap": "landscape location frame"
+    },
+    {
+      "id": "riftbound-06",
+      "assessment": "pending",
+      "gap": "resource frame data binding"
+    },
+    {
+      "id": "riftbound-07",
+      "assessment": "pending",
+      "gap": "domain symbol/cost binding"
+    },
+    {
+      "id": "riftbound-08",
+      "assessment": "pending",
+      "gap": "legend/champion layout links"
+    },
+    {
+      "id": "riftbound-09",
+      "assessment": "partial",
+      "gap": "dynamic payments; exhaust and recycle exact fixture missing"
+    },
+    {
+      "id": "riftbound-10",
+      "assessment": "partial",
+      "gap": "paid movement fixture; authoring evidence missing"
+    },
+    {
+      "id": "riftbound-11",
+      "assessment": "partial",
+      "gap": "hidden zones/reveal; location concealment fixture missing"
+    },
+    {
+      "id": "riftbound-12",
+      "assessment": "partial",
+      "gap": "spatial selectors; scoped effect after movement fixture missing"
+    }
+  ]
+}
