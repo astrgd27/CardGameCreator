@@ -61,5 +61,32 @@ function buildDecks(m,i){
  return m;
 }
 
-export function referenceModules(){return [creatures(),spells(),chains(),crews(),domains()].map((m,i)=>{m.cardPresentation=structuredClone(skins[i]);return buildDecks(expand(m,i),i)})}
+
+const tactics=[
+ [["Spore Nursery","Nutrient search"],["Static Nest","Nutrient search"]],
+ [["Emergency Reboot","Crystal technique"],["Thermal Overclock","Crystal technique"]],
+ [["Steam Basket Offering","Tribute technique"],["Chili Cauldron Offering","Tribute technique"]],
+ [["Crowd Favorite","Ring action"],["Heel's Encore","Ring action"]],
+ [["Neighborhood Coalition","Cultural action"],["Mixtape Revival","Cultural action"]]
+];
+function addTactics(m,i){
+ for(const [j,p] of m.players.entries()){
+ const id="tactic-"+p,hand="hand-"+p,deck="deck-"+p,discard="discard-"+p,base=j===0?"sentinel":"raider",support=j===0?"blade":"ward";
+ const [name,type]=tactics[i][j];m.definitions.push(id);
+ const resource=i===1?(j===0?"azure":"ruby"):i===3?"momentum":i===4?"rune":"energy";
+ const program=[{type:"move",choice:"source",from:hand,to:discard}];
+ const e={available:true,actors:[p],sourceDefinition:id,sourceZones:[hand],costs:[{kind:"spend",resource,amount:1}],program};
+ let description;
+ if(i===0){program.push({type:"draw",from:deck,to:hand,count:2});description="Spend 1 energy. Discard this card and draw two cards."}
+ if(i===1){program.push({type:"resource",resource:"life",delta:2,overflow:"clamp"});description="Spend 1 "+resource+". Restore 2 life."}
+ if(i===2){e.cardCosts=[{kind:"sacrifice",from:"field",to:discard,count:1,definition:support}];program.push({type:"target",name:"dish",selector:{zones:[hand],controller:"self",definition:base,face:"up"}},{type:"move",choice:"dish",from:hand,to:"field"});m.chain.speedByEffect[id]=1;description="Sacrifice your ingredient to summon a dish from hand."}
+ if(i===3){program.push({type:"resource",resource:"momentum",delta:3,overflow:"clamp"});description="Spend 1 momentum. Gain 3 momentum."}
+ if(i===4){program.push({type:"skipUnless",selector:{zones:["ridge","crossing"],controller:"self",definition:base},minimum:1,skip:1},{type:"awardScore",player:"self",amount:1});description="Spend 1 rune. Score 1 if your champion occupies a battlefield."}
+ m.effects[id]=e;m.cardPresentation[id]=card(name,type,j===0?"arcane":"crimson",description,["tactic",resource]);
+ const pile=m.setup.filter(c=>c.zone===deck);for(let k=0;k<Math.min(4,pile.length);k++)pile[pile.length-1-k].definition=id;
+ }
+ return m;
+}
+
+export function referenceModules(){return [creatures(),spells(),chains(),crews(),domains()].map((m,i)=>{m.cardPresentation=structuredClone(skins[i]);return addTactics(buildDecks(expand(m,i),i),i)})}
 
