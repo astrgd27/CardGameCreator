@@ -65,7 +65,8 @@ export function validateModuleV2(m){
   }
   for(const op of list(e.program,"program "+id,64)){
    if(!record(op)){errors.push("effect: invalid operation "+id);continue}
-   if(["skipUnlessExpr","eachCounter","resourceExpr"].includes(op.type)){try{validateExpression(op.expression)}catch(e){errors.push(e.message)}require(op.type==="skipUnlessExpr"?integer(op.skip)&&op.skip>=1&&op.skip<=64:op.type==="eachCounter"?record(op.selector)&&key(op.counter):resources.has(op.resource),"invalid expression operation")}
+   if(op.type==="awardScore")require(!!m.objectives&&(op.player==="self"||players.includes(op.player))&&integer(op.amount)&&op.amount<=100,"invalid score award");
+   else if(["skipUnlessExpr","eachCounter","resourceExpr"].includes(op.type)){try{validateExpression(op.expression)}catch(e){errors.push(e.message)}require(op.type==="skipUnlessExpr"?integer(op.skip)&&op.skip>=1&&op.skip<=64:op.type==="eachCounter"?record(op.selector)&&key(op.counter):resources.has(op.resource),"invalid expression operation")}
    else if(op.type==="scheduleTurn")require(["extra","skip"].includes(op.kind)&&(op.player==="self"||players.includes(op.player))&&integer(op.count)&&op.count>=1&&op.count<=10,"invalid scheduled turn");
    else if(["search","randomHidden"].includes(op.type)){require(key(op.name)&&!choices.has(op.name)&&zids.has(op.zone)&&(op.top===undefined||integer(op.top)&&op.top>=1&&op.top<=100)&&(op.definition===undefined||defs.includes(op.definition)),"invalid hidden selection");choices.add(op.name)}
    else if(op.type==="optional"){require(key(op.name)&&!choices.has(op.name)&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"invalid optional choice");choices.add(op.name)}
@@ -170,6 +171,14 @@ export function validateModuleV2(m){
  for(const x of list(p.slots,"spatial slots",100)){require(record(x)&&zids.has(x.zone)&&!slots.has(x.zone)&&m.zones.find(z=>z.id===x.zone)?.visibility==="public"&&integer(x.x)&&x.x<=19&&integer(x.y)&&x.y<=19&&!coords.has(x.x+","+x.y)&&["blocked","exclusive","ownerOnly"].every(k=>x[k]===undefined||typeof x[k]==="boolean"),"invalid spatial slot");if(record(x)){slots.add(x.zone);coords.add(x.x+","+x.y)}}
  require((p.grid===undefined||typeof p.grid==="boolean")&&(p.restOnMove===undefined||typeof p.restOnMove==="boolean")&&["maxSteps","attackRange","blockRange","costPerStep"].every(k=>p[k]===undefined||integer(p[k])&&p[k]<=100)&&(p.resource===undefined||resources.has(p.resource)),"invalid spatial movement policy");
  for(const e of list(p.edges??[],"spatial edges",300))require(Array.isArray(e)&&e.length===2&&e[0]!==e[1]&&e.every(z=>slots.has(z)),"invalid spatial edge");
+ }}
+ if(m.multiplayer!==undefined){const p=m.multiplayer;require(record(p),"invalid multiplayer policy");if(record(p)){
+ if(p.order!==undefined)require(Array.isArray(p.order)&&p.order.length===players.length&&new Set(p.order).size===players.length&&p.order.every(x=>players.includes(x)),"invalid turn order");
+ if(p.teams!==undefined)require(record(p.teams)&&Object.keys(p.teams).every(x=>players.includes(x))&&players.every(x=>key(p.teams[x])),"invalid teams");
+ }}
+ if(m.objectives!==undefined){const p=m.objectives;require(record(p),"invalid objectives");if(record(p)){
+ require((p.winScore===undefined||integer(p.winScore)&&p.winScore>=1&&p.winScore<=100000)&&(p.tie===undefined||["draw","highest"].includes(p.tie)),"invalid score victory");
+ const seen=new Set();for(const r of list(p.locations??[],"location objectives",100)){require(record(r)&&m.spatial?.slots.some(x=>x.zone===r.zone)&&!seen.has(r.zone)&&["capturePoints","holdPoints"].every(k=>r[k]===undefined||integer(r[k])&&r[k]<=100)&&(r.persistent===undefined||typeof r.persistent==="boolean"),"invalid location objective");if(record(r))seen.add(r.zone)}
  }}
  return errors;
 }

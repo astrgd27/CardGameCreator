@@ -2,9 +2,9 @@
 export function idle(m){return !m.pending&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&!m.timing.queue.length&&!m.timing.resolving}
 export function scheduleState(m){return m.scheduler??={initiative:null,passed:[],extra:{},skip:{},handoff:false}}
 export function nextSeat(m,actor){
- const s=scheduleState(m),players=m.state.players;
+ const s=scheduleState(m),players=m.timing.players;
  if(s.extra[actor]>0){s.extra[actor]--;return actor}
- let next=s.initiative??players[(players.indexOf(actor)+1)%players.length];s.initiative=null;
+ let next=(players.includes(s.initiative)?s.initiative:null)??players[(players.indexOf(actor)+1)%players.length];s.initiative=null;
  for(let i=0;i<players.length*101;i++){if(!(s.skip[next]>0))return next;s.skip[next]--;next=players[(players.indexOf(next)+1)%players.length]}
  throw Error("Skipped turn budget exceeded");
 }

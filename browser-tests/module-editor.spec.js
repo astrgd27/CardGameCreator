@@ -414,3 +414,12 @@ test("spatial battlefield designer places public zones on a grid",async({page})=
  await expect(page.getByLabel("Spatial battlefield",{exact:true})).toBeVisible();
  await expect(page.locator('.spatial-slot[data-zone="field"]')).toContainText("Contested");
 });
+
+test("objective editor configures score victory and gameplay scoreboard",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.locator("#editor-fields summary").filter({hasText:/^Objective scoring$/}).click();
+ await page.getByRole("button",{name:"Enable objectives"}).click();
+ await page.getByLabel("Winning score (blank = none)",{exact:true}).fill("5");
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await expect(page.locator(".objective-scoreboard")).toContainText("Score 0");
+});
