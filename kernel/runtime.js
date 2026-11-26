@@ -15,7 +15,7 @@ import {selectCards} from "./selectors.js";
 import {shuffleZone,drawCards} from "./draw.js";
 import {paymentPlans,payPlan,paymentOptions} from "./card-costs.js";
 import {expireStatuses,cleanupTokens} from "./card-state.js";
-import {combatOptions,declareCombat,resolveGroupCombat} from "./group-combat.js";
+import {combatOptions,declareCombat,advanceBattle,battleActor} from "./group-combat.js";
 import {dynamicOptions,commitDynamic,generate,generatorOptions} from "./dynamic-payments.js";
 import {assertModuleV2} from "./module-v2.js";
 const check=(ok,m)=>{if(!ok)throw Error(m)};
@@ -69,6 +69,7 @@ function resolve(m,r){
 function startTurn(m,actor){let events=[];
   const next=nextSeat(m,actor);
   const expired=expireStatuses(m.state);m.state=expired.state;
+ if(m.rules.combat?.damageCleanup==="turn")for(const o of Object.values(m.state.objects))if(o.damage){expired.events.push({type:"damageCleared",id:o.id,amount:o.damage});o.damage=0}
   m.timing=changeActive(m.timing,next);const ss=scheduleState(m);ss.passed=[];ss.handoff=false;m.turn++;m.phaseIndex=0;m.windowClosed=false;
   for(const id of Object.values(m.state.zones).filter(z=>m.rules.combat?.zones.includes(z.id)||(m.rules.generators??[]).some(g=>g.zones.includes(z.id))).flatMap(z=>z.cards))if(m.state.objects[id].controller===next)m.state.objects[id].orientation="ready";
   const r=refreshResources(m.state,next,{includeShared:!!m.rules.refreshShared});
@@ -103,7 +104,7 @@ export function applyMatchAction(match,actor,action){
   return finish(m,[{type:"openingRedrawn",actor,count:n}]);
  }
  if(m.triggerOrderPending){const p=m.triggerOrderPending;check(actor===p.actor&&action.type==="orderTriggers"&&Array.isArray(action.ids)&&action.ids.length===p.ids.length&&new Set(action.ids).size===p.ids.length&&action.ids.every(id=>p.ids.includes(id)),"Invalid trigger order");const items=m.timing.queue.filter(q=>p.ids.includes(q.id));let i=0;m.timing.queue=m.timing.queue.map(q=>{if(!p.ids.includes(q.id))return q;const id=action.ids[i++];return items.find(x=>x.id===id)});m.triggerOrderPending=m.triggerOrderRemaining?.shift()??null;return done([{type:"triggersOrdered",actor}])}
- if(m.battle){check(action.type==="block","Blocking decision required");events=enqueue(m,resolveGroupCombat(m,actor,action.blocks));return done(events)}
+ if(m.battle){events=advanceBattle(m,actor,action);if(!m.battle){events=enqueue(m,[...(m.combatEvents??[]),...events]);delete m.combatEvents}else{m.combatEvents??=[];m.combatEvents.push(...events)}return done(events)}
  if(m.pending){
   check(action.type==="choose","Choice pending");
   events=resolve(m,resumeEffect(m.state,m.timing,m.pending,{actor,value:action.value}));
@@ -172,5 +173,5 @@ export function matchView(m,viewer){
  const activations=[];
  if(!m.result&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&!m.pending&&m.timing.priority===viewer)for(const [id,e] of Object.entries(m.rules.effects)){const sources=e.sourceDefinition?selectCards(m.state,viewer,{zones:e.sourceZones,controller:"self",face:"up"}).filter(id=>inheritedDefinition(m.state.objects[id],e.sourceDefinition)):[undefined];for(const source of sources)if(eligible(m,viewer,id,e,source))for(const p of paymentPlans(e)){const option=dynamicOptions(m,viewer,e,source,p);if(option)activations.push({effect:id,source,...option})}}
  const available=[...new Set(activations.filter(a=>a.source===undefined&&a.id==="default"&&!a.groups.length&&!a.dynamic).map(a=>a.effect))];
- return {state,scheduler:scheduleView(m,viewer),reveals:Object.entries(m.state.reveals??{}).filter(([id,r])=>r.viewers.includes(viewer)&&m.state.zones[r.zone]?.cards.includes(id)&&m.state.objects[id]?.definition===r.definition).map(([id,r])=>({id,zone:r.zone,definition:r.definition})),stackOptions:stackOptions(m,viewer),triggerOrder:m.triggerOrderPending?{actor:m.triggerOrderPending.actor,ids:m.triggerOrderPending.actor===viewer?m.triggerOrderPending.ids:undefined}:null,combat:combatOptions(m,viewer),combatActor:m.battle?.defender??null,phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,generators:!m.result&&!m.pending&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&m.timing.priority===viewer&&allows(m,"activate")&&!m.windowClosed?generatorOptions(m,viewer):[],windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
+ return {state,scheduler:scheduleView(m,viewer),reveals:Object.entries(m.state.reveals??{}).filter(([id,r])=>r.viewers.includes(viewer)&&m.state.zones[r.zone]?.cards.includes(id)&&m.state.objects[id]?.definition===r.definition).map(([id,r])=>({id,zone:r.zone,definition:r.definition})),stackOptions:stackOptions(m,viewer),triggerOrder:m.triggerOrderPending?{actor:m.triggerOrderPending.actor,ids:m.triggerOrderPending.actor===viewer?m.triggerOrderPending.ids:undefined}:null,combat:combatOptions(m,viewer),combatActor:battleActor(m),phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,activations,generators:!m.result&&!m.pending&&!m.battle&&!m.triggerOrderPending&&!m.openingQueue?.length&&m.timing.priority===viewer&&allows(m,"activate")&&!m.windowClosed?generatorOptions(m,viewer):[],windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
 }
