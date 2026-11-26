@@ -1,0 +1,50 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {demoModule} from "../kernel/demo-module.js";
+import {createMatch,applyMatchAction,matchView} from "../kernel/runtime.js";
+import {chooseDemoAction} from "../kernel/demo-ai.js";
+const act=(m,p,a)=>applyMatchAction(m,p,a).match;
+const passes=m=>act(act(m,"a",{type:"pass"}),"b",{type:"pass"});
+test("phases enforce action restrictions and advance only after priority closes",()=>{
+ const rules=demoModule();rules.phases=[{id:"prepare",actions:["activate"]},{id:"fight",actions:["attack"]}];
+ rules.effects.musterA.phases=["prepare"];
+ let m=createMatch(rules);
+ assert.equal(matchView(m,"a").phase,"prepare");
+ assert.throws(()=>act(m,"a",{type:"attack",attacker:"c1",defender:"c2"}));
+ assert.throws(()=>act(m,"a",{type:"nextPhase"}));
+ m=passes(m);assert.throws(()=>act(m,"a",{type:"endTurn"}));
+ m=act(m,"a",{type:"nextPhase"});
+ assert.equal(matchView(m,"a").phase,"fight");
+ assert.deepEqual(matchView(m,"a").available,[]);
+ assert.throws(()=>act(m,"a",{type:"activate",effect:"musterA"}));
+ m=passes(m);m=act(m,"a",{type:"endTurn"});
+ assert.equal(matchView(m,"b").phase,"prepare");
+ assert.equal(m.turn,2);
+});
+test("dynamic target choices exclude concealed cards and resolve selected movement",()=>{
+ const rules=demoModule();rules.effects.capture={available:true,actors:["a"],program:[{type:"target",name:"victim",selector:{controller:"opponent",face:"up"}},{type:"move",choice:"victim",from:"field",to:"discard-b"}]};
+ let m=createMatch(rules);m=act(m,"a",{type:"activate",effect:"capture"});m=passes(m);
+ assert.deepEqual(matchView(m,"a").choice.options,["c2","c4"]);
+ assert.equal(matchView(m,"b").choice.options,undefined);
+ assert.throws(()=>act(m,"a",{type:"choose",value:"c6"}));
+ assert.throws(()=>act(m,"b",{type:"choose",value:"c2"}));
+ m=act(m,"a",{type:"choose",value:"c2"});
+ assert.ok(m.state.zones["discard-b"].cards.includes("c2"));
+});
+test("empty target rolls back earlier effect work",()=>{
+ const rules=demoModule();rules.effects.empty={available:true,program:[{type:"resource",resource:"energy",delta:1},{type:"target",name:"missing",selector:{zones:["discard-b"]}}]};
+ let m=createMatch(rules);m=act(m,"a",{type:"activate",effect:"empty"});m=passes(m);
+ assert.equal(m.state.resourcePools["player-a"].energy,3);
+ assert.equal(m.pending,null);assert.equal(m.timing.resolving,null);
+});
+test("AI uses custom combat zone and rejects unfavorable trades",()=>{
+ const rules=demoModule();rules.zones.find(z=>z.id==="field").id="arena";
+ for(const c of rules.setup)if(c.zone==="field")c.zone="arena";
+ rules.combat.zones=["arena"];delete rules.attachment;rules.effects={};rules.triggers=[];
+ rules.combat.stats.sentinel={attack:5,health:10};
+ rules.combat.stats.raider={attack:1,health:3};
+ let m=createMatch(rules);
+ const action=chooseDemoAction(m,"a");
+ assert.equal(action.type,"attack");assert.equal(action.attacker,"c1");
+ assert.doesNotThrow(()=>act(m,"a",action));
+});

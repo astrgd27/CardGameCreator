@@ -82,13 +82,17 @@ function advancedEditor(key,section){
    field(p,"Effect ID",id,"text",v=>{if(v!==id&&/^[A-Za-z0-9_-]{1,80}$/.test(v)&&!Object.hasOwn(Object.prototype,v)&&!Object.hasOwn(module.effects,v)){module.effects[v]=e;delete module.effects[id];render(key)}else status("Effect ID unchanged or invalid.")});
    field(p,"Manual activation",e.available===true?"yes":"no",["yes","no"],v=>e.available=v==="yes");
    field(p,"Actor",e.actors?.length===1?e.actors[0]:"any",["any",...(module.players??[])],v=>{if(v==="any")delete e.actors;else e.actors=[v]});
+   if(module.phases)field(p,"Allowed phases (blank = all)",(e.phases??[]).join(","),"text",v=>{if(v.trim())e.phases=v.split(",").map(x=>x.trim()).filter(Boolean);else delete e.phases});
    e.costs??=[];e.program??=[];
    listEditor(p,e.costs,"Cost",()=>({resource:first("resourceIds"),amount:1,kind:"spend"}),(r,c)=>{
     field(r,"Cost resource",c.resource,"resourceIds",v=>c.resource=v);field(r,"Cost amount",c.amount,"number",v=>c.amount=v);field(r,"Cost kind",c.kind,["spend","threshold"],v=>c.kind=v);
    },key);
    listEditor(p,e.program,"Operation",()=>({type:"resource",resource:first("resourceIds"),delta:1}),(r,op,i)=>{
-    field(r,"Operation type",op.type,["resource","move","choose"],v=>{e.program[i]=v==="resource"?{type:v,resource:first("resourceIds"),delta:1}:v==="move"?{type:v,id:"c1",from:first("zones"),to:first("zones")}:{type:v,name:"target",options:["c1"]};render(key)});
+    field(r,"Operation type",op.type,["resource","move","choose","target","draw"],v=>{e.program[i]=v==="resource"?{type:v,resource:first("resourceIds"),delta:1}:v==="move"?{type:v,id:"c1",from:first("zones"),to:first("zones")}:v==="target"?{type:v,name:"target",selector:{controller:"opponent",face:"up"}}:v==="draw"?{type:v,from:first("zones"),to:options("zones")[1]??"",count:1}:{type:v,name:"target",options:["c1"]};render(key)});
     if(op.type==="resource"){field(r,"Operation resource",op.resource,"resourceIds",v=>op.resource=v);field(r,"Resource delta",op.delta,"signed",v=>op.delta=v)}
+    if(op.type==="resource")field(r,"Resource overflow",op.overflow??"reject",["reject","clamp"],v=>op.overflow=v);
+    if(op.type==="target"){const q=op.selector;field(r,"Target name",op.name,"text",v=>op.name=v);field(r,"Target zones (blank = visible zones)",(q.zones??[]).join(","),"text",v=>{if(v.trim())q.zones=v.split(",").map(x=>x.trim()).filter(Boolean);else delete q.zones});for(const k of ["owner","controller"])field(r,"Target "+k,q[k]??"any",["any","self","opponent"],v=>q[k]=v);field(r,"Target definition",q.definition??"",["",...(module.definitions??[])],v=>{if(v)q.definition=v;else delete q.definition});field(r,"Target face",q.face??"any",["any","up","down"],v=>{if(v==="any")delete q.face;else q.face=v});field(r,"Target orientation",q.orientation??"any",["any","ready","resting","tapped"],v=>{if(v==="any")delete q.orientation;else q.orientation=v});field(r,"Target limit",q.limit??100,"number",v=>q.limit=v)}
+    if(op.type==="draw"){field(r,"Draw source",op.from,"zones",v=>op.from=v);field(r,"Draw destination",op.to,"zones",v=>op.to=v);field(r,"Draw count",op.count,"number",v=>op.count=v)}
     if(op.type==="move"){field(r,"Move source",op.from,"zones",v=>op.from=v);field(r,"Move destination",op.to,"zones",v=>op.to=v);field(r,"Card instance",op.id??"","text",v=>{delete op.choice;op.id=v});field(r,"Choice reference",op.choice??"","text",v=>{if(v){delete op.id;op.choice=v}})}
     if(op.type==="choose"){field(r,"Choice name",op.name,"text",v=>op.name=v);field(r,"Options (comma separated)",(op.options??[]).join(","),"text",v=>op.options=v.split(",").map(x=>x.trim()).filter(Boolean))}
     if(i>0)r.append(actionButton("Move operation up",()=>{[e.program[i-1],e.program[i]]=[e.program[i],e.program[i-1]];render(key)}));
@@ -239,11 +243,22 @@ function layoutEditor(section){
  section.append(actionButton("Reset battlefield layout",()=>{delete module.battlefield;render("battlefield")}));
 }
 
+
+function phaseEditor(section){
+ if(!module.phases){section.append(actionButton("Configure turn phases",()=>{module.phases=[{id:"main",actions:["activate","attack","attach"]}];render("phases")}));return}
+ listEditor(section,module.phases,"Phase",()=>{let i=1;while(module.phases.some(p=>p.id==="phase"+i))i++;return {id:"phase"+i,actions:["activate"]}},(p,r,i)=>{
+  field(p,"Phase ID",r.id,"text",v=>r.id=v);
+  for(const action of ["activate","attack","attach"])field(p,"Allow "+action,r.actions.includes(action)?"yes":"no",["yes","no"],v=>{r.actions=r.actions.filter(a=>a!==action);if(v==="yes")r.actions.push(action)});
+  if(i>0)p.append(actionButton("Move phase up",()=>{[module.phases[i-1],module.phases[i]]=[module.phases[i],module.phases[i-1]];render("phases")}));
+ },"phases");
+ section.append(actionButton("Use single action window",()=>{delete module.phases;for(const e of Object.values(module.effects??{}))delete e.phases;render("phases")}));
+}
+
 function render(openKey){
  const root=$("editor-fields");root.replaceChildren();
  const label=node("label","Module name ");const input=node("input");input.value=module.name??"";input.addEventListener("input",()=>{module.name=input.value;sync()});label.append(input);root.append(label);
- for(const [key,title] of [["players","Players"],["definitions","Card definitions"],["cardPresentation","Card designer"],["zones","Zones"],["setup","Starting cards"],["decks","Deck construction"],["drawPolicies","Draw and mulligan policies"],["battlefield","Battlefield layout"],["resources","Resources"],["effects","Effects"],["triggers","Triggers"],["combat","Combat"],["attachment","Attachments"],["timing","Timing"],["chain","Chains"],["modifiers","Continuous modifiers"],["replacements","Damage replacements"],["victory","Victory conditions"]]){
-  const section=node("details");section.open=key===openKey;section.append(node("summary",title));if(key==="drawPolicies"){drawPolicyEditor(section);root.append(section);continue}if(key==="battlefield"){layoutEditor(section);root.append(section);continue}if(key==="decks"){deckEditor(section);root.append(section);continue}if(["attachment","timing","chain","modifiers","replacements"].includes(key)){advancedPolicies(key,section);root.append(section);continue}if(key==="cardPresentation"){cardDesigner(section);root.append(section);continue}if(fields[key]){tableEditor(key,section);root.append(section);continue}if(["effects","triggers","combat","victory"].includes(key)){advancedEditor(key,section);root.append(section);continue}const area=node("textarea");area.rows=8;area.style.width="100%";area.setAttribute("aria-label",title);area.value=JSON.stringify(module[key]??null,null,2);
+ for(const [key,title] of [["players","Players"],["definitions","Card definitions"],["cardPresentation","Card designer"],["zones","Zones"],["setup","Starting cards"],["decks","Deck construction"],["drawPolicies","Draw and mulligan policies"],["battlefield","Battlefield layout"],["resources","Resources"],["effects","Effects"],["triggers","Triggers"],["combat","Combat"],["attachment","Attachments"],["timing","Timing"],["phases","Turn phases"],["chain","Chains"],["modifiers","Continuous modifiers"],["replacements","Damage replacements"],["victory","Victory conditions"]]){
+  const section=node("details");section.open=key===openKey;section.append(node("summary",title));if(key==="phases"){phaseEditor(section);root.append(section);continue}if(key==="drawPolicies"){drawPolicyEditor(section);root.append(section);continue}if(key==="battlefield"){layoutEditor(section);root.append(section);continue}if(key==="decks"){deckEditor(section);root.append(section);continue}if(["attachment","timing","chain","modifiers","replacements"].includes(key)){advancedPolicies(key,section);root.append(section);continue}if(key==="cardPresentation"){cardDesigner(section);root.append(section);continue}if(fields[key]){tableEditor(key,section);root.append(section);continue}if(["effects","triggers","combat","victory"].includes(key)){advancedEditor(key,section);root.append(section);continue}const area=node("textarea");area.rows=8;area.style.width="100%";area.setAttribute("aria-label",title);area.value=JSON.stringify(module[key]??null,null,2);
   const apply=node("button","Apply "+title.toLowerCase());apply.type="button";apply.onclick=()=>{try{const v=JSON.parse(area.value);if(v===null)delete module[key];else module[key]=v;sync();status(title+" updated; validate before exporting.")}catch(e){status("Invalid JSON: "+e.message)}};section.append(area,apply);root.append(section);
  }sync();
 }

@@ -119,3 +119,20 @@ test("custom layout and mulligan policy carry into play",async({page})=>{
  await expect(page.getByRole("button",{name:"Pass priority"})).toBeVisible();
  await expect(page.getByRole("heading",{name:"deck-a · 2",exact:true})).toBeVisible();
 });
+
+test("graphical phase configuration reaches custom gameplay",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.locator("#editor-fields summary").filter({hasText:/^Turn phases$/}).click();
+ await page.getByRole("button",{name:"Configure turn phases"}).click();
+ await page.getByLabel("Phase ID",{exact:true}).fill("prepare");
+ await page.getByLabel("Allow attack",{exact:true}).selectOption("no");
+ await page.getByRole("button",{name:"Add phase",exact:true}).click();
+ await page.getByLabel("Phase ID",{exact:true}).last().fill("battle");
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await expect(page.getByText("Phase: prepare",{exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"Pass priority"}).click();
+ await page.getByRole("button",{name:"Pass priority"}).click();
+ await page.getByRole("button",{name:"Next phase",exact:true}).click();
+ await expect(page.getByText("Phase: battle",{exact:true})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Play vs computer"})).toBeVisible();
+});

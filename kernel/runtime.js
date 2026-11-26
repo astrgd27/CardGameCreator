@@ -25,13 +25,15 @@ export function createMatch(module,{seed=1}={}){
  check(rules.effects&&typeof rules.effects==="object"&&!Array.isArray(rules.effects),"Missing effects");
  for(const e of Object.values(rules.effects))check(e&&Array.isArray(e.program)&&Array.isArray(e.costs??[]),"Invalid effect");
  for(const trigger of rules.triggers??[])check(own(rules.effects,trigger.effect),"Unknown trigger effect");
- return finish({version:1,rules,state,timing,pending:null,turn:1,windowClosed:false,result:null,openingQueue,seed},[]).match;
+ return finish({version:1,rules,state,timing,pending:null,turn:1,windowClosed:false,result:null,openingQueue,seed,phaseIndex:0},[]).match;
 }
 function effect(m,id){
  check(own(m.rules.effects,id),"Unknown effect");return m.rules.effects[id];
 }
+function phase(m){return m.rules.phases?.[m.phaseIndex??0]}
+function allows(m,type){return !phase(m)||phase(m).actions.includes(type)}
 function eligible(m,actor,id,e){
- return e.available===true&&(e.actors===undefined||e.actors.includes(actor))&&(!e.requiresCard||m.state.zones[e.requiresCard.zone]?.cards.includes(e.requiresCard.id))&&quotePayment(m.state,actor,e.costs??[]).legal;
+ return allows(m,"activate")&&(!e.phases||e.phases.includes(phase(m)?.id))&&(!e.requiresCard||!m.timing.queue.some(q=>q.effect===id))&&e.available===true&&(e.actors===undefined||e.actors.includes(actor))&&(!e.requiresCard||m.state.zones[e.requiresCard.zone]?.cards.includes(e.requiresCard.id))&&quotePayment(m.state,actor,e.costs??[]).legal;
 }
 function finish(m,events){
  assertInvariants(m.state);assertAttachments(m.state);
@@ -92,7 +94,7 @@ export function applyMatchAction(match,actor,action){
  }
  case "attack":{
   const c=m.rules.combat;
-  check(c&&Array.isArray(c.zones)&&c.zones.length&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Combat unavailable");
+  check(allows(m,"attack")&&c&&Array.isArray(c.zones)&&c.zones.length&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Combat unavailable");
   check(selectCards(m.state,actor,{zones:c.zones,controller:"self",face:"up",orientation:"ready"}).includes(action.attacker),"Invalid attacker");
   check(selectCards(m.state,actor,{zones:c.zones,controller:"opponent",face:"up"}).includes(action.defender),"Invalid defender");
   const r=resolveCombat(m.state,{...c,attacker:action.attacker,defender:action.defender,turn:m.turn});
@@ -100,19 +102,23 @@ export function applyMatchAction(match,actor,action){
  }
  case "attach":{
   const a=m.rules.attachment;
-  check(a&&Array.isArray(a.zones)&&a.zones.length&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Attachment unavailable");
+  check(allows(m,"attach")&&a&&Array.isArray(a.zones)&&a.zones.length&&m.timing.active===actor&&!m.timing.queue.length&&!m.windowClosed,"Attachment unavailable");
   const ids=selectCards(m.state,actor,{zones:a.zones,controller:"self",face:"up"});
   check(ids.includes(action.id)&&ids.includes(action.host)&&a.definitions.includes(m.state.objects[action.id].definition),"Invalid attachment");
   const r=attachCard(m.state,{id:action.id,host:action.host,onHostMove:a.onHostMove,max:a.max});
   m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break;
  }
+ case "nextPhase":{
+  check(m.windowClosed&&m.timing.active===actor&&!m.timing.queue.length&&m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,"Phase cannot advance");
+  m.phaseIndex++;m.windowClosed=false;events=enqueue(m,[{type:"phaseStarted",actor,phase:phase(m).id}]);break;
+ }
  case "endTurn":{
-  check(m.windowClosed&&m.timing.active===actor&&!m.timing.queue.length,"Window must close");
+  check(m.windowClosed&&m.timing.active===actor&&!m.timing.queue.length&&(!m.rules.phases||(m.phaseIndex??0)===m.rules.phases.length-1),"Window must close or phases remain");
   const players=m.state.players,next=players[(players.indexOf(actor)+1)%players.length];
-  m.timing=changeActive(m.timing,next);m.turn++;m.windowClosed=false;
+  m.timing=changeActive(m.timing,next);m.turn++;m.phaseIndex=0;m.windowClosed=false;
   for(const id of Object.values(m.state.zones).filter(z=>m.rules.combat?.zones.includes(z.id)).flatMap(z=>z.cards))if(m.state.objects[id].controller===next)m.state.objects[id].orientation="ready";
   const r=refreshResources(m.state,next,{includeShared:!!m.rules.refreshShared});
-  m.state=r.state;events=[{type:"turnStarted",actor:next},...r.events];
+  m.state=r.state;events=[{type:"turnStarted",actor:next},...r.events];if(phase(m))events.push({type:"phaseStarted",actor:next,phase:phase(m).id});
   for(const p of m.rules.drawPolicies??[])if(p.player===next&&p.perTurn){const n=Math.min(p.perTurn,m.state.zones[p.deck].cards.length,m.state.zones[p.hand].capacity-m.state.zones[p.hand].cards.length);const drawn=drawCards(m.state,p.deck,p.hand,n);m.state=drawn.state;events.push(...drawn.events)}
   events=enqueue(m,events);break;
  }
@@ -123,5 +129,5 @@ export function applyMatchAction(match,actor,action){
 export function matchView(m,viewer){
  const state=projectState(m.state,viewer);
  const available=m.result||m.openingQueue?.length||m.pending||m.timing.priority!==viewer?[]:Object.entries(m.rules.effects).filter(([id,e])=>eligible(m,viewer,id,e)).map(([id])=>id);
- return {state,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
+ return {state,phase:phase(m)?.id??null,phaseActions:phase(m)?.actions??["activate","attack","attach"],hasNextPhase:!!m.rules.phases&&(m.phaseIndex??0)<m.rules.phases.length-1,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
 }
