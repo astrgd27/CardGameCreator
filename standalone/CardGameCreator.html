@@ -1806,6 +1806,7 @@ function assertInvariants(state){
     }
   }
   if(seen.size!==Object.keys(state.objects).length)fail("Unplaced objects");
+  for(const o of Object.values(state.objects))for(const c of o.components??[]){if(!key(c.id)||seen.has(c.id)||!state.definitions.includes(c.definition)||!state.definitions.includes(c.physicalDefinition)||!state.players.includes(c.owner))fail("Invalid stack component");seen.add(c.id)}
   return true;
 }
 
