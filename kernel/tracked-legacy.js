@@ -122,3 +122,16 @@ export function trackedView(bridge,actor){
  if(![0,1].includes(actor))reject("Unknown viewer");
  return {...projectState(bridge.state,"p"+actor),turn:structuredClone(bridge.turn)};
 }
+
+// Use the existing bot's deterministic choice policy without changing its behavior.
+// Compare candidate transitions to its result; identical transitions use the
+// first legal choice, since v1 has no distinction between duplicate cards.
+export function trackedBot(module,bridge,legacyBot){
+ const expected=structuredClone(bridge.legacy);
+ legacyBot(module,expected);
+ for(const action of trackedChoices(module,bridge,bridge.legacy.actor)){
+   const result=applyTracked(module,bridge,action);
+   if(JSON.stringify(result.bridge.legacy)===JSON.stringify(expected))return result;
+ }
+ throw Error("Legacy bot action could not be mapped");
+}
