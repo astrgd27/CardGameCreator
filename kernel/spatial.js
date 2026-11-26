@@ -42,7 +42,7 @@ export function moveSpatial(m,actor,action){
  return {state:moved.state,events:[...paid.events,...moved.events,{type:"spatialMoved",id:option.id,actor,from:option.path[0],to:option.to,steps:option.path.length-1}]};
 }
 export function locationControl(s){
- return (s.spatial?.slots??[]).map(x=>{const owners=new Set(s.zones[x.zone].cards.filter(id=>!Object.hasOwn(s.attachments??{},id)).map(id=>s.objects[id].controller));return {zone:x.zone,controller:owners.size===1?[...owners][0]:null,contested:owners.size>1}});
+ return (s.spatial?.slots??[]).map(x=>{const owners=new Set(s.zones[x.zone].cards.filter(id=>s.objects[id].face==="up"&&!Object.hasOwn(s.attachments??{},id)).map(id=>s.objects[id].controller));return {zone:x.zone,controller:owners.size===1?[...owners][0]:null,contested:owners.size>1}});
 }
 export function assertSpatial(s){
  if(!s.spatial)return;
