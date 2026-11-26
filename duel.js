@@ -2,13 +2,22 @@ import {demoModule} from "./kernel/demo-module.js";
 import {createMatch,applyMatchAction,matchView} from "./kernel/runtime.js";
 import {chooseDemoAction} from "./kernel/demo-ai.js";
 const root=document.querySelector("#duel");
-let mode="hotseat",timer=null;
-function scheduleOpponent(){clearTimeout(timer);if(mode==="computer"&&!match.result&&(match.pending?.actor??match.timing.priority)==="b"){timer=setTimeout(()=>{const action=chooseDemoAction(match,"b");if(action)act("b",action);else{error="Opponent has no valid action";render(false)}},650)}}
+let mode="hotseat",timer=null,lastEvents=[];
+const inspector=document.createElement("dialog");inspector.className="duel-inspector";document.body.append(inspector);
+function inspect(o){
+ if(!o.definition)return;
+ clearTimeout(timer);inspector.replaceChildren();
+ const name=o.definition[0].toUpperCase()+o.definition.slice(1),stats=match.rules.combat.stats[o.definition];
+ inspector.append(el("h2","",name),el("div","inspect-symbol",({sentinel:"♜",raider:"⚔",blade:"†",ward:"◈"})[o.definition]??"◆"),el("p","",stats.attack+" attack · "+stats.health+" maximum health"),el("p","","Damage: "+o.damage+" · "+o.orientation),el("p","",match.rules.attachment.definitions.includes(o.definition)?"Equipment: select this card and a friendly host to attach.":"Unit: select this card and an enemy to attack."),button("Close inspection",()=>inspector.close()));
+ inspector.showModal();
+}
+inspector.addEventListener("close",()=>scheduleOpponent());
+function scheduleOpponent(){clearTimeout(timer);if(!inspector.open&&mode==="computer"&&!match.result&&(match.pending?.actor??match.timing.priority)==="b"){timer=setTimeout(()=>{const action=chooseDemoAction(match,"b");if(action)act("b",action);else{error="Opponent has no valid action";render(false)}},650)}}
 let match=createMatch(demoModule()),selected=null,log=[],error="";
 const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n};
 const button=(label,fn)=>{const b=el("button","",label);b.type="button";b.addEventListener("click",fn);return b};
 function act(actor,action){
- try{const r=applyMatchAction(match,actor,action);match=r.match;log.push(...r.events.map(e=>[e.type,e.id??e.actor??"",e.amount??""].filter(Boolean).join(" ")));error="";selected=null}
+ try{const r=applyMatchAction(match,actor,action);match=r.match;lastEvents=r.events;log.push(...r.events.map(e=>[e.type,e.id??e.actor??"",e.amount??""].filter(Boolean).join(" ")));error="";selected=null}
  catch(e){error=e.message}
  render();
 }
@@ -21,7 +30,16 @@ function card(o,viewer){
  const host=match.state.attachments?.[o.id]?.host;
  if(host)b.append(el("small","", "Attached to "+host));
  if(o.orientation==="resting")b.append(el("small","","Rested"));
- b.setAttribute("aria-label",name+" "+(o.id??""));return b;
+ b.setAttribute("aria-label",name+" "+(o.id??""));
+ if(lastEvents.some(e=>e.id===o.id&&e.type==="cardMoved"))b.classList.add("arriving");
+ if(lastEvents.some(e=>e.id===o.id&&e.type==="damageDealt"))b.classList.add("hit");
+ b.addEventListener("contextmenu",e=>{e.preventDefault();inspect(o)});
+ let hold=null,long=false;
+ b.addEventListener("pointerdown",e=>{if(e.pointerType==="touch"){long=false;hold=setTimeout(()=>{long=true;inspect(o)},550)}});
+ for(const event of ["pointerup","pointercancel","pointerleave"])b.addEventListener(event,()=>clearTimeout(hold));
+ b.addEventListener("click",e=>{if(long){e.stopImmediatePropagation();long=false}},true);
+ b.addEventListener("keydown",e=>{if(e.key==="i"){e.preventDefault();inspect(o)}});
+ return b;
 }
 function render(schedule=true){
  root.replaceChildren();
@@ -29,7 +47,7 @@ function render(schedule=true){
  const viewer=mode==="computer"?"a":actor;
  const view=matchView(match,viewer);
  const top=el("div","duel-top");
- top.append(el("h1","","Ironwood Duel"),el("span","","Turn "+view.turn+" · Active "+view.active.toUpperCase()+" · Priority "+actor.toUpperCase()),button("Restart",()=>{match=createMatch(demoModule());selected=null;log=[];error="";render()}));
+ top.append(el("h1","","Ironwood Duel"),el("span","","Turn "+view.turn+" · Active "+view.active.toUpperCase()+" · Priority "+actor.toUpperCase()),button("Restart",()=>{match=createMatch(demoModule());selected=null;log=[];lastEvents=[];error="";render()}));
  top.append(button(mode==="computer"?"Switch to hot-seat":"Play vs computer",()=>{mode=mode==="computer"?"hotseat":"computer";selected=null;render()}));root.append(top);
  const board=el("div","duel-board"),field=view.state.zones.find(z=>z.id==="field");
  for(const p of ["b","a"]){
@@ -63,6 +81,7 @@ function render(schedule=true){
  controls.append(el("p","duel-error",error),el("p","","Stack: "+(view.queue.map(e=>e.effect).join(" · ")||"empty")));
  root.append(controls);
  const history=el("section","duel-log");history.append(el("h2","","Recent events"));for(const line of log.slice(-8).reverse())history.append(el("div","",line));root.append(history);
+ lastEvents=[];
  if(schedule)scheduleOpponent();
 }
 render();
