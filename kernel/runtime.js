@@ -162,7 +162,7 @@ export function applyMatchAction(match,actor,action){
   check(!hasRule(m.state,action.attacker,"cannotAttack")&&!hasRule(m.state,action.defender,"cannotBeAttacked"),"Keyword prohibits attack");
   if(c.attackerDefinitions)check(c.attackerDefinitions.includes(m.state.objects[action.attacker].definition),"Attacker definition prohibited");
   if(c.defenderDefinitions)check(c.defenderDefinitions.includes(m.state.objects[action.defender].definition),"Defender definition prohibited");
-  const profiles=c.attackProfiles?.[m.state.objects[action.attacker].definition];const profile=profiles?.find(p=>p.id===(action.profile??profiles[0].id));check(!profiles||profile,"Unknown attack profile");const costs=profile?.attachedCosts??c.attachedCosts?.[m.state.objects[action.attacker].definition];
+  const configured=c.attackProfiles?.[m.state.objects[action.attacker].definition];const profiles=configured?.length?configured:undefined;const profile=profiles?.find(p=>p.id===(action.profile??profiles[0].id));check(!profiles||profile,"Unknown attack profile");const costs=profile?.attachedCosts??c.attachedCosts?.[m.state.objects[action.attacker].definition];
   if(costs){
    const counts={};for(const [id,link] of Object.entries(m.state.attachments??{}))if(link.host===action.attacker){const d=m.state.objects[id].definition;counts[d]=(counts[d]??0)+1}
    for(const [d,n] of Object.entries(costs))check((counts[d]??0)>=n,"Insufficient attached resources");
