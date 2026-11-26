@@ -28,12 +28,13 @@ export function chooseDemoAction(match,actor){
     }
    }
   }
-  if(!v.queue.length&&!v.windowClosed)for(const effect of v.available){
+  if(!v.queue.length&&!v.windowClosed)for(const activation of v.activations??[]){
+   const effect=activation.effect;
    // Avoid repeating no-cost effects indefinitely. The per-turn budget is
    // tracked by the browser; this conservative policy also prefers passing
    // over an effect which has neither a source card nor a spending cost.
    const e=match.rules.effects[effect];
-   if(e.requiresCard||e.costs?.some(c=>c.kind==="spend"&&c.amount>0))candidates.push({action:{type:"activate",effect},score:20});
+   if(e.limit||e.requiresCard||e.costs?.some(c=>c.kind==="spend"&&c.amount>0)||activation.groups.length)candidates.push({action:{type:"activate",effect,source:activation.source,plan:activation.id,cards:activation.example},score:20-activation.groups.reduce((n,g)=>n+g.count,0)*5});
   }
   candidates.push({action:{type:"pass"},score:0});
  }
