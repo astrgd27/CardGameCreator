@@ -17,7 +17,7 @@ export function combatOptions(m,actor){
  const battle=m.battle,enemy=m.state.players.find(p=>p!==actor);
  if(battle?.stage==="react")return battle.defender===actor?{stage:"react",reactions:reactions(m,actor),attackers:battle.attacks.map(a=>a.attacker)}:null;
  if(battle?.stage==="assign")return battle.actor===actor?{stage:"assign",assignments:battle.attacks.filter(a=>battle.blocks.some(b=>b.attacker===a.attacker)).map(a=>({attacker:a.attacker,power:Math.max(0,power(m,a.attacker)),blockers:battle.blocks.filter(b=>b.attacker===a.attacker).map(b=>({id:b.blocker,lethal:Math.max(0,health(m,b.blocker)-m.state.objects[b.blocker].damage)}))})),overflow:!!c.overflow}:null;
- if(battle)return battle.stage==="block"&&battle.defender===actor?{stage:"block",attackers:battle.attacks.map(a=>a.attacker),blockers:units(m,actor,"self",c.readyBlockers!==false).filter(id=>!hasRule(m.state,id,"cannotBlock")).filter(id=>!c.guardStatus||m.state.objects[id].statuses?.includes(c.guardStatus)),attacks:battle.attacks}:null;
+ if(battle)return battle.stage==="block"&&battle.defender===actor?{stage:"block",attackers:battle.attacks.map(a=>a.attacker),blockers:units(m,actor,"self",c.readyBlockers!==false).filter(id=>!hasRule(m.state,id,"cannotBlock")).filter(id=>!c.guardStatus||m.state.objects[id].statuses?.includes(c.guardStatus)),attacks:battle.attacks,intercept:c.intercept??"all"}:null;
  if(m.result||m.openingQueue?.length||m.triggerOrderPending||m.timing.active!==actor||m.timing.priority!==actor||m.windowClosed||m.pending||m.timing.queue.length||m.timing.resolving||m.rules.phases&&!m.rules.phases[m.phaseIndex].actions.includes("attack")||m.combatUsed===m.turn)return null;
  const targets=units(m,actor,"opponent").filter(id=>!hasRule(m.state,id,"cannotBeAttacked")).map(id=>({kind:"card",id}));
  if(c.lifeResource||c.lifeCards?.[enemy])targets.push({kind:"player",id:enemy});
@@ -63,7 +63,8 @@ export function resolveGroupCombat(m,actor,blocks,validated=false){
  const b=m.battle,c=m.rules.combat,policy=c.group,options=combatOptions(m,actor);
  check((validated||options?.stage==="block")&&Array.isArray(blocks)&&blocks.length<=20&&new Set(blocks.map(x=>x.blocker)).size===blocks.length,"Invalid blockers");
  if(!validated)for(const x of blocks){check(options.blockers.includes(x.blocker)&&options.attackers.includes(x.attacker),"Invalid block");check(!policy.guardStatus||m.state.objects[x.blocker].statuses?.includes(policy.guardStatus),"Guard status required")}
- const state=m.state,next=structuredClone(state),events=[],damage=new Map(),life=new Map();
+ const state=m.state,next=structuredClone(state),events=[],damage=new Map(),life=new Map(),lifeHits=new Map();
+ const hitLife=(player,n)=>{if(n<=0)return;life.set(player,(life.get(player)??0)+n);lifeHits.set(player,(lifeHits.get(player)??0)+1)};
  const stat=(id,k)=>deriveStatistic(state,id,k,c.stats[state.objects[id].definition][k],c.modifiers??[],{turn:m.turn}).value;
  const hit=(id,amount)=>{const r=replaceDamage(state,{type:"damageDealt",id,amount,damageType:policy.damageType??"combat"},c.replacements??[]);for(const rule of r.applied)events.push({type:"damageReplaced",rule,id});if(r.event.amount){damage.set(r.event.id,(damage.get(r.event.id)??0)+r.event.amount);events.push(r.event)}};
  for(const a of b.attacks){
@@ -72,13 +73,13 @@ export function resolveGroupCombat(m,actor,blocks,validated=false){
   if(guards.length){
    let remaining=Math.max(0,power(m,a.attacker));const manual=b.assignments?.find(x=>x.attacker===a.attacker)?.amounts;
    for(const [i,id] of guards.entries()){const n=manual?manual[i]:policy.assignment==="even"?Math.floor(remaining/(guards.length-i)):i===guards.length-1&&!policy.overflow?remaining:Math.min(remaining,Math.max(0,stat(id,"health")-state.objects[id].damage));remaining-=n;hit(id,n);if(c.retaliate!==false)hit(a.attacker,stat(id,"attack"))}
-   if(policy.overflow&&remaining>0&&a.kind==="player")life.set(a.target,(life.get(a.target)??0)+remaining);
+   if(policy.overflow&&remaining>0&&a.kind==="player")hitLife(a.target,remaining);
   }else if(a.kind==="card"){const attack=Math.max(0,power(m,a.attacker)),defense=stat(a.target,"attack");if(policy.comparison==="power"){if(attack>=defense)hit(a.target,Math.max(0,health(m,a.target)-state.objects[a.target].damage));if(c.retaliate!==false&&defense>=attack)hit(a.attacker,Math.max(0,health(m,a.attacker)-state.objects[a.attacker].damage))}else{hit(a.target,attack);if(c.retaliate!==false)hit(a.attacker,defense)}}
-  else life.set(a.target,(life.get(a.target)??0)+Math.max(0,power(m,a.attacker)));
+  else hitLife(a.target,Math.max(0,power(m,a.attacker)));
  }
  let result=next;
  for(const [id,n] of damage){check(Number.isSafeInteger(n+result.objects[id].damage),"Damage overflow");result.objects[id].damage+=n}
- for(const [player,n] of life){const r=policy.lifeCards?.[player]?damageCards(result,player,policy.lifeCards[player],policy.lifeCards[player].perAttack?b.attacks.filter(a=>a.kind==="player"&&a.target===player&&(!blocks.some(x=>x.attacker===a.attacker)||policy.overflow)).length:n):changeResource(result,player,policy.lifeResource,-n,{overflow:"clamp"});result=r.state;events.push(...r.events)}
+ for(const [player,n] of life){const r=policy.lifeCards?.[player]?damageCards(result,player,policy.lifeCards[player],policy.lifeCards[player].perAttack?lifeHits.get(player):n):changeResource(result,player,policy.lifeResource,-n,{overflow:"clamp"});result=r.state;events.push(...r.events)}
  const defeated=[...damage.keys()].filter(id=>result.objects[id].damage>=stat(id,"health"));
  for(const id of defeated){const from=Object.values(result.zones).find(z=>z.cards.includes(id)).id,to=c.defeatZones[result.objects[id].owner];const r=moveWithAttachments(result,{id,from,to,reset:true});result=r.state;events.push({type:"combatDefeat",id,definition:state.objects[id].definition,owner:state.objects[id].owner,controller:state.objects[id].controller,from,damage:state.objects[id].damage+(damage.get(id)??0)},...r.events)}
  m.state=result;m.battle=null;m.timing.passes=0;return [{type:"combatResolved",actor},...events];
