@@ -240,6 +240,9 @@ function advancedPolicies(key,section){
     field(p,"Statistic",r.stat,["attack","health"],v=>r.stat=v);
     field(p,"Modifier operation",r.op,["set","add","multiply"],v=>r.op=v);
     field(p,"Modifier value",r.value,"signed",v=>r.value=v);field(p,"Modifier layer",r.layer??({set:0,add:1,multiply:2}[r.op]),"number",v=>r.layer=v);expressionField(p,"Modifier condition",r.when??true,v=>r.when=v);
+    field(p,"Aura source definition",r.auraDefinition??"",["",...module.definitions],v=>{if(v){r.auraDefinition=v;r.auraZones??=[first("zones")]}else{delete r.auraDefinition;delete r.auraZones;delete r.auraController}render(key)});
+    if(r.auraDefinition){field(p,"Aura source zones",r.auraZones.join(","),"text",v=>r.auraZones=csv(v));field(p,"Aura controller",r.auraController??"self",["self","any"],v=>r.auraController=v)}
+    field(p,"Attachment source definition",r.attachmentDefinition??"",["",...module.definitions],v=>{if(v)r.attachmentDefinition=v;else delete r.attachmentDefinition});
     field(p,"Source instance (optional)",r.source??"","text",v=>{if(v){r.source=v;r.sourceZones??=[]}else{delete r.source;delete r.sourceZones}});
     field(p,"Source zones",(r.sourceZones??[]).join(","),"text",v=>r.sourceZones=csv(v));
     field(p,"Expires before turn (blank = never)",r.expires??"","text",v=>{if(v==="")delete r.expires;else r.expires=Number(v)});
