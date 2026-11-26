@@ -26,5 +26,5 @@ export function paymentOptions(state,actor,plan){
  function assign(i,seen){for(const id of slots[i]){if(seen.has(id))continue;seen.add(id);if(!assigned.has(id)||assign(assigned.get(id),seen)){assigned.set(id,i);return true}}return false}
  if(!slots.every((_,i)=>assign(i,new Set())))return null;
  const example=Array(slots.length);for(const [id,i] of assigned)example[i]=id;
- try{payPlan(state,actor,plan,example);return {id:plan.id,groups,example}}catch{return null}
+ try{payPlan(state,actor,plan,example);return {id:plan.id,groups,example}}catch{let budget=4096;function search(chosen){if(--budget<0)return null;if(chosen.length===slots.length){try{payPlan(state,actor,plan,chosen);return chosen}catch{return null}}for(const id of slots[chosen.length])if(!chosen.includes(id)){const result=search([...chosen,id]);if(result)return result;if(budget<0)break}return null}const alternative=search([]);return alternative?{id:plan.id,groups,example:alternative}:null}
 }
