@@ -1,3 +1,4 @@
+import {validateExpression} from "./expressions.js";
 // Structural validation for v2 modules. Runtime validates state-dependent legality.
 const key=x=>typeof x==="string"&&/^[A-Za-z0-9_-]{1,80}$/.test(x)&&!Object.hasOwn(Object.prototype,x);
 const integer=x=>Number.isSafeInteger(x)&&x>=0;
@@ -64,7 +65,8 @@ export function validateModuleV2(m){
   }
   for(const op of list(e.program,"program "+id,64)){
    if(!record(op)){errors.push("effect: invalid operation "+id);continue}
-   if(op.type==="scheduleTurn")require(["extra","skip"].includes(op.kind)&&(op.player==="self"||players.includes(op.player))&&integer(op.count)&&op.count>=1&&op.count<=10,"invalid scheduled turn");
+   if(["skipUnlessExpr","eachCounter","resourceExpr"].includes(op.type)){try{validateExpression(op.expression)}catch(e){errors.push(e.message)}require(op.type==="skipUnlessExpr"?integer(op.skip)&&op.skip>=1&&op.skip<=64:op.type==="eachCounter"?record(op.selector)&&key(op.counter):resources.has(op.resource),"invalid expression operation")}
+   else if(op.type==="scheduleTurn")require(["extra","skip"].includes(op.kind)&&(op.player==="self"||players.includes(op.player))&&integer(op.count)&&op.count>=1&&op.count<=10,"invalid scheduled turn");
    else if(["search","randomHidden"].includes(op.type)){require(key(op.name)&&!choices.has(op.name)&&zids.has(op.zone)&&(op.top===undefined||integer(op.top)&&op.top>=1&&op.top<=100)&&(op.definition===undefined||defs.includes(op.definition)),"invalid hidden selection");choices.add(op.name)}
    else if(op.type==="optional"){require(key(op.name)&&!choices.has(op.name)&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"invalid optional choice");choices.add(op.name)}
    else if(op.type==="reveal")require(choices.has(op.choice)&&["self","all"].includes(op.audience),"invalid reveal");
@@ -156,6 +158,13 @@ export function validateModuleV2(m){
  const ids=new Set();for(const r of list(g.reactions??[],"combat reactions",20)){require(record(r)&&key(r.id)&&!ids.has(r.id)&&defs.includes(r.definition)&&Array.isArray(r.zones)&&r.zones.length>0&&r.zones.every(z=>zids.has(z))&&zids.has(r.destination)&&!r.zones.includes(r.destination)&&integer(r.amount)&&r.amount<=100,"invalid combat reaction");if(record(r))ids.add(r.id)}
  }
  if(m.combat?.damageCleanup!==undefined)require(["turn","persistent"].includes(m.combat.damageCleanup),"invalid damage cleanup");
+ const expr=e=>{try{validateExpression(e);return true}catch{return false}};
+ if(m.attributes!==undefined)require(record(m.attributes)&&Object.entries(m.attributes).every(([id,a])=>defs.includes(id)&&record(a)&&Object.entries(a).every(([k,v])=>key(k)&&(typeof v==="boolean"||typeof v==="string"&&v.length<=200||Number.isSafeInteger(v)))),"invalid typed attributes");
+ for(const r of list(m.permissionRules??[],"permission rules",100))require(record(r)&&["cannotAttack","cannotBlock","cannotBeAttacked","cannotActivate","untargetable","damageImmune"].includes(r.rule)&&expr(r.when),"invalid conditional permission");
+ for(const r of [...(m.combat?.modifiers??[]),...(m.keywordRules?.passives??[])])require((r.when===undefined||expr(r.when))&&(r.layer===undefined||integer(r.layer)&&r.layer<=100),"invalid modifier layer or condition");
+ for(const r of list(m.eventReplacements??[],"event replacements",100))require(record(r)&&key(r.id)&&r.event==="draw"&&["prevent","reduce","redirect"].includes(r.op)&&(r.from===undefined||zids.has(r.from))&&(r.order===undefined||integer(r.order)&&r.order<=100)&&(r.when===undefined||expr(r.when))&&(r.op!=="reduce"||integer(r.amount)&&r.amount<=100)&&(r.op!=="redirect"||zids.has(r.to)&&r.to!==r.from),"invalid draw replacement");
+ if(m.stabilization!==undefined){require(record(m.stabilization),"invalid stabilization");if(record(m.stabilization))for(const r of list(m.stabilization.moves??[],"state moves",100))require(record(r)&&zids.has(r.from)&&zids.has(r.to)&&r.from!==r.to&&expr(r.when),"invalid state-based move")}
+ for(const t of m.triggers??[])if(t.bindings!==undefined)require(record(t.bindings)&&Object.entries(t.bindings).every(([k,v])=>key(k)&&key(v)),"invalid trigger bindings");
  return errors;
 }
 export function assertModuleV2(m){const errors=validateModuleV2(m);if(errors.length)throw Error(errors.join("; "));return m}
