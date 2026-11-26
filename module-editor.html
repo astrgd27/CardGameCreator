@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Generalized Module Editor</title><link rel="stylesheet" href="style.css"></head>
+<body><main><a href="index.html">Back to workshop</a><h1>Generalized module editor</h1><p>Configure a version 2 rules module. Changes are local until exported.</p>
+<div id="editor-actions"><button id="reset">Load Ironwood example</button> <button id="validate">Validate module</button> <button id="export">Export JSON</button> <label>Import JSON <input id="import" type="file" accept=".json,application/json"></label></div>
+<p id="editor-status" role="status"></p><div id="editor-fields"></div>
+<details><summary>Advanced module JSON</summary><textarea id="source" rows="20" style="width:100%;font-family:monospace"></textarea><button id="apply">Apply JSON changes</button></details></main><script type="module" src="module-editor.js"></script></body></html>
