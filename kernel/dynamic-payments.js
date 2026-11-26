@@ -4,7 +4,7 @@ import {selectCards} from "./selectors.js";
 import {payPlan,paymentOptions} from "./card-costs.js";
 import {changeResource,quotePayment} from "./resources.js";
 const check=(ok,msg)=>{if(!ok)throw Error(msg)};
-export function dynamicOptions(m,actor,e,source,plan){
+function structuralOptions(m,actor,e,source,plan){
  const d=e.dynamicPayment;if(!d)return paymentOptions(m.state,actor,plan);
  const targets=(d.targets??[]).map(t=>({name:t.name,ids:selectCards(m.state,actor,{...t.selector,targetable:true})}));
  if(targets.some(t=>!t.ids.length))return null;
@@ -37,7 +37,7 @@ export function generate(m,actor,selection){
 export function commitDynamic(m,actor,e,source,plan,action){
  const d=e.dynamicPayment;
  if(!d)return {...payPlan(m.state,actor,plan,action.cards??[]),choices:source?{source}:{}};
- const opt=dynamicOptions(m,actor,e,source,plan)?.dynamic;check(opt,"No legal targets");
+ const opt=structuralOptions(m,actor,e,source,plan)?.dynamic;check(opt,"No legal targets");
  const input=action.payment??{},x=input.x??0,mode=input.mode??"default";
  check(Number.isSafeInteger(x)&&x>=opt.xMin&&x<=opt.xMax&&opt.modes.includes(mode),"Invalid variable cost or mode");
  const targets=input.targets??{};check(targets&&typeof targets==="object"&&!Array.isArray(targets)&&Object.keys(targets).length===opt.targets.length,"Invalid target count");
@@ -56,4 +56,40 @@ export function commitDynamic(m,actor,e,source,plan,action){
  for(const g of gens){const r=generate({...m,state},actor,g);state=r.state;events.push(...r.events)}
  const paid=payPlan(state,actor,{...plan,costs},action.cards??[]);
  return {state:paid.state,events:[...events,...paid.events],choices};
+}
+
+// Exact search within an explicit work budget. Unknown is distinct from impossible.
+// Targets and modes are currently cost-independent; minimum X suffices for existence.
+export function solveDynamic(m,actor,e,source,plan,limit=2048){
+ const o=structuralOptions(m,actor,e,source,plan);
+ if(!o)return {status:"impossible",attempts:0};
+ if(!o.dynamic)return {status:"payable",attempts:1,action:{cards:o.example}};
+ const d=o.dynamic,targets=Object.fromEntries(d.targets.map(t=>[t.name,t.ids[0]]));
+ const byId=new Map();for(const g of d.generators){if(!byId.has(g.id))byId.set(g.id,[]);byId.get(g.id).push({id:g.id,generator:g.generator})}
+ const gs=[...byId.values()],slots=o.groups.flatMap(g=>Array.from({length:g.count},()=>g.ids));
+ let attempts=0,nodes=0,found=null,exhausted=false;
+ const tick=()=>{if(++nodes>limit){exhausted=true;return false}return true};
+ function cards(hybrid,generators,chosen=[]){
+  if(found||exhausted||!tick())return;
+  if(chosen.length===slots.length){attempts++;const action={cards:chosen,payment:{mode:d.modes[0],x:d.xMin,targets,hybrid,generators}};try{commitDynamic(m,actor,e,source,plan,action);found=action}catch{}return}
+  for(const id of slots[chosen.length]){if(!chosen.includes(id))cards(hybrid,generators,[...chosen,id]);if(found||exhausted)return}
+ }
+ function generateChoices(hybrid,i=0,chosen=[]){
+  if(found||exhausted||!tick())return;
+  if(i===gs.length){cards(hybrid,chosen);return}
+  generateChoices(hybrid,i+1,chosen);
+  if(chosen.length<20)for(const g of gs[i]){generateChoices(hybrid,i+1,[...chosen,g]);if(found||exhausted)return}
+ }
+ function hybrids(chosen=[]){
+  if(found||exhausted||!tick())return;
+  if(chosen.length===d.hybrid.length){generateChoices(chosen);return}
+  for(const r of d.hybrid[chosen.length].resources){hybrids([...chosen,r]);if(found||exhausted)return}
+ }
+ hybrids();return found?{status:"payable",attempts,action:found}:{status:exhausted?"unknown":"impossible",attempts};
+}
+export function dynamicOptions(m,actor,e,source,plan){
+ const o=structuralOptions(m,actor,e,source,plan);if(!o?.dynamic)return o;
+ const solved=solveDynamic(m,actor,e,source,plan);
+ if(solved.status==="impossible")return null;
+ return {...o,affordability:solved.status,...(solved.action?{example:solved.action.cards,paymentExample:solved.action.payment}:{})};
 }

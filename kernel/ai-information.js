@@ -11,7 +11,7 @@ export function paymentCandidates(a,cap=32){
  payments=expand(payments,d.modes,(r,v)=>({...r,mode:v}),cap);
  payments=expand(payments,[...new Set([d.xMin,d.xMax,Math.floor((d.xMin+d.xMax)/2)])],(r,v)=>({...r,x:v}),cap);
  const gs=d.generators??[],sets=[[]];for(const g of gs.slice(0,10)){const more=sets.filter(s=>!s.some(x=>x.id===g.id)).map(s=>[...s,{id:g.id,generator:g.generator}]);sets.push(...more.slice(0,Math.max(0,cap-sets.length)));if(sets.length>=cap)break}
- const out=[];for(let round=0;round<Math.max(sets.length,payments.length,cards.length);round++)for(let i=0;i<sets.length;i++){if(!payments.length||!cards.length)return out;const g=sets[i],p=payments[(round+i)%payments.length],c=cards[(round+i)%cards.length];out.push({...base,cards:c,payment:{...p,generators:g}});if(out.length>=cap)return out}return out;
+ const out=a.paymentExample?[{...base,cards:a.example??[],payment:a.paymentExample}]:[];for(let round=0;round<Math.max(sets.length,payments.length,cards.length);round++)for(let i=0;i<sets.length;i++){if(!payments.length||!cards.length)return out;const g=sets[i],p=payments[(round+i)%payments.length],c=cards[(round+i)%cards.length];out.push({...base,cards:c,payment:{...p,generators:g}});if(out.length>=cap)return out}return out;
 }
 // A strict information-set policy: use only the authorized projection for scoring.
 // Speculation is allowed solely for known, deterministic, public operations.

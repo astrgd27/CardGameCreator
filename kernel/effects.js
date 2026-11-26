@@ -87,7 +87,12 @@ export function resumeEffect(state,timing,pending,{actor,value}){
  check(pending&&timing.resolving?.id===pending.effectId&&actor===pending.actor&&actor===timing.resolving.actor,"Choice unavailable");
  check(pending.options.includes(value),"Invalid choice value");
  const choices={...pending.choices,[pending.name]:value};
- const op=pending.program[pending.pc];const result=advance(pending.work,timing,pending.program,pending.triggerRules,{pc:pending.pc+1+(op.type==="optional"&&value==="decline"?op.skip:0),choices,events:pending.events});
+ const op=pending.program[pending.pc];let result;
+ try{result=advance(pending.work,timing,pending.program,pending.triggerRules,{pc:pending.pc+1+(op.type==="optional"&&value==="decline"?op.skip:0),choices,events:pending.events})}catch(err){
+  // An authorized choice can expose a branch that is no longer executable.
+  // Abort the entire suspended effect, retaining already committed activation costs.
+  const finished=finishResolution(timing,timing.resolving.id);return {state,timing:finished.timing,pending:null,fizzled:true,events:[{type:"effectFizzled",actor},...finished.events]};
+ }
  if(result.pending)return {state,timing,pending:{...result.pending,work:result.state,program:pending.program,triggerRules:pending.triggerRules},events:[]};
  return result.fizzled?{...result,state}:result;
 }
