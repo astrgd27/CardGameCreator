@@ -1710,6 +1710,312 @@ const benchmarks = [
   verification:"Author an original fixture using public controls. Exercise valid and invalid choices. Export and import the module and repeat. Record the least complex successful authoring layer."
 })));
 
+// Isolated rules kernel: deterministic card instances and ordered zones.
+// This is an internal primitive, not a player-facing action/authorization API.
+const own=(obj,key)=>Object.hasOwn(obj,key);
+const key=x=>typeof x==="string"&&/^[A-Za-z0-9_-]{1,80}$/.test(x)&&!own(Object.prototype,x);
+const fail=message=>{throw new Error(message)};
+const lookup=(obj,id,kind)=>key(id)&&own(obj,id)?obj[id]:fail("Unknown "+kind+": "+id);
+
+function createState({players,definitions,zones}){
+  if(!Array.isArray(players)||!players.length||!players.every(key)||new Set(players).size!==players.length)fail("Invalid players");
+  if(!Array.isArray(definitions)||!definitions.every(key)||new Set(definitions).size!==definitions.length)fail("Invalid definitions");
+  if(!Array.isArray(zones)||!zones.length)fail("No zones");
+  const state={version:1,players:[...players],definitions:[...definitions],nextId:1,zones:{},objects:{}};
+  for(const z of zones){
+    if(!z||!key(z.id)||own(state.zones,z.id)||!(z.owner===null||players.includes(z.owner))||
+      !["public","owner","hidden"].includes(z.visibility)||(z.visibility==="owner"&&z.owner===null)||
+      !Number.isSafeInteger(z.capacity)||z.capacity<0)fail("Invalid zone");
+    state.zones[z.id]={id:z.id,owner:z.owner,visibility:z.visibility,capacity:z.capacity,cards:[]};
+  }
+  return state;
+}
+
+function assertPlayer(s,p){if(!s.players.includes(p))fail("Unknown player")}
+function assertPosition(i,n){if(!Number.isSafeInteger(i)||i<0||i>n)fail("Invalid insertion position")}
+function assertFace(face){if(!["up","down"].includes(face))fail("Invalid face")}
+function locate(s,id){
+  lookup(s.objects,id,"object");
+  const matches=Object.values(s.zones).filter(z=>z.cards.includes(id));
+  if(matches.length!==1)fail("Invalid zone membership: "+id);
+  return matches[0];
+}
+function assertSpace(z){if(z.cards.length>=z.capacity)fail("Zone is full: "+z.id)}
+
+function addCard(state,{definition,owner,controller=owner,zone,face="up",position}){
+  if(!state.definitions.includes(definition))fail("Unknown definition");
+  assertPlayer(state,owner);assertPlayer(state,controller);assertFace(face);
+  const z=lookup(state.zones,zone,"zone");assertSpace(z);
+  const at=position??z.cards.length;assertPosition(at,z.cards.length);
+  if(!Number.isSafeInteger(state.nextId)||state.nextId<1||state.nextId>=Number.MAX_SAFE_INTEGER)fail("Object ID exhausted");
+  const id="c"+state.nextId;if(own(state.objects,id))fail("Duplicate object ID");
+  const next=structuredClone(state);
+  next.nextId++;
+  next.objects[id]={id,definition,owner,controller,face,orientation:"ready",damage:0,counters:{}};
+  next.zones[zone].cards.splice(at,0,id);
+  return {state:next,id};
+}
+
+// Explicit transition semantics: preserve instance state unless requested otherwise.
+// A same-zone movement uses the destination position AFTER removing the object.
+function moveCard(state,{id,from,to,position,face,controller,reset=false}){
+  const object=lookup(state.objects,id,"object");
+  const src=locate(state,id),dst=lookup(state.zones,to,"zone");
+  if(src.id!==from)fail("Card is not in source zone");
+  if(src!==dst)assertSpace(dst);
+  const length=dst.cards.length-(src===dst?1:0),at=position??length;
+  assertPosition(at,length);
+  if(face!==undefined)assertFace(face);
+  if(controller!==undefined)assertPlayer(state,controller);
+  if(typeof reset!=="boolean")fail("Invalid reset policy");
+  const next=structuredClone(state),o=next.objects[id];
+  next.zones[from].cards.splice(src.cards.indexOf(id),1);
+  next.zones[to].cards.splice(at,0,id);
+  if(reset){o.orientation="ready";o.damage=0;o.counters={};o.controller=object.owner;}
+  if(face!==undefined)o.face=face;
+  if(controller!==undefined)o.controller=controller;
+  return {state:next,event:{type:"cardMoved",id,from,to,position:at}};
+}
+
+// Hidden zones and concealed cards disclose no definition IDs, instance IDs,
+// characteristics or order. Count-only concealment is intentionally conservative.
+function projectState(state,viewer){
+  assertPlayer(state,viewer);
+  const zones=Object.values(state.zones).map(z=>{
+    const result={id:z.id,owner:z.owner,visibility:z.visibility,capacity:z.capacity,count:z.cards.length};
+    if(z.visibility==="hidden"||(z.visibility==="owner"&&z.owner!==viewer))return result;
+    result.cards=z.cards.map(id=>{
+      const o=lookup(state.objects,id,"object");
+      if(o.face==="down"&&o.owner!==viewer)return {face:"down"};
+      return structuredClone(o);
+    });
+    return result;
+  });
+  return {version:state.version,players:[...state.players],zones};
+}
+
+function assertInvariants(state){
+  const seen=new Set();
+  for(const z of Object.values(state.zones)){
+    if(z.cards.length>z.capacity)fail("Zone exceeds capacity");
+    for(const id of z.cards){
+      if(seen.has(id))fail("Duplicate zone membership: "+id);
+      seen.add(id);const o=lookup(state.objects,id,"object");
+      if(o.id!==id||!state.definitions.includes(o.definition))fail("Invalid object");
+      assertPlayer(state,o.owner);assertPlayer(state,o.controller);assertFace(o.face);
+    }
+  }
+  if(seen.size!==Object.keys(state.objects).length)fail("Unplaced objects");
+  return true;
+}
+
+// v1 compatibility bridge. The legacy engine remains authoritative.
+// Snapshot instance IDs are deterministic within a snapshot, NOT stable across
+// separate snapshots: v1 stores indistinguishable definition IDs in piles.
+const seats=["p0","p1"];
+const baseZone=(i,name)=>"base-"+i+"-"+name;
+const tableZone=(i,id)=>"table-"+i+"-"+id;
+
+// v1 zone IDs may be 80 characters. Kernel IDs have the same bound, so
+// use stable numeric zone keys and keep the original IDs in the mapping.
+function legacySnapshot(module,legacy){
+  const m=validate(structuredClone(module));
+  if(!legacy||!Array.isArray(legacy.players)||legacy.players.length!==2)throw Error("Expected v1 match");
+  const specs=[],entries=[];
+  const tableKeys=new Map();
+  const definitions=new Map(m.cards.map(c=>[c.id,c]));
+  const put=(id,owner,visibility,capacity,items)=>{
+    if(!Array.isArray(items))throw Error("Invalid legacy pile");
+    specs.push({id,owner,visibility,capacity});
+    entries.push({id,items});
+  };
+  const plain=(cards,i)=>cards.map(definition=>({definition,owner:seats[i],face:"up"}));
+  for(const [i,p] of legacy.players.entries()){
+    // v1 has no fixed runtime capacity on base piles.
+    for(const [name,visibility] of [["deck","hidden"],["hand","owner"],["discard","public"]]){
+      put(baseZone(i,name),seats[i],visibility,Number.MAX_SAFE_INTEGER,plain(p[name],i));
+    }
+    for(const [j,z] of m.table.entries()){
+      if(z.owner!=="player")continue;
+      const id=tableZone(i,j);tableKeys.set(i+":"+z.id,id);
+      const items=z.kind==="units"?p.field.filter(u=>(u.zone||"field")===z.id).map(u=>{
+        const c=definitions.get(u.id);
+        if(!c)throw Error("Unknown legacy unit definition");
+        return {definition:u.id,owner:seats[i],face:u.hidden?"down":"up",orientation:u.ready?"ready":"resting",damage:Math.max(0,(u.hidden?2:c.health)-u.hp),legacyHP:u.hp};
+      }):plain(p.zones[z.id],i);
+      put(id,seats[i],z.visibility,z.capacity,items);
+    }
+    if(p.field.some(u=>!m.table.some(z=>z.kind==="units"&&z.owner==="player"&&z.id===(u.zone||"field"))))throw Error("Unknown legacy unit zone");
+  }
+  for(const [j,z] of m.table.entries()){
+    if(z.owner!=="shared")continue;
+    const id=tableZone("shared",j);tableKeys.set("shared:"+z.id,id);
+    // v1 shared setup cards originate exclusively from seat zero's deck.
+    // v1 permits owner visibility on shared zones; conservatively conceal.
+    put(id,null,z.visibility==="owner"?"hidden":z.visibility,z.capacity,plain(legacy.shared[z.id],0));
+  }
+  put("pending",null,"public",1,legacy.pending?[{definition:legacy.pending.id,owner:seats[legacy.pending.who],face:"up"}]:[]);
+  const state=createState({players:seats,definitions:[...definitions.keys()],zones:specs});
+  // Bulk initialization avoids quadratic cloning for large imported decks.
+  // The state has not escaped this function, and each entry is validated.
+  for(const {id,items} of entries){
+    const zone=state.zones[id];
+    if(items.length>zone.capacity)throw Error("Legacy zone exceeds capacity: "+id);
+    for(const item of items){
+      if(!definitions.has(item.definition)||!seats.includes(item.owner))throw Error("Invalid legacy card");
+      const objectId="c"+state.nextId++;
+      state.objects[objectId]={id:objectId,definition:item.definition,owner:item.owner,controller:item.owner,face:item.face,orientation:item.orientation??"ready",damage:item.damage??0,counters:{}};
+      zone.cards.push(objectId);
+    }
+  }
+  assertInvariants(state);
+  return {state,tableKeys:Object.fromEntries(tableKeys),turn:{
+    phase:legacy.phase,actor:seats[legacy.actor],active:seats[legacy.turn],
+    round:legacy.round,winner:legacy.winner===null?null:seats[legacy.winner],
+    resources:legacy.players.map(p=>({life:p.life,energy:p.energy}))
+  }};
+}
+
+function initializeLegacyBridge(module,seed){
+  const m=validate(structuredClone(module));
+  const legacy=start(m,seed);
+  return {legacy,...legacySnapshot(m,legacy)};
+}
+
+// Transactional bridge for explicit v1 actions. The legacy rules engine still
+// decides legality and outcomes. The kernel tracks exact instance movement.
+const base=(i,pile)=>"base-"+i+"-"+pile;
+const fieldZone=(bridge,i,u)=>bridge.tableKeys[i+":"+(u.zone||"field")];
+const reject=message=>{throw Error(message)};
+const indexOK=(n,length)=>Number.isSafeInteger(n)&&n>=0&&n<length;
+function trackedFieldId(bridge,legacy,i,index){
+ const u=legacy.players[i].field[index];
+ if(!u)reject("Unknown field index");
+ const zone=fieldZone(bridge,i,u);
+ const local=legacy.players[i].field.slice(0,index).filter(v=>fieldZone(bridge,i,v)===zone).length;
+ return bridge.state.zones[zone].cards[local];
+}
+function fieldIndex(bridge,legacy,i,id){
+ return legacy.players[i].field.findIndex((_,index)=>trackedFieldId(bridge,legacy,i,index)===id);
+}
+function startTracked(module,seed){
+ const m=validate(structuredClone(module));
+ return initializeLegacyBridge(m,seed);
+}
+// Choices are based on legacy legality, with persistent identifiers for owned
+// cards. Opposing concealed targets use public field positions, not instance IDs.
+function trackedChoices(module,bridge,actor){
+ const m=validate(structuredClone(module)),l=bridge.legacy;
+ if(![0,1].includes(actor)||l.actor!==actor||l.winner!==null)return [];
+ const p=l.players[actor],out=[{type:"pass",actor}];
+ for(const [index] of p.hand.entries()){
+  if(!reason(m,l,actor,index))out.push({type:"play",actor,id:bridge.state.zones[base(actor,"hand")].cards[index]});
+ }
+ if(!l.pending&&l.turn===actor){
+  for(const [index,u] of p.field.entries()){
+   if(!u.ready)continue;
+   const id=trackedFieldId(bridge,l,actor,index);
+   if(u.hidden){out.push({type:"reveal",actor,id});continue}
+   if(!m.phases[l.phase||0].attack)continue;
+   const c=m.cards.find(c=>c.id===u.id);
+   for(const [move,a] of c.attacks.entries()){
+    if(a.cost>p.energy)continue;
+    for(const target of legalTargets(m,l,actor))out.push({type:"attack",actor,id,move,target});
+   }
+  }
+ }
+ return out;
+}
+function applyTracked(module,bridge,action){
+ const m=validate(structuredClone(module)),before=bridge.legacy;
+ const {actor:i,type}=action??{};
+ if(![0,1].includes(i)||before.actor!==i||before.winner!==null)reject("Action unavailable");
+ const l=structuredClone(before);
+ let state=structuredClone(bridge.state),events=[];
+ const move=(id,from,to,extra={})=>{
+  const r=moveCard(state,{id,from,to,...extra});state=r.state;events.push(r.event);
+ };
+ const hand=base(i,"hand"),pending=state.zones.pending.cards[0];
+ let played=null,attacked=null;
+ if(type==="play"){
+  const index=state.zones[hand].cards.indexOf(action.id);
+  if(!indexOK(index,l.players[i].hand.length))reject("Card is not in hand");
+  played={id:action.id,owner:i,definition:l.players[i].hand[index]};
+  act(m,l,i,index);
+ }else if(type==="pass")pass(m,l,i);
+ else if(type==="reveal"){
+  const index=fieldIndex(bridge,before,i,action.id);
+  if(index<0)reject("Card is not in your field");
+  reveal(m,l,i,index);
+ }else if(type==="attack"){
+  const index=fieldIndex(bridge,before,i,action.id);
+  if(index<0||!Number.isSafeInteger(action.move)||!Number.isSafeInteger(action.target))reject("Invalid attack choice");
+  const target=action.target;
+  if(target!==-1&&!indexOK(target,before.players[1-i].field.length))reject("Invalid target");
+  if(target!==-1)attacked={id:trackedFieldId(bridge,before,1-i,target),zone:fieldZone(bridge,1-i,before.players[1-i].field[target])};
+  attack(m,l,i,index,action.move,target);
+ }else reject("Unknown action");
+
+ // Each accepted legacy action removes at most one hand card. Resolve that
+ // card and any prior pending card explicitly; draws always take a deck prefix.
+ if(played){
+  const c=m.cards.find(c=>c.id===played.definition);
+  if(l.pending&&l.pending.who===i&&!before.pending){
+   move(played.id,hand,"pending");
+  }else if(c.kind==="unit"){
+   const z=bridge.tableKeys[i+":"+c.zone];
+   const hidden=c.entry==="hidden"&&c.timing==="main"&&!before.pending;
+   move(played.id,hand,z,{face:hidden?"down":"up"});
+  }else move(played.id,hand,base(i,"discard"));
+ }
+ if(pending&&!l.pending){
+  const who=before.pending.who,c=m.cards.find(c=>c.id===before.pending.id);
+  // The reaction can end the match before the pending unit resolves.
+  const fieldAdded=l.players[who].field.length>before.players[who].field.length;
+  if(c.kind==="unit"&&fieldAdded)move(pending,"pending",bridge.tableKeys[who+":"+c.zone]);
+  else move(pending,"pending",base(who,"discard"));
+ }
+ if(attacked&&l.players[1-i].field.length<before.players[1-i].field.length)
+  move(attacked.id,attacked.zone,base(1-i,"discard"),{face:"up",reset:true});
+ for(const [seat,p] of l.players.entries()){
+  const deck=base(seat,"deck"),dest=base(seat,"hand");
+  const count=before.players[seat].deck.length-p.deck.length;
+  if(count<0)reject("Unsupported deck mutation");
+  for(let n=0;n<count;n++)move(state.zones[deck].cards[0],deck,dest);
+ }
+ // Compare ordered definition sequences against independently converted v1
+ // state. Never guess identity from duplicate definitions on mismatch.
+ const expected=legacySnapshot(m,l);
+ for(const [zone,z] of Object.entries(expected.state.zones)){
+  const actual=state.zones[zone];
+  if(actual.cards.length!==z.cards.length)reject("Bridge mismatch: "+zone);
+  for(const [index,id] of actual.cards.entries()){
+   const o=state.objects[id],e=expected.state.objects[z.cards[index]];
+   if(o.definition!==e.definition||o.owner!==e.owner)reject("Bridge identity mismatch: "+zone);
+   o.face=e.face;o.orientation=e.orientation;o.damage=e.damage;
+  }
+ }
+ assertInvariants(state);
+ return {bridge:{legacy:l,state,tableKeys:expected.tableKeys,turn:expected.turn},events};
+}
+function trackedView(bridge,actor){
+ if(![0,1].includes(actor))reject("Unknown viewer");
+ return {...projectState(bridge.state,"p"+actor),turn:structuredClone(bridge.turn)};
+}
+
+// Use the existing bot's deterministic choice policy without changing its behavior.
+// Compare candidate transitions to its result; identical transitions use the
+// first legal choice, since v1 has no distinction between duplicate cards.
+function trackedBot(module,bridge,legacyBot){
+ const expected=structuredClone(bridge.legacy);
+ legacyBot(module,expected);
+ for(const action of trackedChoices(module,bridge,bridge.legacy.actor)){
+   const result=applyTracked(module,bridge,action);
+   if(JSON.stringify(result.bridge.legacy)===JSON.stringify(expected))return result;
+ }
+ throw Error("Legacy bot action could not be mapped");
+}
+
 const $ = (id) => document.getElementById(id),
   root = $("root");
 const esc = (s) =>
@@ -1776,6 +2082,7 @@ let m = upgrade(moduleData()),
   mode = "Modules",
   tab = "Place",
   s = null,
+  tracked = null,
   history = [],
   seed = Date.now(),
   guide = true,
@@ -1805,6 +2112,7 @@ function edited() {
   activateDecks(m);
   validate(m);
   s = null;
+  tracked = null;
   history = [];
   dirty = false;
   persist();
@@ -2189,9 +2497,16 @@ function syncBot(){
   if(mode!=="Playtest"||!s||s.actor!==1||s.winner!==null||pace==="Step"||$("dialog").open)return;
   botTimer=setTimeout(nextBot,paceMs[pace]);
 }
+function performTracked(action){
+  const result=applyTracked(m,tracked,action);
+  history.push(tracked);tracked=result.bridge;s=tracked.legacy;
+}
 function nextBot(){
   if(mode!=="Playtest"||!s||s.actor!==1||s.winner!==null||$("dialog").open)return;
-  bot(m,s);render();
+  try {
+    tracked=trackedBot(m,tracked,bot).bridge;s=tracked.legacy;render();
+  } catch(err){status("Opponent action failed: "+err.message);clearTimeout(botTimer);}
+
 }
 $("dialog").addEventListener("close",syncBot);
 function battle(){
@@ -2231,7 +2546,8 @@ function launch(practice = false, newSeed = true) {
     }
     state.log.push("Practice copy of " + c.name + " dealt.");
   }
-  s = state;
+  tracked={legacy:state,...legacySnapshot(m,state)};
+  s = tracked.legacy;
   history = [];
   mode = "Playtest";
   render();
@@ -2476,7 +2792,7 @@ async function dispatch(action, v) {
       const can=u.ready&&!s.pending&&s.actor===0&&s.turn===0&&s.winner===null;
       modal('<h2>'+esc(card.name)+'</h2><p>'+u.hp+' HP · '+(u.ready?'Ready':'Resting')+'</p><div class="stack">'+button('inspect','Inspect card','',card.id)+(can?(u.hidden?button('flip','Reveal unit','primary',v):(m.phases[s.phase||0].attack?card.attacks:[]).map((a,j)=>button('target',a.name+' · '+a.power+' damage · '+a.cost+' energy','',''+v+':'+j)).join('')):'')+'</div>');return;
     }
-    case "flip":{const prev=structuredClone(s);reveal(m,s,0,+v);history.push(prev);$("dialog").close();break;}
+    case "flip":{performTracked({type:"reveal",actor:0,id:trackedFieldId(tracked,s,0,+v)});$("dialog").close();break;}
     case "target":{
       const [i,j]=v.split(":").map(Number),a=byId(s.players[0].field[i].id).attacks[j];
       if(a.cost>s.players[0].energy){modal("<h2>Insufficient energy</h2><p>This attack costs "+a.cost+" energy.</p>");return}
@@ -2488,10 +2804,9 @@ async function dispatch(action, v) {
       }).join("")+'</div>');return;
     }
     case "attack": {
-      const prev = structuredClone(s);
+      const [index,move,target]=v.split(":").map(Number);
+      performTracked({type:"attack",actor:0,id:trackedFieldId(tracked,s,0,index),move,target});
       $("dialog").close();
-      attack(m, s, 0, ...v.split(":").map(Number));
-      history.push(prev);
 
       break;
     }
@@ -2540,14 +2855,12 @@ async function dispatch(action, v) {
           return;
         }
       }
-      history.push(structuredClone(s));
-      if (action === "use") act(m, s, 0, +v);
-      else pass(m, s, 0);
+      performTracked(action==="use"?{type:"play",actor:0,id:tracked.state.zones["base-0-hand"].cards[+v]}:{type:"pass",actor:0});
 
       break;
     }
     case "rewind":
-      if (history.length) s = history.pop();
+      if (history.length){tracked=history.pop();s=tracked.legacy;}
       break;
     case "guide":
       guide = !guide;

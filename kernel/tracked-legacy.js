@@ -8,7 +8,7 @@ const base=(i,pile)=>"base-"+i+"-"+pile;
 const fieldZone=(bridge,i,u)=>bridge.tableKeys[i+":"+(u.zone||"field")];
 const reject=message=>{throw Error(message)};
 const indexOK=(n,length)=>Number.isSafeInteger(n)&&n>=0&&n<length;
-function fieldId(bridge,legacy,i,index){
+export function trackedFieldId(bridge,legacy,i,index){
  const u=legacy.players[i].field[index];
  if(!u)reject("Unknown field index");
  const zone=fieldZone(bridge,i,u);
@@ -16,7 +16,7 @@ function fieldId(bridge,legacy,i,index){
  return bridge.state.zones[zone].cards[local];
 }
 function fieldIndex(bridge,legacy,i,id){
- return legacy.players[i].field.findIndex((_,index)=>fieldId(bridge,legacy,i,index)===id);
+ return legacy.players[i].field.findIndex((_,index)=>trackedFieldId(bridge,legacy,i,index)===id);
 }
 export function startTracked(module,seed){
  const m=validate(structuredClone(module));
@@ -34,7 +34,7 @@ export function trackedChoices(module,bridge,actor){
  if(!l.pending&&l.turn===actor){
   for(const [index,u] of p.field.entries()){
    if(!u.ready)continue;
-   const id=fieldId(bridge,l,actor,index);
+   const id=trackedFieldId(bridge,l,actor,index);
    if(u.hidden){out.push({type:"reveal",actor,id});continue}
    if(!m.phases[l.phase||0].attack)continue;
    const c=m.cards.find(c=>c.id===u.id);
@@ -72,7 +72,7 @@ export function applyTracked(module,bridge,action){
   if(index<0||!Number.isSafeInteger(action.move)||!Number.isSafeInteger(action.target))reject("Invalid attack choice");
   const target=action.target;
   if(target!==-1&&!indexOK(target,before.players[1-i].field.length))reject("Invalid target");
-  if(target!==-1)attacked={id:fieldId(bridge,before,1-i,target),zone:fieldZone(bridge,1-i,before.players[1-i].field[target])};
+  if(target!==-1)attacked={id:trackedFieldId(bridge,before,1-i,target),zone:fieldZone(bridge,1-i,before.players[1-i].field[target])};
   attack(m,l,i,index,action.move,target);
  }else reject("Unknown action");
 
@@ -121,4 +121,17 @@ export function applyTracked(module,bridge,action){
 export function trackedView(bridge,actor){
  if(![0,1].includes(actor))reject("Unknown viewer");
  return {...projectState(bridge.state,"p"+actor),turn:structuredClone(bridge.turn)};
+}
+
+// Use the existing bot's deterministic choice policy without changing its behavior.
+// Compare candidate transitions to its result; identical transitions use the
+// first legal choice, since v1 has no distinction between duplicate cards.
+export function trackedBot(module,bridge,legacyBot){
+ const expected=structuredClone(bridge.legacy);
+ legacyBot(module,expected);
+ for(const action of trackedChoices(module,bridge,bridge.legacy.actor)){
+   const result=applyTracked(module,bridge,action);
+   if(JSON.stringify(result.bridge.legacy)===JSON.stringify(expected))return result;
+ }
+ throw Error("Legacy bot action could not be mapped");
 }

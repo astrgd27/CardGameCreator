@@ -41,3 +41,25 @@ test('arena cards are readable and inspection is available',async({page})=>{
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+1);
  expect(overflow).toBe(false);
 });
+
+test('transactional gameplay supports play, rewind and stepped opponent',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/');
+ await page.locator('#modes').getByRole('button',{name:'Play',exact:true}).click();
+ await page.getByRole('button',{name:'Start duel'}).click();
+ await page.locator('#pace').selectOption('Step');
+ const hand=page.locator('.cardhand .tablecard');
+ const before=await hand.evaluateAll(cards=>cards.map(c=>c.dataset.card));
+ const playable=page.locator('.cardhand .playable').first();
+ await expect(playable).toBeVisible();
+ await playable.click();
+ await expect(page.getByRole('button',{name:'↶ Rewind'})).toBeVisible();
+ await page.getByRole('button',{name:'↶ Rewind'}).click();
+ expect(await hand.evaluateAll(cards=>cards.map(c=>c.dataset.card))).toEqual(before);
+ await page.getByRole('button',{name:'End turn',exact:true}).click();
+ const next=page.getByRole('button',{name:'Next opponent move'});
+ await expect(next).toBeVisible();
+ await next.click();
+ await expect(page.locator('#status')).not.toContainText('Opponent action failed');
+ expect(errors).toEqual([]);
+});

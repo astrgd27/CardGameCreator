@@ -17,6 +17,8 @@ import {
   bot,
   attack, reveal, legalTargets,
 } from "./engine.js";
+import { applyTracked, trackedFieldId, trackedBot } from "./kernel/tracked-legacy.js";
+import { legacySnapshot } from "./kernel/legacy-adapter.js";
 import { collection, saveModule, pack, unpack } from "./storage.js";
 import { benchmarks, catalogVersion, benchmarkScope } from "./benchmarks.js";
 const $ = (id) => document.getElementById(id),
@@ -85,6 +87,7 @@ let m = upgrade(moduleData()),
   mode = "Modules",
   tab = "Place",
   s = null,
+  tracked = null,
   history = [],
   seed = Date.now(),
   guide = true,
@@ -114,6 +117,7 @@ function edited() {
   activateDecks(m);
   validate(m);
   s = null;
+  tracked = null;
   history = [];
   dirty = false;
   persist();
@@ -498,9 +502,16 @@ function syncBot(){
   if(mode!=="Playtest"||!s||s.actor!==1||s.winner!==null||pace==="Step"||$("dialog").open)return;
   botTimer=setTimeout(nextBot,paceMs[pace]);
 }
+function performTracked(action){
+  const result=applyTracked(m,tracked,action);
+  history.push(tracked);tracked=result.bridge;s=tracked.legacy;
+}
 function nextBot(){
   if(mode!=="Playtest"||!s||s.actor!==1||s.winner!==null||$("dialog").open)return;
-  bot(m,s);render();
+  try {
+    tracked=trackedBot(m,tracked,bot).bridge;s=tracked.legacy;render();
+  } catch(err){status("Opponent action failed: "+err.message);clearTimeout(botTimer);}
+
 }
 $("dialog").addEventListener("close",syncBot);
 function battle(){
@@ -540,7 +551,8 @@ function launch(practice = false, newSeed = true) {
     }
     state.log.push("Practice copy of " + c.name + " dealt.");
   }
-  s = state;
+  tracked={legacy:state,...legacySnapshot(m,state)};
+  s = tracked.legacy;
   history = [];
   mode = "Playtest";
   render();
@@ -785,7 +797,7 @@ async function dispatch(action, v) {
       const can=u.ready&&!s.pending&&s.actor===0&&s.turn===0&&s.winner===null;
       modal('<h2>'+esc(card.name)+'</h2><p>'+u.hp+' HP · '+(u.ready?'Ready':'Resting')+'</p><div class="stack">'+button('inspect','Inspect card','',card.id)+(can?(u.hidden?button('flip','Reveal unit','primary',v):(m.phases[s.phase||0].attack?card.attacks:[]).map((a,j)=>button('target',a.name+' · '+a.power+' damage · '+a.cost+' energy','',''+v+':'+j)).join('')):'')+'</div>');return;
     }
-    case "flip":{const prev=structuredClone(s);reveal(m,s,0,+v);history.push(prev);$("dialog").close();break;}
+    case "flip":{performTracked({type:"reveal",actor:0,id:trackedFieldId(tracked,s,0,+v)});$("dialog").close();break;}
     case "target":{
       const [i,j]=v.split(":").map(Number),a=byId(s.players[0].field[i].id).attacks[j];
       if(a.cost>s.players[0].energy){modal("<h2>Insufficient energy</h2><p>This attack costs "+a.cost+" energy.</p>");return}
@@ -797,10 +809,9 @@ async function dispatch(action, v) {
       }).join("")+'</div>');return;
     }
     case "attack": {
-      const prev = structuredClone(s);
+      const [index,move,target]=v.split(":").map(Number);
+      performTracked({type:"attack",actor:0,id:trackedFieldId(tracked,s,0,index),move,target});
       $("dialog").close();
-      attack(m, s, 0, ...v.split(":").map(Number));
-      history.push(prev);
 
       break;
     }
@@ -849,14 +860,12 @@ async function dispatch(action, v) {
           return;
         }
       }
-      history.push(structuredClone(s));
-      if (action === "use") act(m, s, 0, +v);
-      else pass(m, s, 0);
+      performTracked(action==="use"?{type:"play",actor:0,id:tracked.state.zones["base-0-hand"].cards[+v]}:{type:"pass",actor:0});
 
       break;
     }
     case "rewind":
-      if (history.length) s = history.pop();
+      if (history.length){tracked=history.pop();s=tracked.legacy;}
       break;
     case "guide":
       guide = !guide;
