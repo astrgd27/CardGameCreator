@@ -1,6 +1,9 @@
 import {demoModule} from "./kernel/demo-module.js";
 import {createMatch,applyMatchAction,matchView} from "./kernel/runtime.js";
+import {chooseDemoAction} from "./kernel/demo-ai.js";
 const root=document.querySelector("#duel");
+let mode="hotseat",timer=null;
+function scheduleOpponent(){clearTimeout(timer);if(mode==="computer"&&!match.result&&(match.pending?.actor??match.timing.priority)==="b"){timer=setTimeout(()=>{const action=chooseDemoAction(match,"b");if(action)act("b",action);else{error="Opponent has no valid action";render(false)}},650)}}
 let match=createMatch(demoModule()),selected=null,log=[],error="";
 const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n};
 const button=(label,fn)=>{const b=el("button","",label);b.type="button";b.addEventListener("click",fn);return b};
@@ -20,13 +23,14 @@ function card(o,viewer){
  if(o.orientation==="resting")b.append(el("small","","Rested"));
  b.setAttribute("aria-label",name+" "+(o.id??""));return b;
 }
-function render(){
+function render(schedule=true){
  root.replaceChildren();
- const viewer=match.pending?.actor??match.timing.priority??match.timing.active;
+ const actor=match.pending?.actor??match.timing.priority??match.timing.active;
+ const viewer=mode==="computer"?"a":actor;
  const view=matchView(match,viewer);
  const top=el("div","duel-top");
- top.append(el("h1","","Ironwood Duel"),el("span","","Turn "+view.turn+" · Active "+view.active.toUpperCase()+" · Priority "+viewer.toUpperCase()),button("Restart",()=>{match=createMatch(demoModule());selected=null;log=[];error="";render()}));
- root.append(top);
+ top.append(el("h1","","Ironwood Duel"),el("span","","Turn "+view.turn+" · Active "+view.active.toUpperCase()+" · Priority "+actor.toUpperCase()),button("Restart",()=>{match=createMatch(demoModule());selected=null;log=[];error="";render()}));
+ top.append(button(mode==="computer"?"Switch to hot-seat":"Play vs computer",()=>{mode=mode==="computer"?"hotseat":"computer";selected=null;render()}));root.append(top);
  const board=el("div","duel-board"),field=view.state.zones.find(z=>z.id==="field");
  for(const p of ["b","a"]){
   const seat=el("section","duel-seat");
@@ -44,6 +48,7 @@ function render(){
  const controls=el("section","duel-controls");
  controls.append(el("h2","","Actions · Player "+viewer.toUpperCase()));
  if(view.result)controls.append(el("strong","",view.result.draw?"Draw":"Winner: "+view.result.winner));
+ else if(mode==="computer"&&actor==="b")controls.append(el("p","","Opponent is considering a move…"));
  else if(view.choice){for(const value of view.choice.options??[])controls.append(button("Choose "+value,()=>act(viewer,{type:"choose",value})))}
  else{
   for(const effect of view.available)controls.append(button(effect.startsWith("muster")?"Deploy from hand":effect,()=>act(viewer,{type:"activate",effect})));
@@ -58,5 +63,6 @@ function render(){
  controls.append(el("p","duel-error",error),el("p","","Stack: "+(view.queue.map(e=>e.effect).join(" · ")||"empty")));
  root.append(controls);
  const history=el("section","duel-log");history.append(el("h2","","Recent events"));for(const line of log.slice(-8).reverse())history.append(el("div","",line));root.append(history);
+ if(schedule)scheduleOpponent();
 }
 render();
