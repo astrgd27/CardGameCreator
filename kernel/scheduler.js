@@ -17,6 +17,6 @@ export function triggerGroups(m,ids){
  m.triggerOrderPending=groups.find(g=>g.ids.length>1)??null;m.triggerOrderRemaining=groups.filter(g=>g.ids.length>1).slice(1);
 }
 export function scheduleView(m,viewer){
- const p=m.rules.scheduler;if(!p)return null;const s=scheduleState(m);
- return {mode:p.mode??"round",initiative:s.initiative,passed:[...s.passed],gauge:p.gauge?m.state.resourcePools.shared[p.gauge.resource]:null,window:m.timing.queue.length?(p.responseWindow??"response"):(m.rules.phases?.[m.phaseIndex]?.window??"main"),canClaim:!!p.initiative&&idle(m)&&m.timing.active===viewer&&m.timing.priority===viewer&&!s.initiative,canPassOut:p.mode==="alternate"&&idle(m)&&m.timing.active===viewer&&m.timing.priority===viewer};
+ const p=m.rules.scheduler;if(!p)return null;const s=m.scheduler??{initiative:null,passed:[]};
+ return {mode:p.mode??"round",initiative:s.initiative,passed:[...s.passed],gauge:p.gauge?m.state.resourcePools.shared[p.gauge.resource]:null,window:m.timing.queue.length?(p.responseWindow??"response"):(m.rules.phases?.[m.phaseIndex]?.window??"main"),canClaim:!!p.initiative&&idle(m)&&m.timing.active===viewer&&m.timing.priority===viewer&&!s.initiative&&!s.passed.includes(viewer),canPassOut:p.mode==="alternate"&&idle(m)&&m.timing.active===viewer&&m.timing.priority===viewer&&!s.passed.includes(viewer)};
 }
