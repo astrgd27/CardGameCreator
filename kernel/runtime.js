@@ -2,7 +2,7 @@
 // No client-provided effect programs, prices, statistics or replacement rules.
 import {createState,addCard,projectState,assertInvariants} from "./objects.js";
 import {initializeResources,payResources,refreshResources,quotePayment} from "./resources.js";
-import {attachCard,assertAttachments} from "./attachments.js";
+import {attachCard,assertAttachments,moveWithAttachments} from "./attachments.js";
 import {createTiming,submitEffect,passPriority,changeActive} from "./timing.js";
 import {submitChainLink} from "./chains.js";
 import {collectTriggers} from "./triggers.js";
@@ -20,11 +20,12 @@ export function createMatch(module,{seed=1}={}){
  for(const card of rules.setup??[])state=addCard(state,card).state;
  state=initializeResources(state,rules.resources??[]);
  for(const p of rules.drawPolicies??[]){if(p.shuffle){const r=shuffleZone(state,p.deck,seed);state=r.state;seed=r.seed}if(p.opening)state=drawCards(state,p.deck,p.hand,p.opening).state}
+ const openingQueue=(rules.drawPolicies??[]).filter(p=>(p.mulligans??0)>0&&(p.opening??0)>0).map(p=>({player:p.player,remaining:p.mulligans,ids:(p.opening??0)>0?state.zones[p.hand].cards.slice(-p.opening):[]}));
  const timing=createTiming(state.players,rules.timing);
  check(rules.effects&&typeof rules.effects==="object"&&!Array.isArray(rules.effects),"Missing effects");
  for(const e of Object.values(rules.effects))check(e&&Array.isArray(e.program)&&Array.isArray(e.costs??[]),"Invalid effect");
  for(const trigger of rules.triggers??[])check(own(rules.effects,trigger.effect),"Unknown trigger effect");
- return finish({version:1,rules,state,timing,pending:null,turn:1,windowClosed:false,result:null},[]).match;
+ return finish({version:1,rules,state,timing,pending:null,turn:1,windowClosed:false,result:null,openingQueue,seed},[]).match;
 }
 function effect(m,id){
  check(own(m.rules.effects,id),"Unknown effect");return m.rules.effects[id];
@@ -34,7 +35,7 @@ function eligible(m,actor,id,e){
 }
 function finish(m,events){
  assertInvariants(m.state);assertAttachments(m.state);
- if(!m.pending&&!m.timing.resolving&&!m.timing.queue.length&&m.rules.victory?.length){
+ if(!m.openingQueue?.length&&!m.pending&&!m.timing.resolving&&!m.timing.queue.length&&m.rules.victory?.length){
   const r=evaluateVictory(m.state,m.rules.victory);
   if(r.winner!==null||r.draw)m.result=r;
  }
@@ -51,6 +52,20 @@ function resolve(m,r){
 export function applyMatchAction(match,actor,action){
  check(match.state.players.includes(actor)&&!match.result&&action&&typeof action.type==="string","Action unavailable");
  const m=structuredClone(match);let events=[];
+ if(m.openingQueue?.length){
+  const q=m.openingQueue[0];check(actor===q.player,"Opening decision belongs to another player");
+  if(action.type==="keep"){m.openingQueue.shift();return finish(m,[{type:"openingKept",actor}])}
+  check(action.type==="mulligan"&&q.remaining>0,"Opening decision required");
+  const p=m.rules.drawPolicies.find(p=>p.player===actor);
+  const ids=[...q.ids];check(ids.length>0&&ids.length<=100,"Invalid opening hand");
+  for(const id of ids)m.state=moveWithAttachments(m.state,{id,from:p.hand,to:p.deck,face:"down"}).state;
+  const shuffled=shuffleZone(m.state,p.deck,m.seed);m.state=shuffled.state;m.seed=shuffled.seed;
+  const n=Math.max(0,ids.length-(p.mulliganPenalty??0));
+  const previous=new Set(m.state.zones[p.hand].cards);m.state=drawCards(m.state,p.deck,p.hand,n).state;
+  q.ids=m.state.zones[p.hand].cards.filter(id=>!previous.has(id));q.remaining--;
+  if(!q.remaining||!q.ids.length)m.openingQueue.shift();
+  return finish(m,[{type:"openingRedrawn",actor,count:n}]);
+ }
  if(m.pending){
   check(action.type==="choose","Choice pending");
   events=resolve(m,resumeEffect(m.state,m.timing,m.pending,{actor,value:action.value}));
@@ -107,6 +122,6 @@ export function applyMatchAction(match,actor,action){
 }
 export function matchView(m,viewer){
  const state=projectState(m.state,viewer);
- const available=m.result||m.pending||m.timing.priority!==viewer?[]:Object.entries(m.rules.effects).filter(([id,e])=>eligible(m,viewer,id,e)).map(([id])=>id);
- return {state,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
+ const available=m.result||m.openingQueue?.length||m.pending||m.timing.priority!==viewer?[]:Object.entries(m.rules.effects).filter(([id,e])=>eligible(m,viewer,id,e)).map(([id])=>id);
+ return {state,opening:m.openingQueue?.length?{actor:m.openingQueue[0].player,remaining:m.openingQueue[0].player===viewer?m.openingQueue[0].remaining:undefined}:null,turn:m.turn,active:m.timing.active,priority:m.timing.priority,queue:m.timing.queue.map(({id,actor,effect})=>({id,actor,effect})),choice:choiceView(m.pending,viewer),available,windowClosed:m.windowClosed,result:m.result,resources:structuredClone(m.state.resourcePools)};
 }
