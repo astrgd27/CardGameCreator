@@ -16,3 +16,6 @@ Information set: score only authorized projections and known rule definitions; r
 Profiling: run `node scripts/ai-profile.mjs [module.json] [games]` for seat-swapped difficulty pairings, action/turn limits, outcomes and decision mean/p95/max latency. Timings are opt-in and machine-dependent. Default demo lacks terminal victory; use a module with explicit victory for strength measurements. No numerical results claimed until execution.
 
 Next: terminal original benchmark modules, stronger public tactical search, privacy differential tests, fair candidate scheduling and calibrated difficulty, then UI accessibility and performance review.
+
+## Second slice
+Hard mode adds a bounded public-only next-turn counterattack check on the eight highest-ranked root candidates, with up to twelve replies per root. It deliberately declines speculation across draws, triggered effects and complex timing policies. Two symmetric terminal modules (attrition and score race) support paired comparisons via `node scripts/ai-calibrate.mjs 8`. The script reports wins and terminal rates, not a claimed calibrated strength ordering. UI improvements preserve card focus, expand inspection, scroll hands locally, enlarge touch targets and filter editor sections. Physical iPad verification is still required; browser WebKit is a proxy only.
