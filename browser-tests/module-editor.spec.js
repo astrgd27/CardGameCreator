@@ -200,3 +200,30 @@ test("gameplay announces actions and highlights potential targets",async({page})
  await page.getByRole("button",{name:"Attack raider c2",exact:true}).click();
  await expect(page.locator(".action-banner")).toContainText("Player A attacked with Sentinel");
 });
+
+test("direct targeting and persistent gameplay settings",async({page})=>{
+ await page.goto("/duel.html");
+ await page.getByRole("button",{name:"Gameplay settings",exact:true}).click();
+ await page.getByLabel("Animation speed",{exact:true}).selectOption("off");
+ await page.getByLabel("Card scale",{exact:true}).selectOption("large");
+ await page.getByRole("button",{name:"Save settings",exact:true}).click();
+ await expect(page.locator("#duel")).toHaveAttribute("data-scale","large");
+ await page.reload();
+ await expect(page.locator("#duel")).toHaveAttribute("data-scale","large");
+ await page.getByRole("button",{name:"Sentinel c1",exact:true}).click();
+ await expect(page.getByRole("button",{name:"Raider c2",exact:true})).toHaveClass(/legal-target/);
+ await page.getByRole("button",{name:"Raider c2",exact:true}).click();
+ await expect(page.locator(".action-banner")).toContainText("attacked with Sentinel");
+});
+test("module card frames and tabletop themes carry into gameplay",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.locator("#editor-fields summary").filter({hasText:/^Card designer$/}).click();
+ await page.getByLabel("Card frame sentinel",{exact:true}).selectOption("gold");
+ await page.locator("#editor-fields summary").filter({hasText:/^Battlefield layout$/}).click();
+ await page.getByLabel("Tabletop theme",{exact:true}).selectOption("midnight");
+ await page.getByLabel("Card back design",{exact:true}).selectOption("rune");
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await expect(page.locator("#duel")).toHaveAttribute("data-theme","midnight");
+ await expect(page.locator("#duel")).toHaveAttribute("data-back","rune");
+ await expect(page.getByRole("button",{name:"Sentinel c1",exact:true})).toHaveAttribute("data-frame","gold");
+});
