@@ -16,7 +16,7 @@ export function combatOptions(m,actor){
  const c=m.rules.combat?.group;if(!c||m.state.players.length!==2)return null;
  const battle=m.battle,enemy=m.state.players.find(p=>p!==actor);
  if(battle?.stage==="react")return battle.defender===actor?{stage:"react",reactions:reactions(m,actor),attackers:battle.attacks.map(a=>a.attacker)}:null;
- if(battle?.stage==="assign")return battle.actor===actor?{stage:"assign",assignments:battle.attacks.filter(a=>battle.blocks.some(b=>b.attacker===a.attacker)).map(a=>({attacker:a.attacker,power:power(m,a.attacker),blockers:battle.blocks.filter(b=>b.attacker===a.attacker).map(b=>({id:b.blocker,lethal:Math.max(0,health(m,b.blocker)-m.state.objects[b.blocker].damage)}))})),overflow:!!c.overflow}:null;
+ if(battle?.stage==="assign")return battle.actor===actor?{stage:"assign",assignments:battle.attacks.filter(a=>battle.blocks.some(b=>b.attacker===a.attacker)).map(a=>({attacker:a.attacker,power:Math.max(0,power(m,a.attacker)),blockers:battle.blocks.filter(b=>b.attacker===a.attacker).map(b=>({id:b.blocker,lethal:Math.max(0,health(m,b.blocker)-m.state.objects[b.blocker].damage)}))})),overflow:!!c.overflow}:null;
  if(battle)return battle.stage==="block"&&battle.defender===actor?{stage:"block",attackers:battle.attacks.map(a=>a.attacker),blockers:units(m,actor,"self",c.readyBlockers!==false).filter(id=>!hasRule(m.state,id,"cannotBlock")).filter(id=>!c.guardStatus||m.state.objects[id].statuses?.includes(c.guardStatus)),attacks:battle.attacks}:null;
  if(m.result||m.openingQueue?.length||m.triggerOrderPending||m.timing.active!==actor||m.timing.priority!==actor||m.windowClosed||m.pending||m.timing.queue.length||m.timing.resolving||m.rules.phases&&!m.rules.phases[m.phaseIndex].actions.includes("attack")||m.combatUsed===m.turn)return null;
  const targets=units(m,actor,"opponent").filter(id=>!hasRule(m.state,id,"cannotBeAttacked")).map(id=>({kind:"card",id}));
@@ -53,7 +53,7 @@ export function advanceBattle(m,actor,action){
   const seen=new Set();for(const row of action.assignments){
    const a=v.assignments.find(x=>x.attacker===row.attacker);check(a&&!seen.has(row.attacker)&&Array.isArray(row.amounts)&&row.amounts.length===a.blockers.length,"Invalid assignment row");seen.add(row.attacker);
    const total=row.amounts.reduce((n,x)=>{check(Number.isSafeInteger(x)&&x>=0,"Invalid damage amount");return n+x},0),available=Math.max(0,a.power);
-   check(total<=available&&(total===available||p.overflow&&row.amounts.every((x,i)=>x>=a.blockers[i].lethal)),"Damage must be assigned");
+   check(total<=available&&(total===available||p.overflow&&b.attacks.find(x=>x.attacker===row.attacker).kind==="player"&&row.amounts.every((x,i)=>x>=a.blockers[i].lethal)),"Damage must be assigned");
   }b.assignments=structuredClone(action.assignments);return resolveGroupCombat(m,b.defender,b.blocks,true);
  }
  if(p.assignment==="manual"&&b.blocks.length){b.stage="assign";return [{type:"damageAssignmentStarted",actor:b.actor}]}
@@ -78,8 +78,8 @@ export function resolveGroupCombat(m,actor,blocks,validated=false){
  }
  let result=next;
  for(const [id,n] of damage){check(Number.isSafeInteger(n+result.objects[id].damage),"Damage overflow");result.objects[id].damage+=n}
- for(const [player,n] of life){const r=policy.lifeCards?.[player]?damageCards(result,player,policy.lifeCards[player],policy.lifeCards[player].perAttack?b.attacks.filter(a=>a.kind==="player"&&a.target===player&&!blocks.some(x=>x.attacker===a.attacker)).length:n):changeResource(result,player,policy.lifeResource,-n,{overflow:"clamp"});result=r.state;events.push(...r.events)}
+ for(const [player,n] of life){const r=policy.lifeCards?.[player]?damageCards(result,player,policy.lifeCards[player],policy.lifeCards[player].perAttack?b.attacks.filter(a=>a.kind==="player"&&a.target===player&&(!blocks.some(x=>x.attacker===a.attacker)||policy.overflow)).length:n):changeResource(result,player,policy.lifeResource,-n,{overflow:"clamp"});result=r.state;events.push(...r.events)}
  const defeated=[...damage.keys()].filter(id=>result.objects[id].damage>=stat(id,"health"));
- for(const id of defeated){const from=Object.values(result.zones).find(z=>z.cards.includes(id)).id,to=c.defeatZones[result.objects[id].owner];const r=moveWithAttachments(result,{id,from,to,reset:true});result=r.state;events.push({type:"combatDefeat",id,definition:state.objects[id].definition,owner:state.objects[id].owner,controller:state.objects[id].controller,from,damage:result.objects[id]?.damage??0},...r.events)}
+ for(const id of defeated){const from=Object.values(result.zones).find(z=>z.cards.includes(id)).id,to=c.defeatZones[result.objects[id].owner];const r=moveWithAttachments(result,{id,from,to,reset:true});result=r.state;events.push({type:"combatDefeat",id,definition:state.objects[id].definition,owner:state.objects[id].owner,controller:state.objects[id].controller,from,damage:state.objects[id].damage+(damage.get(id)??0)},...r.events)}
  m.state=result;m.battle=null;m.timing.passes=0;return [{type:"combatResolved",actor},...events];
 }
