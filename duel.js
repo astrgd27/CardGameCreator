@@ -40,14 +40,17 @@ function act(actor,action){
  render();
 }
 function card(o,viewer){
- const b=button("",()=>{if(preview||!o.id)return;const options=targets.filter(t=>t.id===o.id);if(options.length===1){act(viewer,options[0].action);return}selected=o.id===selected?null:o.id;render()});b.className="duel-card"+(selected===o.id?" selected":"")+(o.orientation==="resting"?" resting":"");
+ const b=button("",()=>{if(preview||!o.id)return;const options=targets.filter(t=>t.id===o.id);if(options.length===1){act(viewer,options[0].action);return}selected=o.id===selected?null:o.id;render()});b.className="duel-card"+(selected===o.id?" selected":"")+(["resting","tapped"].includes(o.orientation)?" resting":"");
  const name=cardName(o);
  b.append(el("strong","",name),artwork(o,"card-symbol"),el("small","",presentation(o).type??""));
  const stats=match.rules.combat?.stats?.[o.definition];
  if(stats)b.append(el("span","",stats.attack+" ATK · "+Math.max(0,stats.health-o.damage)+" HP"));
  const host=match.state.attachments?.[o.id]?.host;
  if(host)b.append(el("small","", "Attached to "+host));
- if(o.orientation==="resting")b.append(el("small","","Rested"));
+ if(o.orientation==="resting"||o.orientation==="tapped")b.append(el("small","",o.orientation==="tapped"?"Tapped":"Rested"));
+ if(o.definition){const badges=el("div","card-state-badges");if(o.token)badges.append(el("span","","Token"));for(const [k,v] of Object.entries(o.counters??{}))badges.append(el("span","",k+" ×"+v));for(const status of o.statuses??[])badges.append(el("span","",status));if(o.controller!==o.owner)badges.append(el("span","","Controlled by "+o.controller));if(o.face==="down")badges.append(el("span","","Face down"));if(badges.childNodes.length)b.append(badges)}
+ if(lastEvents.some(e=>e.id===o.id&&["cardFlipped","cardTransformed"].includes(e.type)))b.classList.add("flipping");
+ if(lastEvents.some(e=>e.id===o.id&&e.type==="tokenCreated"))b.classList.add("arriving");
  b.setAttribute("aria-label",name+" "+(o.id??""));
  if(!o.definition)b.classList.add("concealed");
  if(o.id)b.dataset.cardId=o.id;
