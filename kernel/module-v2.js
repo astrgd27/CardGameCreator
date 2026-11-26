@@ -64,7 +64,8 @@ export function validateModuleV2(m){
   }
   for(const op of list(e.program,"program "+id,64)){
    if(!record(op)){errors.push("effect: invalid operation "+id);continue}
-   if(["search","randomHidden"].includes(op.type)){require(key(op.name)&&!choices.has(op.name)&&zids.has(op.zone)&&(op.top===undefined||integer(op.top)&&op.top>=1&&op.top<=100)&&(op.definition===undefined||defs.includes(op.definition)),"invalid hidden selection");choices.add(op.name)}
+   if(op.type==="scheduleTurn")require(["extra","skip"].includes(op.kind)&&(op.player==="self"||players.includes(op.player))&&integer(op.count)&&op.count>=1&&op.count<=10,"invalid scheduled turn");
+   else if(["search","randomHidden"].includes(op.type)){require(key(op.name)&&!choices.has(op.name)&&zids.has(op.zone)&&(op.top===undefined||integer(op.top)&&op.top>=1&&op.top<=100)&&(op.definition===undefined||defs.includes(op.definition)),"invalid hidden selection");choices.add(op.name)}
    else if(op.type==="optional"){require(key(op.name)&&!choices.has(op.name)&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"invalid optional choice");choices.add(op.name)}
    else if(op.type==="reveal")require(choices.has(op.choice)&&["self","all"].includes(op.audience),"invalid reveal");
    else if(op.type==="reorder")require(choices.has(op.choice)&&zids.has(op.zone)&&["top","bottom"].includes(op.position),"invalid reorder");
@@ -92,7 +93,7 @@ export function validateModuleV2(m){
   for(const p of phases){require(record(p)&&key(p.id)&&!ids.has(p.id)&&Array.isArray(p.actions)&&p.actions.every(a=>["activate","attack","attach"].includes(a)),"phase: invalid");if(record(p))ids.add(p.id)}
   for(const e of Object.values(effects))if(e?.phases!==undefined)require(Array.isArray(e.phases)&&e.phases.every(id=>ids.has(id)),"effect: invalid phase restriction");
  }
- if(m.triggerOrder!==undefined)require(["fixed","player"].includes(m.triggerOrder),"invalid trigger ordering");
+ if(m.triggerOrder!==undefined)require(["fixed","player","owner"].includes(m.triggerOrder),"invalid trigger ordering");
  const generatorIds=new Set();for(const g of list(m.generators??[],"generators",100)){require(record(g)&&key(g.id)&&!generatorIds.has(g.id)&&defs.includes(g.definition)&&Array.isArray(g.zones)&&g.zones.length>0&&g.zones.every(z=>zids.has(z))&&resources.has(g.resource)&&integer(g.amount)&&g.amount>=1&&g.amount<=100,"invalid resource generator");if(record(g))generatorIds.add(g.id)}
  const triggers=new Set();
  for(const t of list(m.triggers??[],"triggers")){
@@ -147,6 +148,9 @@ export function validateModuleV2(m){
  }
  if(m.linkedDeckRules!==undefined)require(record(m.linkedDeckRules)&&(m.linkedDeckRules.combinedCopies===undefined||integer(m.linkedDeckRules.combinedCopies)&&m.linkedDeckRules.combinedCopies<=1000),"linked deck rules: invalid");
  for(const [player,p] of Object.entries(m.combat?.group?.lifeCards??{}))require(players.includes(player)&&record(p)&&zids.has(p.zone)&&zids.has(p.destination)&&p.zone!==p.destination&&m.zones.find(z=>z.id===p.zone)?.owner===player&&m.zones.find(z=>z.id===p.destination)?.owner===player&&(p.emptyLoss===undefined||typeof p.emptyLoss==="boolean")&&(p.perAttack===undefined||typeof p.perAttack==="boolean"),"invalid combat life card policy");
+ if(m.scheduler!==undefined){const p=m.scheduler;require(record(p)&&["round","alternate"].includes(p.mode??"round")&&(p.initiative===undefined||typeof p.initiative==="boolean")&&(p.responseWindow===undefined||key(p.responseWindow)),"invalid scheduler");if(record(p)&&p.gauge!==undefined){const g=p.gauge,r=m.resources?.find(x=>x.id===g?.resource);require(record(g)&&r?.scope==="shared"&&integer(g.threshold)&&g.threshold>0&&g.threshold<=r.max&&integer(g.reset??0)&&(g.reset??0)<g.threshold,"invalid turn gauge")}}
+ for(const p of m.phases??[])require((p.window===undefined||key(p.window))&&(p.autoAdvance===undefined||typeof p.autoAdvance==="boolean"),"invalid phase window");
+ for(const e of Object.values(effects))if(e.windows!==undefined)require(Array.isArray(e.windows)&&e.windows.length>0&&e.windows.every(key),"invalid effect windows");
  return errors;
 }
 export function assertModuleV2(m){const errors=validateModuleV2(m);if(errors.length)throw Error(errors.join("; "));return m}

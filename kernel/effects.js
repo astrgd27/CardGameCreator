@@ -12,7 +12,7 @@ const check=(ok,msg)=>{if(!ok)throw Error(msg)};
 function validateProgram(program){
  check(Array.isArray(program)&&program.length<=64,"Invalid effect program");
  for(const op of program){
-  check(op&&["choose","target","move","resource","draw","skipUnless","skipUnlessResource","skipUnlessChoice","token","counter","status","transform","flip","control","orient","search","randomHidden","reveal","reorder","lifeDamage","optional"].includes(op.type),"Unsupported effect operation");
+  check(op&&["choose","target","move","resource","draw","skipUnless","skipUnlessResource","skipUnlessChoice","token","counter","status","transform","flip","control","orient","search","randomHidden","reveal","reorder","lifeDamage","optional","scheduleTurn"].includes(op.type),"Unsupported effect operation");
   if(op.type==="choose")check(key(op.name)&&Array.isArray(op.options)&&op.options.length>0&&op.options.length<=100&&op.options.every(key)&&new Set(op.options).size===op.options.length,"Invalid choice");
   if(op.type==="skipUnless")check(op.selector&&typeof op.selector==="object"&&Number.isSafeInteger(op.minimum)&&op.minimum>=0&&op.minimum<=100&&Number.isSafeInteger(op.skip)&&op.skip>=1&&op.skip<=64,"Invalid conditional instruction");
   if(op.type==="skipUnlessResource")check(key(op.resource)&&["atLeast","atMost","equal"].includes(op.comparison)&&Number.isSafeInteger(op.amount)&&op.amount>=0&&Number.isSafeInteger(op.skip)&&op.skip>=1&&op.skip<=64,"Invalid resource condition");
@@ -38,7 +38,8 @@ function advance(state,timing,program,triggerRules,frame){
    return {state:next,timing:structuredClone(timing),pending:{effectId:timing.resolving.id,actor,pc,name:op.name,options:[...options],...(op.type==="search"?{labels:Object.fromEntries(options.map(id=>[id,next.objects[id].definition]))}:{}),choices,events},events:[]};
   }
   let result;
-  if(op.type==="randomHidden"){const r=randomHidden(next,actor,op);if(!r.id){const finished=finishResolution(timing,timing.resolving.id);return {state,timing:finished.timing,pending:null,fizzled:true,events:[{type:"effectFizzled",actor},...finished.events]}}choices[op.name]=r.id;result=r}
+  if(op.type==="scheduleTurn"){check(["extra","skip"].includes(op.kind)&&Number.isSafeInteger(op.count)&&op.count>=1&&op.count<=10,"Invalid turn schedule");const player=op.player==="self"?actor:op.player;check(next.players.includes(player),"Invalid turn seat");result={state:next,events:[{type:"turnScheduled",actor:player,kind:op.kind,count:op.count}]}}
+  else if(op.type==="randomHidden"){const r=randomHidden(next,actor,op);if(!r.id){const finished=finishResolution(timing,timing.resolving.id);return {state,timing:finished.timing,pending:null,fizzled:true,events:[{type:"effectFizzled",actor},...finished.events]}}choices[op.name]=r.id;result=r}
   else if(op.type==="reveal")result=revealCard(next,actor,choices[op.choice],op);
   else if(op.type==="reorder")result=reorderCard(next,actor,choices[op.choice],op);
   else if(op.type==="lifeDamage")result=damageCards(next,op.player==="self"?actor:op.player,op,op.count);
