@@ -12,7 +12,7 @@ help_url = "data:text/html;base64," + base64.b64encode(
     help_page.replace('<link rel="stylesheet" href="style.css" />', '<style>'+style+'</style>').encode()
 ).decode()
 modules = []
-for filename in ["structure.js", "engine.js", "storage.js", "benchmarks.js", "app.js"]:
+for filename in ["structure.js", "engine.js", "storage.js", "benchmarks.js", "kernel/objects.js", "kernel/legacy-adapter.js", "kernel/tracked-legacy.js", "app.js"]:
     code = (root / filename).read_text()
     code = re.sub(r'^import\s+[^;]+;\s*', '', code, flags=re.MULTILINE)
     modules.append(re.sub(r'^export ', '', code, flags=re.MULTILINE))
