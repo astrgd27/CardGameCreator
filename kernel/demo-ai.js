@@ -3,6 +3,9 @@ import {applyMatchAction,matchView} from "./runtime.js";
 export function chooseDemoAction(match,actor){
  const v=matchView(match,actor);
  if(v.result)return null;
+ if(v.triggerOrder)return v.triggerOrder.actor===actor?{type:"orderTriggers",ids:v.triggerOrder.ids}:null;
+ if(v.combat?.stage==="block"){const c=v.combat,guard=match.rules.combat.group.guardStatus;return {type:"block",blocks:c.blockers.filter(id=>!guard||match.state.objects[id].statuses?.includes(guard)).slice(0,c.attackers.length).map((blocker,i)=>({blocker,attacker:c.attackers[i]}))}}
+ if(v.combat?.stage==="declare"&&v.combat.targets.length&&v.combat.attackers.length){const c=v.combat,t=c.targets.find(t=>t.kind==="player")??c.targets[0];return {type:"declareCombat",attacks:c.attackers.slice(0,c.max).map(attacker=>({attacker,kind:t.kind,target:t.id}))}}
  if(v.opening)return v.opening.actor===actor?{type:"keep"}:null;
  const candidates=[];
  if(v.choice){

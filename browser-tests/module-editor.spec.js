@@ -258,3 +258,16 @@ test("alternative card payment and source ability reach gameplay",async({page})=
  await expect(page.getByRole("button",{name:"Sentinel c1",exact:true})).toContainText("power ×2");
  await expect(page.getByRole("button",{name:"power · Sentinel c1 · sacrifice",exact:true})).toHaveCount(0);
 });
+
+test("group combat editor configures direct attacks and blocking",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.locator("#editor-fields summary").filter({hasText:/^Combat$/}).click();
+ await page.getByLabel("Combat mode",{exact:true}).selectOption("group");
+ await page.getByLabel("Direct attack resource",{exact:true}).selectOption("energy");
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ await page.getByLabel("Attack with Sentinel c1",{exact:true}).selectOption("player:b");
+ await page.getByRole("button",{name:"Declare attackers",exact:true}).click();
+ await expect(page.getByLabel("Block with Raider c2",{exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"Resolve combat",exact:true}).click();
+ await expect(page.locator(".action-banner")).toContainText("assigned 0 blockers");
+});

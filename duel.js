@@ -27,11 +27,11 @@ function inspect(o){
  inspector.showModal();
 }
 inspector.addEventListener("close",()=>scheduleOpponent());
-function scheduleOpponent(){clearTimeout(timer);clearTimeout(previewTimer);if(preview)return;if(!inspector.open&&mode==="computer"&&!match.result&&(match.openingQueue?.[0]?.player??match.pending?.actor??match.timing.priority)===computer){timer=setTimeout(()=>{if(++aiMoves>100){error="Opponent action budget reached; switch to hot-seat to continue.";render(false);return}const action=chooseDemoAction(match,computer);if(action){if(settings.opponentPreview&&animationDuration(settings)>0&&action.type!=="pass"){preview=describeAction(computer,action);render(false);previewTimer=setTimeout(()=>{preview=null;act(computer,action)},animationDuration(settings)+250)}else act(computer,action)}else{error="Opponent has no valid action";render(false)}},Math.max(150,animationDuration(settings)+200))}}
+function scheduleOpponent(){clearTimeout(timer);clearTimeout(previewTimer);if(preview)return;if(!inspector.open&&mode==="computer"&&!match.result&&(match.triggerOrderPending?.actor??match.battle?.defender??match.openingQueue?.[0]?.player??match.pending?.actor??match.timing.priority)===computer){timer=setTimeout(()=>{if(++aiMoves>100){error="Opponent action budget reached; switch to hot-seat to continue.";render(false);return}const action=chooseDemoAction(match,computer);if(action){if(settings.opponentPreview&&animationDuration(settings)>0&&action.type!=="pass"){preview=describeAction(computer,action);render(false);previewTimer=setTimeout(()=>{preview=null;act(computer,action)},animationDuration(settings)+250)}else act(computer,action)}else{error="Opponent has no valid action";render(false)}},Math.max(150,animationDuration(settings)+200))}}
 let match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]}),selected=null,log=[],error="";
 const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n};
 const button=(label,fn)=>{const b=el("button","",label);b.type="button";b.addEventListener("click",fn);return b};
-function describeAction(actor,action){const who="Player "+actor.toUpperCase();const name=id=>{const o=match.state.objects[id];return o&&matchView(match,human).state.zones.some(z=>z.cards?.some(c=>c.id===id))?cardName(o):"a card"};switch(action.type){case "activate":return who+" activated "+action.effect;case "attack":return who+" attacked with "+name(action.attacker)+" → "+name(action.defender);case "attach":return who+" attached "+name(action.id)+" to "+name(action.host);case "pass":return who+" passed priority";case "choose":return who+" made a choice";case "endTurn":return who+" ended their turn";case "nextPhase":return who+" advanced the phase";case "mulligan":return who+" redrew their opening hand";default:return who+" completed "+action.type}}
+function describeAction(actor,action){const who="Player "+actor.toUpperCase();const name=id=>{const o=match.state.objects[id];return o&&matchView(match,human).state.zones.some(z=>z.cards?.some(c=>c.id===id))?cardName(o):"a card"};switch(action.type){case "activate":return who+" activated "+action.effect;case "declareCombat":return who+" declared "+action.attacks.length+" attackers";case "block":return who+" assigned "+action.blocks.length+" blockers";case "attack":return who+" attacked with "+name(action.attacker)+" → "+name(action.defender);case "attach":return who+" attached "+name(action.id)+" to "+name(action.host);case "pass":return who+" passed priority";case "choose":return who+" made a choice";case "endTurn":return who+" ended their turn";case "nextPhase":return who+" advanced the phase";case "mulligan":return who+" redrew their opening hand";default:return who+" completed "+action.type}}
 function act(actor,action){
  if(preview)return;
  const before=new Map([...root.querySelectorAll("[data-card-id]")].map(n=>[n.dataset.cardId,n.getBoundingClientRect()]));
@@ -87,10 +87,22 @@ function choosePayment(actor,a){
  dialog.append(button("Pay and activate",()=>{const cards=selects.map(s=>s.value);dialog.close();act(actor,{type:"activate",effect:a.effect,source:a.source,plan:a.id,cards})}),button("Cancel",()=>dialog.close()));
  document.body.append(dialog);dialog.addEventListener("close",()=>dialog.remove());dialog.showModal();
 }
+function combatControls(parent,viewer,c){
+ const field=el("div","combat-declarations"),select=(label,items)=>{const l=el("label","",label+" "),s=el("select");s.setAttribute("aria-label",label);for(const [value,text] of items){const o=el("option","",text);o.value=value;s.append(o)}l.append(s);field.append(l);return s};
+ const name=id=>cardName(match.state.objects[id])+" "+id;
+ if(c.stage==="declare"){
+  const rows=c.attackers.map(id=>({id,s:select("Attack with "+name(id),[["","Do not attack"],...c.targets.map(t=>[t.kind+":"+t.id,t.kind==="player"?"Player "+t.id:name(t.id)])])}));
+  field.append(button("Declare attackers",()=>{const attacks=rows.filter(r=>r.s.value).map(r=>{const [kind,target]=r.s.value.split(":");return {attacker:r.id,kind,target}});act(viewer,{type:"declareCombat",attacks})}));
+ }else{
+  const rows=c.blockers.map(id=>({id,s:select("Block with "+name(id),[["","Do not block"],...c.attackers.map(id=>[id,name(id)])])}));
+  field.append(button("Resolve combat",()=>act(viewer,{type:"block",blocks:rows.filter(r=>r.s.value).map(r=>({blocker:r.id,attacker:r.s.value}))})));
+ }
+ parent.append(field);
+}
 function render(schedule=true){
  root.replaceChildren();
  if(campaignBase&&progress.complete){root.append(el("h1","","Campaign complete"),el("p","","Wins: "+progress.wins+" · Losses: "+progress.losses),button("Reset campaign",()=>{if(confirm("Reset all campaign progress?")){progress=newCampaign(campaignBase);saveProgress(progress);startEncounter()}}),button("Back to editor",()=>location.href="module-editor.html"));return}
- const actor=match.openingQueue?.[0]?.player??match.pending?.actor??match.timing.priority??match.timing.active;
+ const actor=match.triggerOrderPending?.actor??match.battle?.defender??match.openingQueue?.[0]?.player??match.pending?.actor??match.timing.priority??match.timing.active;
  if(actor!==computer)aiMoves=0;
  const viewer=mode==="computer"?human:actor;
  const view=matchView(match,viewer);
@@ -123,9 +135,12 @@ function render(schedule=true){
  controls.append(el("h2","","Actions · Player "+viewer.toUpperCase()));
  if(view.result){controls.append(el("strong","",view.result.draw?"Draw":"Winner: "+view.result.winner));if(campaignBase){const win=view.result.winner===human&&!view.result.draw;const advance=route=>{try{if(!recorded){const next=recordEncounter(campaignBase,progress,progress.index,view.result,route);saveProgress(next);progress=next;recorded=true}if(progress.complete)render();else startEncounter()}catch(e){error=e.message;render()}};if(win){const encounter=campaignBase.campaign.encounters[progress.index],routes=nextRoutes(campaignBase,progress.index);if(encounter.rewards?.length)controls.append(el("p","","Reward: "+encounter.rewards.map(r=>r.definition+" ×"+r.count).join(", ")));if(routes.length)for(const r of routes)controls.append(button(r.label,()=>advance(r.to)));else controls.append(button("Continue campaign",()=>advance()))}else controls.append(button("Retry encounter",()=>advance()))}}
  else if(preview||mode==="computer"&&actor===computer)controls.append(el("p","","Opponent is considering a move…"));
+ else if(view.triggerOrder){const ids=[...view.triggerOrder.ids];const order=el("div","combat-declarations");function drawOrder(){order.replaceChildren();for(const [i,id] of ids.entries()){const line=el("div","",view.queue.find(q=>q.id===id)?.effect??id);if(i)line.append(button("Move up",()=>{[ids[i-1],ids[i]]=[ids[i],ids[i-1]];drawOrder()}));order.append(line)}order.append(button("Confirm trigger order",()=>act(viewer,{type:"orderTriggers",ids})))}drawOrder();controls.append(order)}
+ else if(view.combat?.stage==="block"){combatControls(controls,viewer,view.combat)}
  else if(view.opening){controls.append(el("p","","Opening hand · "+view.opening.remaining+" mulligans remaining"),button("Keep opening hand",()=>act(viewer,{type:"keep"})),button("Mulligan",()=>act(viewer,{type:"mulligan"})))}
  else if(view.choice){for(const value of view.choice.options??[])controls.append(button("Choose "+value,()=>act(viewer,{type:"choose",value})))}
  else{
+  if(view.combat?.stage==="declare")combatControls(controls,viewer,view.combat);
   for(const a of view.activations??[]){const label=(!custom&&a.effect.startsWith("muster")?"Deploy from hand":a.effect)+(a.source?" · "+cardName(match.state.objects[a.source])+" "+a.source:"")+(a.id!=="default"?" · "+a.id:"");controls.append(button(label,()=>a.groups.length?choosePayment(viewer,a):act(viewer,{type:"activate",effect:a.effect,source:a.source,plan:a.id})))}
   controls.append(button("Pass priority",()=>act(viewer,{type:"pass"})));
   if(view.windowClosed&&view.active===viewer)controls.append(button(view.hasNextPhase?"Next phase":"End turn",()=>act(viewer,{type:view.hasNextPhase?"nextPhase":"endTurn"})));
