@@ -655,3 +655,6 @@ dialog:has(.inspectCard) {width:min(560px,92vw);max-width:92vw}
   .arena .cardhand .tablecard {width:clamp(160px,20vw,220px)}
 }
 @media(prefers-reduced-motion:reduce){.arena .tablecard,.arena .spotlight{animation:none!important;transition:none!important}}
+
+/* Neutral placeholders, never substitute for uploaded artwork. */
+.art-placeholder{position:absolute;inset:0;display:grid;place-items:center;overflow:hidden;background:#202a30;color:#e7e5df;isolation:isolate;container-type:inline-size}.art-placeholder span{position:absolute;font-size:clamp(42px,72cqw,240px);line-height:1;color:#ffffff12;z-index:-1}.art-placeholder strong{font:700 clamp(18px,24cqw,100px)/1 system-ui,sans-serif;letter-spacing:.08em}.art:has(.art-placeholder):before,.art:has(.art-placeholder):after{display:none}.mini img{width:100%;height:100%;object-fit:cover}.mini{overflow:hidden;font-size:10px;font-weight:700}
