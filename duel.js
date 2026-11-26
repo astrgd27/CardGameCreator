@@ -1,6 +1,6 @@
 import {demoModule} from "./kernel/demo-module.js";
 import {createMatch,applyMatchAction,matchView} from "./kernel/runtime.js";
-import {chooseDemoAction} from "./kernel/demo-ai.js";
+import {chooseStrategicAction,aiProfile} from "./kernel/strategic-ai.js";
 import {encounterModule,validateCampaign,readProgress,saveProgress,newCampaign,recordEncounter,nextRoutes} from "./kernel/campaign.js";
 import {legalCardTargets} from "./kernel/legal-targets.js";
 import {readSettings,saveSettings,animationDuration} from "./tabletop-settings.js";
@@ -13,6 +13,7 @@ if(custom){try{rules=readPlaytest();if(!rules)throw Error("No staged module");cr
 if(campaignMode&&!startupError){try{campaignBase=rules;const errors=validateCampaign(campaignBase);if(errors.length)throw Error(errors.join(" · "));progress=readProgress(campaignBase);rules=encounterModule(campaignBase,campaignBase.campaign.encounters[Math.min(progress.index,campaignBase.campaign.encounters.length-1)],progress.complete?null:progress)}catch(e){startupError=e.message;campaignBase=null;progress=null;rules=demoModule()}}
 const players=rules.players;
 const human=campaignBase?.campaign.player??players[0],computer=players.find(p=>p!==human);
+let opponentProfile=aiProfile(rules.ai??{});
 let settings=readSettings(),preview=null,previewTimer=null,targets=[],movement=[];
 let mode=campaignBase?"computer":"hotseat",timer=null,lastEvents=[],lastAction=null,aiMoves=0,actionSummary="";
 const inspector=document.createElement("dialog");inspector.className="duel-inspector";document.body.append(inspector);
@@ -27,7 +28,7 @@ function inspect(o){
  inspector.showModal();
 }
 inspector.addEventListener("close",()=>scheduleOpponent());
-function scheduleOpponent(){clearTimeout(timer);clearTimeout(previewTimer);if(preview)return;if(!inspector.open&&mode==="computer"&&!match.result&&(match.triggerOrderPending?.actor??match.battle?.defender??match.openingQueue?.[0]?.player??match.pending?.actor??match.timing.priority)===computer){timer=setTimeout(()=>{if(++aiMoves>100){error="Opponent action budget reached; switch to hot-seat to continue.";render(false);return}const action=chooseDemoAction(match,computer);if(action){if(settings.opponentPreview&&animationDuration(settings)>0&&action.type!=="pass"){preview=describeAction(computer,action);render(false);previewTimer=setTimeout(()=>{preview=null;act(computer,action)},animationDuration(settings)+250)}else act(computer,action)}else{error="Opponent has no valid action";render(false)}},Math.max(150,animationDuration(settings)+200))}}
+function scheduleOpponent(){clearTimeout(timer);clearTimeout(previewTimer);if(preview)return;if(!inspector.open&&mode==="computer"&&!match.result&&(match.triggerOrderPending?.actor??match.battle?.defender??match.openingQueue?.[0]?.player??match.pending?.actor??match.timing.priority)===computer){timer=setTimeout(()=>{if(++aiMoves>100){error="Opponent action budget reached; switch to hot-seat to continue.";render(false);return}const action=chooseStrategicAction(match,computer,opponentProfile);if(action){if(settings.opponentPreview&&animationDuration(settings)>0&&action.type!=="pass"){preview=describeAction(computer,action);render(false);previewTimer=setTimeout(()=>{preview=null;act(computer,action)},animationDuration(settings)+250)}else act(computer,action)}else{error="Opponent has no valid action";render(false)}},Math.max(150,animationDuration(settings)+200))}}
 let match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]}),selected=null,log=[],error="";
 const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n};
 const button=(label,fn)=>{const b=el("button","",label);b.type="button";b.addEventListener("click",fn);return b};
@@ -69,15 +70,16 @@ function card(o,viewer){
  b.addEventListener("keydown",e=>{if(e.key==="i"){e.preventDefault();inspect(o)}});
  return b;
 }
-function startEncounter(){const encounter=campaignBase.campaign.encounters[progress.index];rules=encounterModule(campaignBase,encounter,progress);match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]});recorded=false;selected=null;log=[];actionSummary="";error="";aiMoves=0;lastEvents=[];lastAction=null;render()}
+function startEncounter(){const encounter=campaignBase.campaign.encounters[progress.index];rules=encounterModule(campaignBase,encounter,progress);opponentProfile=aiProfile(rules.ai??{});match=createMatch(rules,{seed:crypto.getRandomValues(new Uint32Array(1))[0]});recorded=false;selected=null;log=[];actionSummary="";error="";aiMoves=0;lastEvents=[];lastAction=null;render()}
 function openSettings(){
  if(preview)return;clearTimeout(timer);
  const dialog=el("dialog","duel-inspector settings-dialog");dialog.append(el("h2","","Gameplay settings"));
- const draft={...settings};
+ const draft={...settings};const aiDraft={...opponentProfile};
+ for(const [key,label,values] of [["difficulty","Opponent difficulty",["easy","normal","hard"]],["personality","Opponent personality",["balanced","aggressive","defensive","economic"]]]){const l=el("label","",label+" "),s=el("select");s.setAttribute("aria-label",label);for(const value of values){const o=el("option","",value);o.value=value;s.append(o)}s.value=aiDraft[key];s.onchange=()=>{aiDraft[key]=s.value;if(key==="personality")delete aiDraft.weights};l.append(s);dialog.append(l)}
  for(const [key,label,values] of [["speed","Animation speed",["off","fast","normal","slow"]],["scale","Card scale",["compact","normal","large"]],["opponentPreview","Opponent action preview",["on","off"]]]){
   const l=el("label","",label+" "),select=el("select");for(const value of values){const o=el("option","",value);o.value=value;select.append(o)}select.setAttribute("aria-label",label);select.value=key==="opponentPreview"?(draft[key]?"on":"off"):draft[key];select.onchange=()=>draft[key]=key==="opponentPreview"?select.value==="on":select.value;l.append(select);dialog.append(l);
  }
- dialog.append(button("Save settings",()=>{try{settings=saveSettings(draft);dialog.close()}catch(e){error=e.message;dialog.close()}}),button("Cancel",()=>dialog.close()));
+ dialog.append(button("Save settings",()=>{try{settings=saveSettings(draft);opponentProfile=aiProfile(aiDraft);dialog.close()}catch(e){error=e.message;dialog.close()}}),button("Cancel",()=>dialog.close()));
  document.body.append(dialog);dialog.addEventListener("close",()=>{dialog.remove();render()});dialog.showModal();
 }
 function choosePayment(actor,a){
