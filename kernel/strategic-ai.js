@@ -61,6 +61,8 @@ export function candidates(match,actor,v,cap=160){
  }
  if(!v.windowClosed)for(const a of v.activations??[]){
   const e=match.rules.effects[a.effect];
+  // Do not repeatedly queue the same source/effect while awaiting resolution.
+  if(v.queue.some(q=>q.actor===actor&&q.effect===a.effect))continue;
   if(!a.dynamic&&!a.source&&!e.limit&&!e.requiresCard&&!a.groups.length&&!e.costs?.some(c=>c.kind==="spend"&&c.amount>0)&&!e.alternatives?.find(p=>p.id===a.id)?.costs?.some(c=>c.kind==="spend"&&c.amount>0))continue;
   for(const action of paymentCandidates(a,Math.min(32,cap)))add(action,2);
  }
