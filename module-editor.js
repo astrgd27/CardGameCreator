@@ -1,6 +1,8 @@
 import {demoModule} from "./kernel/demo-module.js";
 import {validateModuleV2} from "./kernel/module-v2.js";
 import {createMatch} from "./kernel/runtime.js";
+import {readLibrary,saveLibraryModule,deleteLibraryModule,stagePlaytest} from "./module-library.js";
+let savedId=null;
 const $=id=>document.getElementById(id);
 let module=demoModule();
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n};
@@ -128,10 +130,24 @@ function render(openKey){
  }sync();
 }
 function valid(){const errors=validateModuleV2(module);if(errors.length){status(errors.join(" · "));return false}try{createMatch(module);status("Module passed structural and setup validation.");return true}catch(e){status("Setup error: "+e.message);return false}}
-function load(text){try{const value=JSON.parse(text);if(!value||typeof value!=="object"||Array.isArray(value))throw Error("Expected module object");module=value;render();valid()}catch(e){status("Import error: "+e.message)}}
-$("reset").onclick=()=>{module=demoModule();render();status("Example loaded.")};
+function load(text){try{const value=JSON.parse(text);if(!value||typeof value!=="object"||Array.isArray(value))throw Error("Expected module object");module=value;savedId=null;render();valid()}catch(e){status("Import error: "+e.message)}}
+$("reset").onclick=()=>{module=demoModule();savedId=null;render();status("Example loaded.")};
 $("validate").onclick=valid;
 $("apply").onclick=()=>load($("source").value);
 $("import").onchange=async e=>{const file=e.target.files[0];if(file){if(file.size>1000000){status("Module exceeds 1 MB.");return}load(await file.text())}};
 $("export").onclick=()=>{if(!valid())return;const url=URL.createObjectURL(new Blob([JSON.stringify(module,null,2)],{type:"application/json"}));const a=node("a");a.href=url;a.download="tcg-module-v2.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+
+function libraryRefresh(){
+ const select=$("library");select.replaceChildren();
+ for(const item of readLibrary()){const o=node("option",item.module.name??"Untitled");o.value=item.id;select.append(o)}
+ if(savedId)select.value=savedId;
+}
+function libraryAction(fn){try{fn()}catch(e){status("Library error: "+e.message)}}
+$("loadSaved").onclick=()=>libraryAction(()=>{const item=readLibrary().find(x=>x.id===$("library").value);if(!item)throw Error("Choose a saved module");if(!confirm("Replace current draft with saved module?"))return;module=item.module;savedId=item.id;render();valid()});
+$("saveSaved").onclick=()=>libraryAction(()=>{if(!valid())return;savedId=saveLibraryModule(module,savedId);libraryRefresh();status("Module saved locally.")});
+$("duplicateSaved").onclick=()=>libraryAction(()=>{if(!valid())return;savedId=saveLibraryModule(module);libraryRefresh();status("Module saved as copy.")});
+$("deleteSaved").onclick=()=>libraryAction(()=>{const id=$("library").value;if(!id||!confirm("Delete this saved module?"))return;deleteLibraryModule(id);if(savedId===id)savedId=null;libraryRefresh();status("Saved module deleted; current draft retained.")});
+$("playCustom").onclick=()=>libraryAction(()=>{if(!valid())return;stagePlaytest(module);location.href="duel.html?custom=1"});
+libraryAction(libraryRefresh);
+
 render();
