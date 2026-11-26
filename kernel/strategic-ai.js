@@ -59,7 +59,7 @@ export function candidates(match,actor,v,cap=160){
   const gear=cards(attachment?.zones).filter(c=>c.controller===actor&&c.face==="up");
   for(const g of gear.filter(c=>attachment?.definitions.includes(c.definition)))for(const h of gear.filter(c=>c.id!==g.id&&!attachment.definitions.includes(c.definition)))add({type:"attach",id:g.id,host:h.id},2);
  }
- if(!v.windowClosed)for(const a of v.activations??[]){
+ if(!v.windowClosed&&!v.queue.length)for(const a of v.activations??[]){
   const e=match.rules.effects[a.effect];
   // Do not repeatedly queue the same source/effect while awaiting resolution.
   if(v.queue.some(q=>q.actor===actor&&q.effect===a.effect))continue;
