@@ -44,7 +44,7 @@ function candidates(match,actor,v){
  const combat=match.rules.combat,attachment=match.rules.attachment,cards=zones=>v.state.zones.filter(z=>zones?.includes(z.id)).flatMap(z=>z.cards??[]).filter(c=>c.id);
  if(v.combat?.stage==="declare"){
   const c=v.combat;
-  for(const t of c.targets){for(const attacker of c.attackers)add({type:"declareCombat",attacks:[{attacker,kind:t.kind,target:t.id}]},3);if(c.attackers.length)add({type:"declareCombat",attacks:c.attackers.slice(0,c.max).map(attacker=>({attacker,kind:t.kind,target:t.id}))},4)}
+  for(const t of c.targets){for(const attacker of c.attackers.filter(id=>(c.targetsByAttacker?.[id]??c.targets).some(x=>x.kind===t.kind&&x.id===t.id)))add({type:"declareCombat",attacks:[{attacker,kind:t.kind,target:t.id}]},3);if(c.attackers.length)add({type:"declareCombat",attacks:c.attackers.filter(id=>(c.targetsByAttacker?.[id]??c.targets).some(x=>x.kind===t.kind&&x.id===t.id)).slice(0,c.max).map(attacker=>({attacker,kind:t.kind,target:t.id}))},4)}
  }else if(v.active===actor&&!v.queue.length&&!v.windowClosed){
   const units=cards(combat?.zones).filter(c=>combat?.stats?.[c.definition]&&!attachment?.definitions.includes(c.definition));
   for(const a of units.filter(c=>c.controller===actor&&c.orientation==="ready"&&c.face==="up"))for(const d of units.filter(c=>c.controller!==actor&&c.face==="up"))add({type:"attack",attacker:a.id,defender:d.id},1);
