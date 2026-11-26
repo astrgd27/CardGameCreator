@@ -30,7 +30,7 @@ export function movementOptions(m,actor){
  const out=[];for(const slot of p.slots)for(const id of s.zones[slot.zone].cards){const o=s.objects[id];if(o.controller!==actor||o.face!=="up"||o.orientation!=="ready"||Object.hasOwn(s.attachments??{},id))continue;
  for(const dest of p.slots){const path=pathTo(s,actor,id,dest.zone);if(!path)continue;const costs=p.resource?[{kind:"spend",resource:p.resource,amount:(p.costPerStep??1)*(path.length-1)}]:[];
  if(!quotePayment(s,actor,costs).legal)continue;
- try{moveWithAttachments(s,{id,from:slot.zone,to:dest.zone});out.push({id,to:dest.zone,path,cost:costs[0]?.amount??0})}catch{}
+ try{const r=moveWithAttachments(s,{id,from:slot.zone,to:dest.zone});assertSpatial(r.state);out.push({id,to:dest.zone,path,cost:costs[0]?.amount??0})}catch{}
  if(out.length>=200)return out;
  }}return out;
 }
