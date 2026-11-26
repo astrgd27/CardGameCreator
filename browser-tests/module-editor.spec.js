@@ -1,0 +1,35 @@
+import {test,expect} from "@playwright/test";
+test("v2 graphical editor validates changes and exports a module",async({page})=>{
+ const errors=[];page.on("pageerror",e=>errors.push(e.message));
+ await page.goto("/module-editor.html");
+ await page.getByRole("button",{name:"Validate module"}).click();
+ await expect(page.locator("#editor-status")).toContainText("passed");
+ await page.locator("#editor-fields summary").filter({hasText:/^Resources$/}).click();
+ await page.getByLabel("Initial 1",{exact:true}).fill("4");
+ await page.getByLabel("Initial 1",{exact:true}).press("Tab");
+ await page.locator("#editor-fields summary").filter({hasText:/^Combat$/}).click();
+ await page.getByLabel("Attack sentinel",{exact:true}).fill("3");
+ await page.getByLabel("Attack sentinel",{exact:true}).press("Tab");
+ await page.getByRole("button",{name:"Validate module"}).click();
+ await expect(page.locator("#editor-status")).toContainText("passed");
+ const download=page.waitForEvent("download");await page.getByRole("button",{name:"Export JSON"}).click();
+ expect((await download).suggestedFilename()).toBe("tcg-module-v2.json");
+ expect(errors).toEqual([]);
+});
+test("effect, trigger and victory controls modify module data",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.locator("#editor-fields summary").filter({hasText:/^Effects$/}).click();
+ await page.getByRole("button",{name:"Add effect",exact:true}).click();
+ await expect(page.getByText("effect1",{exact:true})).toBeVisible();
+ await page.locator("#editor-fields summary").filter({hasText:/^Triggers$/}).click();
+ await page.getByRole("button",{name:"Add trigger",exact:true}).click();
+ await page.locator("#editor-fields summary").filter({hasText:/^Victory conditions$/}).click();
+ await page.getByRole("button",{name:"Add condition",exact:true}).click();
+ await page.getByLabel("Condition type",{exact:true}).selectOption("resourceAtMost");
+ await page.getByRole("button",{name:"Validate module"}).click();
+ await expect(page.locator("#editor-status")).toContainText("passed");
+ const m=JSON.parse(await page.locator("#source").inputValue());
+ expect(m.effects.effect1.program).toEqual([]);
+ expect(m.triggers.length).toBe(3);
+ expect(m.victory[0].type).toBe("resourceAtMost");
+});
