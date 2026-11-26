@@ -241,7 +241,7 @@ function advancedPolicies(key,section){
 
 
 function deckEditor(section){
- section.append(actionButton("Open visual deck workshop",()=>{try{stagePlaytest(module);location.href="deck-workshop.html"}catch(e){status(e.message)}}));
+ section.append(actionButton("Open visual deck workshop",()=>{try{stagePlaytest(module);location.href="deck-workshop.html"+(savedId?"?saved="+encodeURIComponent(savedId):"")}catch(e){status(e.message)}}));
  module.deckRules??={min:1,max:40,copies:4};module.decks??=[];
  const rules=module.deckRules;
  field(section,"Minimum deck size",rules.min,"number",v=>rules.min=v);
@@ -410,7 +410,7 @@ $("reset").onclick=()=>{module=demoModule();savedId=null;render();status("Exampl
 $("validate").onclick=valid;
 $("apply").onclick=()=>load($("source").value);
 $("import").onchange=async e=>{const file=e.target.files[0];if(file){if(file.size>1000000){status("Module exceeds 1 MB.");return}load(await file.text())}};
-$("importZip").onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const imported=await unpackPortable(await file.arrayBuffer());module=imported;savedId=null;render();status("ZIP imported and validated.")}catch(err){status("Import error: "+err.message)}finally{e.target.value=""}};
+$("importZip").onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>32*1024*1024)throw Error("ZIP exceeds size limit");const imported=await unpackPortable(await file.arrayBuffer());module=imported;savedId=null;render();status("ZIP imported and validated.")}catch(err){status("Import error: "+err.message)}finally{e.target.value=""}};
 $("exportZip").onclick=async()=>{if(!valid())return;try{const blob=await packPortable(module,globalThis.JSZip,{type:"blob"}),url=URL.createObjectURL(blob),a=node("a");a.href=url;a.download="tcg-module-v2.zip";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status("ZIP exported.")}catch(err){status(err.message)}};
 $("export").onclick=()=>{if(!valid())return;const url=URL.createObjectURL(new Blob([JSON.stringify(module,null,2)],{type:"application/json"}));const a=node("a");a.href=url;a.download="tcg-module-v2.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 
