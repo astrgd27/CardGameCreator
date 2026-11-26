@@ -438,3 +438,8 @@ test("card keyboard selection keeps focus and supports inspection",async({page})
  await card.focus();await card.press("Enter");await expect(card).toBeFocused();await expect(card).toHaveAttribute("aria-pressed","true");
  await card.press("i");await expect(page.getByRole("button",{name:"Close inspection"})).toBeVisible();
 });
+
+test("default artwork uses monograms and uploaded artwork replaces them",async({page},testInfo)=>{
+ await page.goto("/duel.html");await expect(page.locator(".card-symbol.monogram-art").first()).toBeVisible();await expect(page.locator(".card-symbol .monogram-letters").first()).toHaveText(/^[A-Z0-9]{1,3}$/);await page.screenshot({path:testInfo.outputPath("monogram-duel.png"),fullPage:true});
+ await page.goto("/module-editor.html");await page.locator("#editor-fields summary").filter({hasText:/^Card designer$/}).click();const input=page.getByLabel("Artwork sentinel",{exact:true});await input.setInputFiles({name:"custom.png",mimeType:"image/png",buffer:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR1sAAAAASUVORK5CYII=","base64")});await expect(page.getByAltText("Card artwork sentinel",{exact:true})).toBeVisible();await page.screenshot({path:testInfo.outputPath("monogram-editor.png"),fullPage:true});
+});
