@@ -1,3 +1,4 @@
+import {evaluate} from "./expressions.js";
 import {passiveModifiers} from "./keywords.js";
 // Deterministic layered numeric modifiers. Trusted rules provide the definitions.
 const check=(ok,m)=>{if(!ok)throw Error(m)};
@@ -14,11 +15,13 @@ export function deriveStatistic(state,id,stat,base,modifiers,{turn=0}={}){
   check(m.source===undefined||(typeof m.source==="string"&&Object.hasOwn(state.objects,m.source)&&Array.isArray(m.sourceZones)&&m.sourceZones.every(z=>Object.hasOwn(state.zones,z))),"Invalid source");
   if(m.stat!==stat||(m.target!==undefined&&m.target!==id)||(m.expires!==undefined&&turn>=m.expires))continue;
   if(m.source!==undefined&&!m.sourceZones.some(z=>state.zones[z].cards.includes(m.source)))continue;
+  if(m.when!==undefined&&evaluate(m.when,state,{self:id,source:m.source,actor:state.objects[id].controller})!==true)continue;
   active.push(m);
  }
  active.push(...passiveModifiers(state,id,stat,turn));
  let value=base;const applied=[];
- for(const op of ["set","add","multiply"])for(const m of active.filter(m=>m.op===op)){
+ const layer=m=>m.layer??({set:0,add:1,multiply:2}[m.op]);
+ for(const m of active.sort((a,b)=>layer(a)-layer(b))){const op=m.op;
   value=op==="set"?m.value:op==="add"?value+m.value:value*m.value;
   check(Number.isSafeInteger(value),"Statistic overflow");applied.push(m.id);
  }

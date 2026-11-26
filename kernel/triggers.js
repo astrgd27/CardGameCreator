@@ -15,7 +15,7 @@ export function collectTriggers(timing,rules,events){
   if(!e||!key(e.type))throw Error("Invalid event");
   for(const r of rules){
    if(e.type!==r.event||!Object.entries(r.where??{}).every(([k,v])=>Object.hasOwn(e,k)&&e[k]===v))continue;
-   entries.push({actor:r.actor,effect:r.effect,choices:{}});
+   const choices={};for(const [name,field] of Object.entries(r.bindings??{})){if(!key(name)||!key(field)||!Object.hasOwn(e,field)||!scalar(e[field]))throw Error("Invalid event binding");choices[name]=e[field]}entries.push({actor:r.actor,effect:r.effect,choices});
    if(entries.length>100)throw Error("Trigger budget exceeded");
   }
  }

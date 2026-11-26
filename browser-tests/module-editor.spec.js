@@ -391,3 +391,14 @@ test("manual damage assignment follows blocking and hand reaction windows",async
  await page.getByRole("button",{name:"Confirm damage assignment",exact:true}).click();
  await expect(page.getByRole("button",{name:"Confirm damage assignment",exact:true})).toHaveCount(0);
 });
+
+test("declarative rules author conditional permissions",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.locator("#editor-fields summary").filter({hasText:/^Declarative rules$/}).click();
+ await page.getByRole("button",{name:/Add permission rule/i}).click();
+ await page.getByLabel("Permission condition",{exact:true}).fill("true");
+ await page.getByLabel("Permission condition",{exact:true}).blur();
+ await page.getByRole("button",{name:"Validate module"}).click();
+ await expect(page.locator("#editor-status")).toContainText("passed");
+ const m=JSON.parse(await page.locator("#source").inputValue());expect(m.permissionRules[0].when).toBe(true);
+});
