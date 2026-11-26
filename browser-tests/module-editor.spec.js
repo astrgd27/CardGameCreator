@@ -284,3 +284,18 @@ test("AI editor configures profiles and reports bounded simulations",async({page
  await expect(page.getByLabel("Opponent difficulty",{exact:true})).toHaveValue("hard");
  await expect(page.getByLabel("Opponent personality",{exact:true})).toHaveValue("aggressive");
 });
+
+test("keyword editor and deck policy authoring serialize to module",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.locator("#editor-fields summary").filter({hasText:/^Keywords and passives$/}).click();
+ await page.getByRole("button",{name:"Add keyword",exact:true}).click();
+ await page.getByLabel("cannotAttack",{exact:true}).selectOption("yes");
+ await page.getByLabel("Keywords sentinel",{exact:true}).fill("keyword1");
+ await page.getByRole("button",{name:"Add passive",exact:true}).click();
+ await page.getByLabel("Aura value",{exact:true}).fill("2");
+ await page.locator("#editor-fields summary").filter({hasText:/^Deck construction$/}).click();
+ await page.getByLabel("Banned definitions",{exact:true}).fill("raider");
+ await page.getByRole("button",{name:"Validate module"}).click();
+ await expect(page.locator("#editor-status")).toContainText("passed");
+ const m=JSON.parse(await page.locator("#source").inputValue());expect(m.keywordRules.keywords.keyword1.restrictions).toEqual(["cannotAttack"]);expect(m.keywordRules.passives[0].value).toBe(2);expect(m.deckRules.banned).toEqual(["raider"]);
+});
