@@ -1,3 +1,4 @@
+import {benchmarkAI} from "./kernel/ai-benchmark.js";
 import {validateDeck,appendDeckToSetup} from "./kernel/decks.js";
 import {validateCampaign} from "./kernel/campaign.js";
 import {demoModule} from "./kernel/demo-module.js";
@@ -309,6 +310,7 @@ function aiEditor(section){
  field(section,"AI difficulty",a.difficulty??"normal",["easy","normal","hard"],v=>a.difficulty=v);
  field(section,"AI personality",a.personality??"balanced",["balanced","aggressive","defensive","economic"],v=>a.personality=v);
  section.append(node("p","Optional evaluation weights from 0 to 5. Blank uses the personality default."));
+ const report=node("pre");report.style.whiteSpace="pre-wrap";section.append(actionButton("Run 3 AI simulations",()=>{try{const r=benchmarkAI(module,{games:3,maxActions:120,maxTurns:20});report.textContent=JSON.stringify({wins:r.wins,reasons:r.reasons,meanActions:r.meanActions,meanTurns:r.meanTurns,actions:r.actions},null,2)}catch(e){report.textContent=e.message}}),report);
  for(const k of ["board","life","resource","hand","pressure"])field(section,"AI weight "+k,a.weights?.[k]??"","text",v=>{a.weights??={};if(v.trim()==="")delete a.weights[k];else a.weights[k]=Number(v)});
 }
 function render(openKey){
