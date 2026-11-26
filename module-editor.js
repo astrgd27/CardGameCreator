@@ -1,3 +1,4 @@
+import {packPortable,unpackPortable,validatePortable} from "./portable-modules.js";
 import {benchmarkAI} from "./kernel/ai-benchmark.js";
 import {validateDeck,appendDeckToSetup,validateDeckGroup,appendDeckGroup} from "./kernel/decks.js";
 import {validateCampaign} from "./kernel/campaign.js";
@@ -8,7 +9,7 @@ import {readLibrary,saveLibraryModule,deleteLibraryModule,stagePlaytest,readPlay
 let savedId=null;
 const $=id=>document.getElementById(id);
 let module=demoModule();
-if(new URLSearchParams(location.search).has("resume")){try{module=readPlaytest()??module}catch{}}
+if(new URLSearchParams(location.search).has("resume")){try{module=readPlaytest()??module;const id=new URLSearchParams(location.search).get("saved");if(id&&readLibrary().some(x=>x.id===id))savedId=id}catch{}}
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n};
 function status(text){$("editor-status").textContent=text}
 function sync(){ $("source").value=JSON.stringify(module,null,2); }
@@ -409,6 +410,8 @@ $("reset").onclick=()=>{module=demoModule();savedId=null;render();status("Exampl
 $("validate").onclick=valid;
 $("apply").onclick=()=>load($("source").value);
 $("import").onchange=async e=>{const file=e.target.files[0];if(file){if(file.size>1000000){status("Module exceeds 1 MB.");return}load(await file.text())}};
+$("importZip").onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const imported=await unpackPortable(await file.arrayBuffer());module=imported;savedId=null;render();status("ZIP imported and validated.")}catch(err){status("Import error: "+err.message)}finally{e.target.value=""}};
+$("exportZip").onclick=async()=>{if(!valid())return;try{const blob=await packPortable(module,globalThis.JSZip,{type:"blob"}),url=URL.createObjectURL(blob),a=node("a");a.href=url;a.download="tcg-module-v2.zip";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status("ZIP exported.")}catch(err){status(err.message)}};
 $("export").onclick=()=>{if(!valid())return;const url=URL.createObjectURL(new Blob([JSON.stringify(module,null,2)],{type:"application/json"}));const a=node("a");a.href=url;a.download="tcg-module-v2.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 
 function libraryRefresh(){
