@@ -110,7 +110,7 @@ function validateModuleStructure(m){
   require(record(m.combat.defeatZones)&&players.every(p=>zids.has(m.combat.defeatZones[p])),"combat: invalid defeat zones");
  }
  if(record(m.attachment))require(Array.isArray(m.attachment.definitions)&&m.attachment.definitions.every(d=>defs.includes(d))&&["detach","follow","reject"].includes(m.attachment.onHostMove??"detach")&&integer(m.attachment.max??1),"attachment: invalid configuration");
- for(const p of list(m.replacementPolicies??[],"replacement policies",20)){require(record(p)&&players.includes(p.player)&&p.active!==p.reserve&&zones.some(z=>z.id===p.active&&z.owner===p.player)&&zones.some(z=>z.id===p.reserve&&z.owner===p.player)&&Array.isArray(p.definitions)&&p.definitions.length>0&&p.definitions.every(d=>defs.includes(d)),"invalid replacement policy")}
+ for(const p of list(m.replacementPolicies??[],"replacement policies",20)){require(record(p)&&players.includes(p.player)&&p.active!==p.reserve&&zones.some(z=>z.id===p.active&&z.owner===p.player)&&zones.some(z=>z.id===p.reserve&&z.owner===p.player)&&Array.isArray(p.definitions)&&p.definitions.length>0&&p.definitions.every(d=>defs.includes(d))&&(p.choose===undefined||typeof p.choose==="boolean"),"invalid replacement policy")}
  for(const p of list(m.resourceDrawPolicies??[],"resource draw policies",20)){const from=m.zones.find(z=>z.id===p.deck),to=m.zones.find(z=>z.id===p.pool);require(record(p)&&players.includes(p.player)&&from?.owner===p.player&&from?.visibility==="hidden"&&to?.owner===p.player&&to?.visibility==="public"&&integer(p.perTurn)&&p.perTurn<=10&&(p.returnAssigned===undefined||defs.includes(p.returnAssigned)),"invalid resource draw policy")}
  const drawPlayers=new Set();
  for(const p of list(m.drawPolicies??[],"drawPolicies",8)){
@@ -158,6 +158,7 @@ function validateModuleStructure(m){
  for(const e of Object.values(effects))if(e.windows!==undefined)require(Array.isArray(e.windows)&&e.windows.length>0&&e.windows.every(key),"invalid effect windows");
  const g=m.combat?.group;
  if(g){require((g.comparison===undefined||["damage","power"].includes(g.comparison))&&(g.overflow===undefined||typeof g.overflow==="boolean")&&(g.intercept===undefined||["all","direct"].includes(g.intercept))&&(g.damageType===undefined||key(g.damageType)),"invalid extended combat policy");
+ require(g.twoSidedReactions===undefined||typeof g.twoSidedReactions==="boolean","invalid two-sided reactions");
  const ids=new Set();for(const r of list(g.reactions??[],"combat reactions",20)){require(record(r)&&key(r.id)&&!ids.has(r.id)&&defs.includes(r.definition)&&Array.isArray(r.zones)&&r.zones.length>0&&r.zones.every(z=>zids.has(z))&&zids.has(r.destination)&&!r.zones.includes(r.destination)&&integer(r.amount)&&r.amount<=100,"invalid combat reaction");if(record(r))ids.add(r.id)}
  }
  if(m.combat?.damageCleanup!==undefined)require(["turn","persistent"].includes(m.combat.damageCleanup),"invalid damage cleanup");

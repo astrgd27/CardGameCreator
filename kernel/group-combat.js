@@ -9,18 +9,18 @@ import {replaceDamage} from "./replacements.js";
 import {moveWithAttachments} from "./attachments.js";
 import {changeResource} from "./resources.js";
 const check=(ok,msg)=>{if(!ok)throw Error(msg)};
-const units=(m,actor,side,ready=false)=>selectCards(m.state,actor,{zones:m.rules.combat.zones,controller:side,face:"up",...(ready?{orientation:"ready"}:{})}).filter(id=>m.rules.combat.stats[m.state.objects[id].definition]);
+const units=(m,actor,side,ready=false)=>selectCards(m.state,actor,{zones:m.rules.combat.zones,controller:side,face:"up",...(ready?{orientation:"ready"}:{})}).filter(id=>m.rules.combat.stats[m.state.objects[id].definition]&&(!m.rules.combat.group.unitDefinitions||m.rules.combat.group.unitDefinitions.includes(m.state.objects[id].definition)));
 const power=(m,id)=>deriveStatistic(m.state,id,"attack",m.rules.combat.stats[m.state.objects[id].definition].attack,m.rules.combat.modifiers??[],{turn:m.turn}).value+(m.battle?.boosts?.[id]??0);
 const health=(m,id)=>deriveStatistic(m.state,id,"health",m.rules.combat.stats[m.state.objects[id].definition].health,m.rules.combat.modifiers??[],{turn:m.turn}).value;
-export function battleActor(m){return m.battle?.stage==="assign"?m.battle.actor:m.battle?.defender??null}
+export function battleActor(m){return m.battle?.stage==="react"?m.battle.reactionActor??m.battle.defender:m.battle?.stage==="assign"?m.battle.actor:m.battle?.defender??null}
 function reactions(m,actor){const p=m.rules.combat.group,opts=[];for(const r of p.reactions??[])for(const id of selectCards(m.state,actor,{zones:r.zones,owner:"self",controller:"self",definition:r.definition,face:"up"}))if(!m.battle.used?.includes(id))opts.push({id,rule:r.id,amount:r.amount});return opts}
 export function combatOptions(m,actor){
  const c=m.rules.combat?.group;if(!c||m.timing.players.length!==2)return null;
  const battle=m.battle,enemy=m.timing.players.find(p=>p!==actor);if(teamOf(m,enemy)===teamOf(m,actor))return null;
- if(battle?.stage==="react")return battle.defender===actor?{stage:"react",reactions:reactions(m,actor),attackers:battle.attacks.map(a=>a.attacker)}:null;
+ if(battle?.stage==="react")return (battle.reactionActor??battle.defender)===actor?{stage:"react",reactions:reactions(m,actor),attackers:battle.attacks.map(a=>a.attacker)}:null;
  if(battle?.stage==="assign")return battle.actor===actor?{stage:"assign",assignments:battle.attacks.filter(a=>battle.blocks.some(b=>b.attacker===a.attacker)).map(a=>({attacker:a.attacker,power:Math.max(0,power(m,a.attacker)),blockers:battle.blocks.filter(b=>b.attacker===a.attacker).map(b=>({id:b.blocker,lethal:Math.max(0,health(m,b.blocker)-m.state.objects[b.blocker].damage)}))})),overflow:!!c.overflow}:null;
  if(battle)return battle.stage==="block"&&battle.defender===actor?{stage:"block",attackers:battle.attacks.map(a=>a.attacker),blockers:units(m,actor,"self",c.readyBlockers!==false).filter(id=>!hasRule(m.state,id,"cannotBlock")).filter(id=>!c.guardStatus||m.state.objects[id].statuses?.includes(c.guardStatus)),attacks:battle.attacks,attackersByBlocker:Object.fromEntries(units(m,actor,"self",c.readyBlockers!==false).map(id=>[id,battle.attacks.filter(a=>inRange(m.state,id,a.attacker,m.state.spatial?.blockRange??Infinity)&&(c.intercept!=="direct"||a.kind==="player")).map(a=>a.attacker)])),intercept:c.intercept??"all"}:null;
- if(m.result||m.openingQueue?.length||m.triggerOrderPending||m.timing.active!==actor||m.timing.priority!==actor||m.windowClosed||m.pending||m.timing.queue.length||m.timing.resolving||m.rules.phases&&!m.rules.phases[m.phaseIndex].actions.includes("attack")||m.combatUsed===m.turn)return null;
+ if(m.result||m.promotion||m.openingQueue?.length||m.triggerOrderPending||m.timing.active!==actor||m.timing.priority!==actor||m.windowClosed||m.pending||m.timing.queue.length||m.timing.resolving||m.rules.phases&&!m.rules.phases[m.phaseIndex].actions.includes("attack")||m.combatUsed===m.turn)return null;
  const targets=units(m,actor,"opponent").filter(id=>m.timing.players.includes(m.state.objects[id].controller)&&teamOf(m,m.state.objects[id].controller)!==teamOf(m,actor)).filter(id=>!hasRule(m.state,id,"cannotBeAttacked")).map(id=>({kind:"card",id}));
  if(c.lifeResource||c.lifeCards?.[enemy])targets.push({kind:"player",id:enemy});
  return {stage:"declare",attackers:units(m,actor,"self",true).filter(id=>!hasRule(m.state,id,"cannotAttack")),targets,targetsByAttacker:Object.fromEntries(units(m,actor,"self",true).map(id=>[id,targets.filter(t=>t.kind==="player"||inRange(m.state,id,t.id)&&(!c.sameBattlefield||c.sameBattlefield.includes(Object.values(m.state.zones).find(z=>z.cards.includes(id))?.id)&&Object.values(m.state.zones).some(z=>z.cards.includes(id)&&z.cards.includes(t.id))))])),max:c.maxAttackers??10};
@@ -41,16 +41,16 @@ export function advanceBattle(m,actor,action){
   check(blocks.every(x=>inRange(m.state,x.blocker,x.attacker,m.state.spatial?.blockRange??Infinity)),"Blocker outside range");
   if(p.intercept==="direct")check(blocks.every(x=>b.attacks.find(a=>a.attacker===x.attacker).kind==="player"),"Only direct attacks can be intercepted");
   b.blocks=structuredClone(blocks);
-  if(p.reactions?.length){b.stage="react";return [{type:"blockersDeclared",actor,count:blocks.length}]}
+  if(p.reactions?.length){b.stage="react";b.reactionActor=b.defender;b.reactionPasses=0;return [{type:"blockersDeclared",actor,count:blocks.length}]}
  }else if(b.stage==="react"){
   if(action.type==="combatReact"){
    const r=v.reactions.find(x=>x.id===action.id&&x.rule===action.rule);check(r,"Invalid reaction");
    const rule=p.reactions.find(x=>x.id===r.rule),target=action.target;
    check(v.attackers.includes(target),"Invalid reaction target");
    const from=Object.values(m.state.zones).find(z=>z.cards.includes(r.id)).id;
-   const moved=moveWithAttachments(m.state,{id:r.id,from,to:rule.destination,face:"up",reset:true});m.state=moved.state;b.used.push(r.id);b.boosts[target]=(b.boosts[target]??0)-r.amount;return [...moved.events,{type:"combatReaction",actor,amount:r.amount}];
+   const moved=moveWithAttachments(m.state,{id:r.id,from,to:rule.destination,face:"up",reset:true});m.state=moved.state;b.used.push(r.id);b.boosts[target]=(b.boosts[target]??0)+(p.twoSidedReactions&&actor===b.actor?r.amount:-r.amount);if(p.twoSidedReactions){b.reactionActor=actor===b.actor?b.defender:b.actor;b.reactionPasses=0}return [...moved.events,{type:"combatReaction",actor,amount:r.amount}];
   }
-  check(action.type==="combatContinue","Reaction decision required");
+  check(action.type==="combatContinue","Reaction decision required");if(p.twoSidedReactions&&++b.reactionPasses<2){b.reactionActor=actor===b.actor?b.defender:b.actor;return [{type:"combatReactionPassed",actor}]}
  }else if(b.stage==="assign"){
   check(action.type==="assignDamage"&&Array.isArray(action.assignments)&&action.assignments.length===v.assignments.length,"Invalid assignment");
   const seen=new Set();for(const row of action.assignments){
