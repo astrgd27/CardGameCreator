@@ -49,7 +49,7 @@ export function validateModuleV2(m){
    for(const c of list(p.costs??[],"alternative resource costs "+id))require(record(c)&&resources.has(c.resource)&&integer(c.amount)&&["spend","threshold"].includes(c.kind),"effect: invalid alternative cost "+id);
    validateCardCosts(p.cardCosts);
   }
-  const choices=new Set(e.sourceDefinition?["source"]:[]);
+  const choices=new Set([...(e.sourceDefinition?["source"]:[]),...(m.triggers??[]).filter(t=>t.effect===id).flatMap(t=>Object.keys(t.bindings??{}))]);
   if(e.dynamicPayment!==undefined){
    const d=e.dynamicPayment;require(record(d),"dynamic payment: expected object");
    if(record(d)){
