@@ -61,3 +61,39 @@ test("workshop exposes generalized module editor",async({page})=>{
  await page.getByRole("link",{name:"Generalized module editor",exact:true}).click();
  await expect(page.getByRole("heading",{name:"Generalized module editor"})).toBeVisible();
 });
+
+test("card designer and deck builder propagate to a custom match",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.locator("#editor-fields summary").filter({hasText:/^Card designer$/}).click();
+ await page.getByLabel("Display name sentinel",{exact:true}).fill("Iron Guardian");
+ await page.getByLabel("Rules text sentinel",{exact:true}).fill("Protect the gate.");
+ await page.locator("#editor-fields summary").filter({hasText:/^Deck construction$/}).click();
+ await page.getByRole("button",{name:"Add deck",exact:true}).click();
+ await page.getByRole("button",{name:"Add deck card",exact:true}).click();
+ await page.getByRole("button",{name:"Validate deck",exact:true}).click();
+ await expect(page.getByText("Deck is legal.",{exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"Append deck to starting setup"}).click();
+ await expect(page.locator("#editor-status")).toContainText("Deck appended");
+ await page.getByRole("button",{name:"Playtest module"}).click();
+ const card=page.getByRole("button",{name:"Iron Guardian c1",exact:true});
+ await card.click({button:"right"});
+ await expect(page.locator(".duel-inspector")).toContainText("Protect the gate.");
+});
+test("advanced rule controls serialize engine policies",async({page})=>{
+ await page.goto("/module-editor.html");
+ await page.locator("#editor-fields summary").filter({hasText:/^Attachments$/}).click();
+ await page.getByLabel("Maximum attachments",{exact:true}).fill("2");
+ await page.locator("#editor-fields summary").filter({hasText:/^Chains$/}).click();
+ await page.getByRole("button",{name:"Enable chain",exact:true}).click();
+ await page.getByLabel("Maximum chain links",{exact:true}).fill("5");
+ await page.locator("#editor-fields summary").filter({hasText:/^Continuous modifiers$/}).click();
+ await page.getByRole("button",{name:"Add modifier",exact:true}).click();
+ await page.getByLabel("Modifier value",{exact:true}).fill("2");
+ await page.locator("#editor-fields summary").filter({hasText:/^Damage replacements$/}).click();
+ await page.getByRole("button",{name:"Add replacement",exact:true}).click();
+ await page.getByRole("button",{name:"Validate module"}).click();
+ await expect(page.locator("#editor-status")).toContainText("passed");
+ const m=JSON.parse(await page.locator("#source").inputValue());
+ expect(m.attachment.max).toBe(2);expect(m.chain.maxLinks).toBe(5);
+ expect(m.combat.modifiers[0].value).toBe(2);expect(m.combat.replacements[0].op).toBe("prevent");
+});
