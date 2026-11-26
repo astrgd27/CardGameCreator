@@ -356,3 +356,20 @@ test("turn scheduler editor enables initiative and alternating pass-out",async({
  await page.getByRole("button",{name:"Pass out",exact:true}).click();
  await expect(page.getByRole("button",{name:"Claim initiative",exact:true})).toBeVisible();
 });
+
+test("portable module ZIP export and import preserves original rules",async({page})=>{
+ await page.goto("/module-editor.html");
+ const expected=JSON.parse(await page.locator("#source").inputValue()).name;
+ const download=page.waitForEvent("download");
+ await page.getByRole("button",{name:"Export ZIP",exact:true}).click();
+ const file=await download;
+ await page.locator("#importZip").setInputFiles(await file.path());
+ await expect(page.locator("#editor-status")).toContainText("ZIP imported and validated");
+ expect(JSON.parse(await page.locator("#source").inputValue()).name).toBe(expected);
+});
+test("evidence dashboard runs five micro-fixtures without awarding catalog passes",async({page})=>{
+ await page.goto("/evidence.html");
+ await page.getByRole("button",{name:"Run five ZIP round-trip fixtures"}).click();
+ await expect(page.locator("#status")).toContainText("5/5 micro-fixtures passed");
+ await expect(page.locator("#status")).toContainText("Catalog scores unchanged");
+});
