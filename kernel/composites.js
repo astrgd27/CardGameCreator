@@ -22,7 +22,7 @@ export function stackCard(m,actor,action){
  h.baseDefinition??=h.definition;
  h.components.push({id:c.id,definition:h.definition,physicalDefinition:c.definition,owner:c.owner,inherit:r.inherit===true});
  h.definition=r.resultDefinition??c.definition;
- delete s.objects[c.id];
+ delete s.objects[c.id];if(s.reveals){delete s.reveals[c.id];delete s.reveals[h.id]}
  const preserve=new Set(r.preserve??["damage","counters","statuses","orientation","controller","attachments"]);
  if(!preserve.has("damage"))h.damage=0;
  if(!preserve.has("counters"))h.counters={};

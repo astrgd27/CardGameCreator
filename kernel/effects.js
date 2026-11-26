@@ -39,6 +39,8 @@ function advance(state,timing,program,triggerRules,frame){
   if(op.type==="skipUnless"){if(selectCards(next,actor,op.selector).length<op.minimum)pc+=op.skip;continue}
   if(op.type==="search"||op.type==="optional"||op.type==="choose"||op.type==="target"){
    const options=op.type==="search"?hiddenOptions(next,actor,op):op.type==="optional"?["accept","decline"]:op.type==="target"?selectCards(next,actor,{...op.selector,targetable:true}):op.options;
+   // Precommitted targets are not chosen a second time; recheck legality on resolution.
+   if(op.type==="target"&&Object.hasOwn(choices,op.name)){if(options.includes(choices[op.name]))continue;const finished=finishResolution(timing,timing.resolving.id);return {state,timing:finished.timing,pending:null,fizzled:true,events:[{type:"effectFizzled",actor},...finished.events]}}
    if(!options.length){const finished=finishResolution(timing,timing.resolving.id);return {state,timing:finished.timing,pending:null,fizzled:true,events:[{type:"effectFizzled",actor},...finished.events]}}
    return {state:next,timing:structuredClone(timing),pending:{effectId:timing.resolving.id,actor,pc,name:op.name,options:[...options],...(op.type==="search"?{labels:Object.fromEntries(options.map(id=>[id,next.objects[id].definition]))}:{}),choices,events},events:[]};
   }
@@ -53,7 +55,8 @@ function advance(state,timing,program,triggerRules,frame){
   else if(op.type==="lifeDamage")result=damageCards(next,op.player==="self"?actor:op.player,op,op.count);
   else if(op.type==="move"){
    const id=op.id??(Object.hasOwn(choices,op.choice)?choices[op.choice]:undefined);
-   check(key(id),"Missing card choice");
+   check(key(id)&&Object.hasOwn(next.objects,id)&&Object.hasOwn(next.zones,op.from)&&Object.hasOwn(next.zones,op.to),"Invalid move reference");
+   if(!next.zones[op.from].cards.includes(id)&&op.choice!==undefined){const finished=finishResolution(timing,timing.resolving.id);return {state,timing:finished.timing,pending:null,fizzled:true,events:[{type:"effectFizzled",actor},...finished.events]}}
    result=moveWithAttachments(next,{id,from:op.from,to:op.to});
   }else if(op.type==="token")result=createTokens(next,actor,op);
   else if(["counter","status","transform","flip","control","orient"].includes(op.type)){const id=op.id??(Object.hasOwn(choices,op.choice)?choices[op.choice]:undefined);result=changeCardState(next,actor,id,op)}
