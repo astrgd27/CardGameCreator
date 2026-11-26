@@ -11,7 +11,7 @@ function value(stats,s,id,name){
  check(Object.hasOwn(stats,def)&&integer(stats[def][name]),"Missing combat statistic");
  return stats[def][name];
 }
-export function resolveCombat(state,{attacker,defender,stats,retaliate=true,defeatZones,modifiers=[],replacements=[],turn=0}){
+export function resolveCombat(state,{attacker,defender,stats,retaliate=true,defeatZones,modifiers=[],replacements=[],turn=0,damageType="combat"}){
  check(attacker!==defender&&typeof retaliate==="boolean","Invalid combat");
  const a=unit(state,attacker),d=unit(state,defender);
  check(a.controller!==d.controller&&a.face==="up"&&d.face==="up"&&a.orientation==="ready","Ineligible combatants");
@@ -24,7 +24,7 @@ export function resolveCombat(state,{attacker,defender,stats,retaliate=true,defe
  next.objects[attacker].orientation="resting";
  const affected=new Set([defender,attacker]);
  for(const [id,amount] of [[defender,strike],[attacker,counter]]){
-  const r=replaceDamage(state,{type:"damageDealt",id,amount},replacements);
+  const r=replaceDamage(state,{type:"damageDealt",id,amount,damageType},replacements);
   const e=r.event;
   for(const rule of r.applied)events.push({type:"damageReplaced",rule,id});
   if(e.amount){
@@ -38,7 +38,7 @@ export function resolveCombat(state,{attacker,defender,stats,retaliate=true,defe
   const owner=next.objects[id].owner;
   check(defeatZones&&Object.hasOwn(defeatZones,owner),"Missing defeat destination");
   const result=moveWithAttachments(next,{id,from:zone(next,id),to:defeatZones[owner],reset:true});
-  next=result.state;events.push({type:"combatDefeat",id},...result.events);
+  next=result.state;events.push({type:"combatDefeat",id,definition:state.objects[id].definition,owner:state.objects[id].owner,controller:state.objects[id].controller,from:zone(state,id)},...result.events);
  }
  return {state:next,events};
 }
