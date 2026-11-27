@@ -53,3 +53,6 @@ Build substantive related features in larger PRs; use CI and reference matches t
 
 ### Reference-game fidelity directive
 The product owner specifies original themes only: Generation Wars (Riftbound), Crystal Circuit (Magic), Looboo (Pokémon), Ringworld Rumble (One Piece), Taste Dimension (Yu-Gi-Oh!). Reproduce the mechanical architecture of each reference as closely as possible through generalized module policies and visual authoring, using independent names, writing, artwork and graphic identity. A missing or simplified mechanic is a compatibility gap, not an intentional rules redesign. Use independently written rules and original card content. Do not include commercial card images, branding, or copied card text. Current starters are deliberately incomplete.
+
+## Product rebuild directive — 2026-11-27
+User supersedes compatibility-first roadmap. Universal player-facing match experience is P0 for every module. Preserve useful engine primitives; old duel is a diagnostic surface only. No game-specific host forks. Suspend PRs #75/#77; retain branches. Acceptance: launch from library, meaningful card actions, automatic opponent, full match progression, desktop/tablet browser evidence. Do not count hidden diagnostic features as delivered.
