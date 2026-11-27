@@ -13,14 +13,14 @@ const check=(ok,msg)=>{if(!ok)throw Error(msg)};
 function validateProgram(program){
  check(Array.isArray(program)&&program.length<=64,"Invalid effect program");
  for(const op of program){
-  check(op&&["choose","target","move","resource","draw","skipUnless","skipUnlessResource","skipUnlessChoice","token","counter","status","transform","flip","control","orient","search","randomHidden","reveal","reorder","lifeDamage","optional","scheduleTurn","skipUnlessExpr","eachCounter","resourceExpr","awardScore"].includes(op.type),"Unsupported effect operation");
+  check(op&&["choose","target","move","resource","draw","skipUnless","skipUnlessResource","skipUnlessChoice","token","counter","status","transform","flip","control","orient","position","search","randomHidden","reveal","reorder","lifeDamage","optional","scheduleTurn","skipUnlessExpr","eachCounter","resourceExpr","awardScore"].includes(op.type),"Unsupported effect operation");
   if(op.type==="choose")check(key(op.name)&&Array.isArray(op.options)&&op.options.length>0&&op.options.length<=100&&op.options.every(key)&&new Set(op.options).size===op.options.length,"Invalid choice");
   if(op.type==="skipUnless")check(op.selector&&typeof op.selector==="object"&&Number.isSafeInteger(op.minimum)&&op.minimum>=0&&op.minimum<=100&&Number.isSafeInteger(op.skip)&&op.skip>=1&&op.skip<=64,"Invalid conditional instruction");
   if(["skipUnlessExpr","eachCounter","resourceExpr"].includes(op.type))validateExpression(op.expression);
   if(op.type==="skipUnlessExpr")check(Number.isSafeInteger(op.skip)&&op.skip>=1&&op.skip<=64,"Invalid expression skip");
   if(op.type==="skipUnlessResource")check(key(op.resource)&&["atLeast","atMost","equal"].includes(op.comparison)&&Number.isSafeInteger(op.amount)&&op.amount>=0&&Number.isSafeInteger(op.skip)&&op.skip>=1&&op.skip<=64,"Invalid resource condition");
   if(op.type==="skipUnlessChoice")check(key(op.choice)&&key(op.value)&&Number.isSafeInteger(op.skip)&&op.skip>=1&&op.skip<=64,"Invalid choice condition");
-  if(["counter","status","transform","flip","control","orient"].includes(op.type))check((key(op.id)&&op.choice===undefined)||(op.id===undefined&&key(op.choice)),"Invalid card state target");
+  if(["counter","status","transform","flip","control","orient","position"].includes(op.type))check((key(op.id)&&op.choice===undefined)||(op.id===undefined&&key(op.choice)),"Invalid card state target");
   if(op.type==="target")check(key(op.name)&&op.selector&&typeof op.selector==="object","Invalid target selector");
   if(op.type==="draw")check(key(op.from)&&key(op.to)&&Number.isSafeInteger(op.count)&&op.count>=0&&op.count<=100,"Invalid draw instruction");
   if(op.type==="move")check(key(op.from)&&key(op.to)&&((key(op.id)&&op.choice===undefined)||(op.id===undefined&&key(op.choice))),"Invalid move instruction");
@@ -59,7 +59,7 @@ function advance(state,timing,program,triggerRules,frame){
    if(!next.zones[op.from].cards.includes(id)&&op.choice!==undefined){const finished=finishResolution(timing,timing.resolving.id);return {state,timing:finished.timing,pending:null,fizzled:true,events:[{type:"effectFizzled",actor},...finished.events]}}
    result=moveWithAttachments(next,{id,from:op.from,to:op.to});
   }else if(op.type==="token")result=createTokens(next,actor,op);
-  else if(["counter","status","transform","flip","control","orient"].includes(op.type)){const id=op.id??(Object.hasOwn(choices,op.choice)?choices[op.choice]:undefined);result=changeCardState(next,actor,id,op)}
+  else if(["counter","status","transform","flip","control","orient","position"].includes(op.type)){const id=op.id??(Object.hasOwn(choices,op.choice)?choices[op.choice]:undefined);result=changeCardState(next,actor,id,op)}
   else if(op.type==="draw"){
    let count=op.count,to=op.to;
    const rules=(next.eventReplacements??[]).filter(r=>r.event==="draw"&&(r.from===undefined||r.from===op.from)&&(r.when===undefined||evaluate(r.when,next,ctx)===true)).sort((a,b)=>(a.order??0)-(b.order??0));
