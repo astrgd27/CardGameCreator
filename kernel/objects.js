@@ -61,7 +61,7 @@ export function moveCard(state,{id,from,to,position,face,controller,reset=false}
   next.zones[to].cards.splice(at,0,id);
   // A reveal is scoped to the current stay in a zone, never a later return.
   if(from!==to&&next.reveals)delete next.reveals[id];
-  if(reset){o.orientation="ready";o.damage=0;o.counters={};o.controller=object.owner;}
+  if(reset){delete o.position;o.orientation="ready";o.damage=0;o.counters={};o.controller=object.owner;}
   if(face!==undefined)o.face=face;
   if(controller!==undefined)o.controller=controller;
   return {state:next,event:{type:"cardMoved",id,from,to,position:at}};
