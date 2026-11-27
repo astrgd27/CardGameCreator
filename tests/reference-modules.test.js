@@ -60,3 +60,29 @@ test("source-relative detach binds to the activating instance and rejects missin
  assert.ok(paid.state.zones[from].cards.includes("c1"));
  assert.ok(paid.state.zones["discard-a"].cards.includes("c3"));
 });
+
+test("scale deployment moves multiple cards atomically through match activation",()=>{
+ const r=referenceModules()[2];
+ r.zones.push({id:"scale-low",owner:"a",visibility:"public",capacity:1},{id:"scale-high",owner:"a",visibility:"public",capacity:1});
+ r.definitions.push("low-scale","high-scale");
+ r.attributes["low-scale"]={scale:1};r.attributes["high-scale"]={scale:8};
+ r.setup.push({definition:"low-scale",owner:"a",zone:"scale-low",face:"up"},{definition:"high-scale",owner:"a",zone:"scale-high",face:"up"});
+ r.effects.scaleDeploy={available:true,actors:["a"],cardCosts:[{kind:"deploy",from:"field",to:"discard-a",count:2,scaleZones:["scale-low","scale-high"]}],program:[]};
+ r.chain.speedByEffect.scaleDeploy=1;
+ const m=createMatch(r);
+ const opt=matchView(m,"a").activations.find(a=>a.effect==="scaleDeploy");
+ assert.ok(opt);
+ const before=JSON.stringify(m);
+ assert.throws(()=>applyMatchAction(m,"a",{type:"activate",effect:"scaleDeploy",cards:[opt.example[0],opt.example[0]]}));
+ assert.equal(JSON.stringify(m),before);
+ const next=applyMatchAction(m,"a",{type:"activate",effect:"scaleDeploy",cards:opt.example}).match;
+ for(const id of opt.example)assert.ok(next.state.zones["discard-a"].cards.includes(id));
+});
+test("source material payment deploys host and attaches material in one transaction",async()=>{
+ const {commitDynamic}=await import("../kernel/dynamic-payments.js");
+ const m=createMatch(referenceModules()[2]);
+ const plan={id:"summon",cardCosts:[{kind:"material",from:"field",to:"reserve-a",count:1,hostBinding:"source"}]};
+ const paid=commitDynamic(m,"a",{},"c7",plan,{cards:["c1"]});
+ assert.equal(paid.state.attachments.c1.host,"c7");
+ assert.ok(paid.state.zones["reserve-a"].cards.includes("c1"));
+});
