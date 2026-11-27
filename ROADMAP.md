@@ -28,3 +28,10 @@ The TCG Maker Master Guide dated 2026-11-27 governs product decisions. GitHub Pa
 - Rework Looboo, Crystal Circuit, Taste Dimension, Ringworld Rumble and Generation Wars into complete original games with coherent deck options and differentiated rules.
 - Verify at least three structurally different games and a new user-created game through real matches, plus deterministic replay, illegal action rollback, privacy, invalid ZIP recovery and save/reload. Check desktop Chromium and tablet WebKit in both orientations, inspect screenshots, and verify actual visual and gameplay quality.
 - Verify the proposed revision in CI, then merge with authorization and verify GitHub Pages. Measure benchmark coverage only against executed evidence. The Master Guide's 80% visual and 95% total coverage targets remain aspirational.
+
+## Milestone order after the first public release
+
+1. **Composable card abilities.** Author costs, target choices and ordered steps visually. Play the resulting rule through the ordinary Workshop and Card Battle path. Verify ZIP round trips, including the editable rule and its canonical instructions.
+2. **Reusable rule components and events.** Add reusable effects and keywords that work on more than one card, triggered rules, conditions, and effect duration controls. Verify a triggered ability with optional choices against the computer opponent.
+3. **Bounded scripting.** Expose a versioned API with deterministic queries, explicit execution limits, rollback, completion and examples. Demonstrate a scripted rule from the editor through an actual match and ZIP round trip.
+4. **Reference games and release.** Expand coherent decks and complete playable matches, measure supported mechanics from executed evidence, and verify the published site at desktop and tablet sizes.

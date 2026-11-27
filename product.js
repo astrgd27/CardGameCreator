@@ -1,5 +1,6 @@
 import {referenceModules} from "./reference-modules.js";
 import {readLibrary, saveLibraryModule, stagePlaytest} from "./module-library.js";
+import {compileWorkshopRules,ruleSteps} from "./rule-composer.js";
 import {makeBasic,compileBasic} from "./basic-module.js";
 import {createMatch} from "./kernel/runtime.js";
 import {appendDeckGroup,validateDeck} from "./kernel/decks.js";
@@ -155,7 +156,7 @@ function deckSlots(m){
  return [...slots.values()];
 }
 function prepare(m,decks){
- let compiled=compileBasic(m);
+ let compiled=compileWorkshopRules(compileBasic(m));
  if(decks.length){
   const replaced=new Set(decks.map(d=>d.zone));
   compiled.setup=(compiled.setup??[]).filter(card=>!replaced.has(card.zone));
@@ -172,7 +173,7 @@ function prepare(m,decks){
  return compiled;
 }
 function download(m){
- return packPortable(m.decks?.length?prepare(m,deckSlots(m).map(decks=>decks[0])):compileBasic(m),globalThis.JSZip,{type:"blob"}).then(blob=>{
+ return packPortable(m.decks?.length?prepare(m,deckSlots(m).map(decks=>decks[0])):compileWorkshopRules(compileBasic(m)),globalThis.JSZip,{type:"blob"}).then(blob=>{
   const url=URL.createObjectURL(blob);
   const a=node("a");a.href=url;a.download=(m.name||"module").replace(/[^a-z0-9]+/gi,"-")+".zip";a.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -223,9 +224,10 @@ function moduleHub(m){
 }
 function workshop(checkpoint){
  let draft=JSON.parse(localStorage.getItem(draftKey)??"null")??structuredClone(checkpoint);
- let tab=["Overview","Cards","Decks","Board","Rules"].includes(query.get("tab"))?query.get("tab"):"Overview";
+ let tab=["Overview","Cards","Decks","Board","Rules","Rule composer"].includes(query.get("tab"))?query.get("tab"):"Overview";
  let cardId=draft.definitions.includes(query.get("card"))?query.get("card"):draft.definitions[0];
  let deckIndex=Math.max(0,Number(query.get("deck"))||0),search="";
+ let ruleId=query.get("rule");
  const past=[],future=[];
  let unsaved=false,refreshDetails;
  addEventListener("beforeunload",event=>{if(unsaved){event.preventDefault();event.returnValue=""}});
@@ -443,6 +445,96 @@ function workshop(checkpoint){
   };
   refreshDetails();
  }
+
+ function composer(panel){
+  const rules=draft.workshopRules??[];
+  const resourceOptions=(draft.resources??[]).map(resource=>[resource.id,resource.id]);
+  const cardOptions=draft.definitions.map(id=>[id,draft.cardPresentation?.[id]?.name??id]);
+  const hasBoard=draft.combat?.zones?.some(id=>draft.zones.some(zone=>zone.id===id&&zone.visibility==="public"));
+  panel.append(node("p","Give a card an ability it can use on your turn. Choose a cost and arrange the steps in the order they should resolve."));
+  if(!cardOptions.length||!hasBoard){
+   panel.append(node("p","Add a card and a public battlefield to compose an ability."));
+   return;
+  }
+  const list=node("div",undefined,"actions toolbar");
+  const active=rules.find(rule=>rule.id===ruleId)??rules[0];
+  for(const rule of rules){
+   const item=button(rule.name||"Untitled ability",()=>{ruleId=rule.id;render()});
+   item.setAttribute("aria-pressed",String(rule===active));
+   list.append(item);
+  }
+  const add=button("Add ability",()=>edit(m=>{
+   m.workshopRules??=[];
+   ruleId="rule-"+crypto.randomUUID();
+   m.workshopRules.push({id:ruleId,name:"New ability",card:cardId??cardOptions[0][0],resource:resourceOptions[0]?.[0],cost:0,steps:[{type:"exhaust",controller:"opponent"}]});
+  }),"primary");
+  add.disabled=rules.length>=20;
+  list.append(add);panel.append(list);
+  if(!active)return;
+  const ruleEdit=(change,redraw=true)=>edit(m=>change(m.workshopRules.find(rule=>rule.id===active.id)),redraw);
+  const columns=node("div",undefined,"columns");
+  const editor=node("div");
+  const preview=node("aside",undefined,"panel");
+  field(editor,"Ability name",active.name,{maxLength:70,change:value=>ruleEdit(rule=>rule.name=value,false)});
+  field(editor,"Source card",active.card,{items:cardOptions,change:value=>ruleEdit(rule=>rule.card=value,false)});
+  if(resourceOptions.length){
+   field(editor,"Cost resource",active.resource,{items:resourceOptions,change:value=>ruleEdit(rule=>rule.resource=value,false)});
+   number(editor,"Cost amount",active.cost,0,100,(m,value)=>m.workshopRules.find(rule=>rule.id===active.id).cost=value);
+  }
+  const choices=[["self","Your cards"],["opponent","Opponent's cards"],["any","Either side"]];
+  active.steps.forEach((step,index)=>{
+   const box=node("fieldset",undefined,"rule-step");
+   box.append(node("legend","Step "+(index+1)));
+   const options=Object.entries(ruleSteps).filter(([type])=>
+    (type!=="draw"||draft.players.every(player=>draft.drawPolicies?.some(p=>p.player===player)))&&(type!=="restore"||resourceOptions.length));
+   field(box,"Effect",step.type,{items:options,change:type=>ruleEdit(rule=>{
+    rule.steps[index]={type,controller:"opponent",amount:1,resource:resourceOptions[0]?.[0]};
+   })});
+   if(step.type==="exhaust"||step.type==="ready"){
+    field(box,"Eligible cards",step.controller,{items:choices,change:value=>ruleEdit(rule=>rule.steps[index].controller=value,false)});
+   }else{
+    number(box,"Amount",step.amount,1,20,(m,value)=>m.workshopRules.find(rule=>rule.id===active.id).steps[index].amount=value);
+    if(step.type==="restore")field(box,"Resource to restore",step.resource,{items:resourceOptions,change:value=>ruleEdit(rule=>rule.steps[index].resource=value,false)});
+   }
+   const controls=node("div",undefined,"actions");
+   for(const [offset,label] of [[-1,"Move step up"],[1,"Move step down"]]){
+    const move=button(label,()=>ruleEdit(rule=>{
+     const next=index+offset;
+     [rule.steps[next],rule.steps[index]]=[rule.steps[index],rule.steps[next]];
+    }));
+    move.disabled=index+offset<0||index+offset>=active.steps.length;
+    controls.append(move);
+   }
+   const remove=button("Remove step",()=>ruleEdit(rule=>rule.steps.splice(index,1)));
+   remove.disabled=active.steps.length===1;
+   controls.append(remove);box.append(controls);editor.append(box);
+  });
+  const addStep=button("Add step",()=>ruleEdit(rule=>rule.steps.push({type:"exhaust",controller:"opponent"})));
+  addStep.disabled=active.steps.length>=8;
+  editor.append(addStep,button("Remove ability",()=>edit(m=>{
+   m.workshopRules=m.workshopRules.filter(rule=>rule.id!==active.id);
+   for(const [id,effect] of Object.entries(m.effects))if(effect.workshopRule===active.id)delete m.effects[id];
+  })));
+  const previewList=node("ol");
+  const summary=node("p");
+  preview.append(node("h3","Rules preview"),summary,previewList);
+  refreshDetails=()=>{
+   const source=cardOptions.find(([id])=>id===active.card)?.[1]??"Choose a card";
+   const cost=active.cost?" Pay "+active.cost+" "+active.resource+".":"";
+   summary.textContent=active.name+" · "+source+" can use this ability once per turn while on the battlefield."+cost;
+   previewList.replaceChildren();
+   for(const step of active.steps){
+    const target={self:" you control",opponent:" the opponent controls",any:" on either side"}[step.controller]??"";
+    const text=step.type==="exhaust"?"Exhaust one ready card"+target+".":
+     step.type==="ready"?"Ready one exhausted card"+target+".":
+     step.type==="draw"?"Draw "+step.amount+" card"+(step.amount===1?"":"s")+".":
+     "Restore "+step.amount+" "+step.resource+".";
+    previewList.append(node("li",text));
+   }
+  };
+  refreshDetails();
+  columns.append(editor,preview);panel.append(columns);
+ }
  function render(){
   root.replaceChildren();
   refreshDetails=null;
@@ -453,21 +545,21 @@ function workshop(checkpoint){
    saveLibraryModule(draft,saved);report("Checkpoint saved. Card Battle now uses this revision.");
   }),button("Validate",()=>{
    prepare(draft,deckSlots(draft).map(decks=>decks[0]));report("Draft is ready to play.");
-  }),button("Playtest",()=>{if(persist())setup(structuredClone(draft),true,route("workshop")+"&"+new URLSearchParams({tab,card:cardId??"",deck:deckIndex}))},"primary"));
+  }),button("Playtest",()=>{if(persist())setup(structuredClone(draft),true,route("workshop")+"&"+new URLSearchParams({tab,card:cardId??"",deck:deckIndex,rule:ruleId??""}))},"primary"));
   title("Workshop",draft.name,controls);
   const tabs=node("nav",undefined,"tabs");tabs.setAttribute("aria-label","Workshop sections");
-  for(const name of ["Overview","Cards","Decks","Board","Rules"]){
+  for(const name of ["Overview","Cards","Decks","Board","Rules","Rule composer"]){
    const b=button(name,()=>{tab=name;render()});b.setAttribute("aria-selected",String(name===tab));tabs.append(b);
   }
   root.append(tabs);
   const panel=node("section",undefined,"panel");
   panel.append(node("h2",tab));
-  ({Overview:overview,Cards:cards,Decks:decks,Board:board,Rules:rules})[tab](panel);
+  ({Overview:overview,Cards:cards,Decks:decks,Board:board,Rules:rules,"Rule composer":composer})[tab](panel);
   root.append(panel);
   const links=node("div",undefined,"actions section-space");
-  links.append(button("Export draft ZIP",()=>download(draft)),button("Advanced Workshop",()=>{
+  links.append(button("Export draft ZIP",()=>download(draft)),button("Full rules editor",()=>{
    if(!persist())return;
-   stagePlaytest(draft.decks?.length?prepare(draft,deckSlots(draft).map(decks=>decks[0])):compileBasic(draft));
+   stagePlaytest(draft.decks?.length?prepare(draft,deckSlots(draft).map(decks=>decks[0])):compileWorkshopRules(compileBasic(draft)));
    location.href="module-editor.html?resume=1&workshop=1&saved="+encodeURIComponent(saved);
   }));
   root.append(links);report("");

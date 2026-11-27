@@ -1,6 +1,7 @@
 // Portable generalized modules. ZIP dependency injected for browser and Node tests.
 import {assertModuleV2} from "./kernel/module-v2.js";
 import {createMatch} from "./kernel/runtime.js";
+import {compileWorkshopRules} from "./rule-composer.js";
 const MAX_ZIP=32*1024*1024,MAX_EXPANDED=40*1024*1024,MAX_ART=400000;
 const check=(ok,msg)=>{if(!ok)throw Error(msg)};
 const artPattern=/^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
@@ -15,7 +16,7 @@ export function migrateModule(input){
  return m;
 }
 export function validatePortable(input){
- const m=migrateModule(input);assertModuleV2(m);createMatch(m);
+ const m=compileWorkshopRules(migrateModule(input));assertModuleV2(m);createMatch(m);
  for(const [id,p] of Object.entries(m.cardPresentation??{})){
   check(safeId(id)&&m.definitions.includes(id),"Invalid artwork definition");
   if(p.art){const match=artPattern.exec(p.art);check(match&&match[2].length<=MAX_ART*4/3+4,"Invalid or oversized artwork")}

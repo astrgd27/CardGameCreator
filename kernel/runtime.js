@@ -47,6 +47,7 @@ function actionLimit(m,actor,type){const cap=m.rules.actionPolicy?.limits?.[type
 function countAction(m,actor,type){if(m.rules.actionPolicy?.limits?.[type]===undefined)return;m.actionUses??={};m.actionUses[actor]??={};m.actionUses[actor][type]=(m.actionUses[actor][type]??0)+1}
 function eligible(m,actor,id,e,source){
  if(e.activeOnly&&actor!==m.timing.active)return false;
+ if(e.requireInitialTarget&&!selectCards(m.state,actor,{...e.program[0].selector,targetable:true,limit:1}).length)return false;
  if(e.roomInZone){const z=m.state.zones[e.roomInZone];if(z.cards.length>=z.capacity)return false;}
  if(e.counterEffect&&!m.timing.queue.some(q=>q.actor!==actor&&(!e.counterEffect.effects||e.counterEffect.effects.includes(q.effect))))return false;
  if(e.negateSummon&&!m.timing.queue.some(q=>q.actor!==actor&&m.rules.effects[q.effect]?.summon))return false;
