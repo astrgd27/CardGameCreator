@@ -57,8 +57,8 @@ test("custom module library survives reload and launches a playable match",async
 });
 test("workshop exposes generalized module editor",async({page})=>{
  await page.goto("/");
- await page.getByRole("link",{name:"Create module",exact:true}).click();
- await expect(page.getByRole("heading",{name:"Generalized module editor"})).toBeVisible();
+ await page.getByRole("link",{name:"New module",exact:true}).click();
+ await expect(page.getByRole("heading",{name:"New module",exact:true})).toBeVisible();
 });
 
 test("card designer and deck builder propagate to a custom match",async({page})=>{

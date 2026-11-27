@@ -227,3 +227,18 @@ test("prize selection allows a non-top card without revealing its definition",()
  assert.deepEqual(m.pending.options,ids);
  assert.equal(m.pending.labels,undefined);
 });
+
+test("full battlefield removes crystal deployment and both AI seats advance the turn",()=>{
+ const rules=referenceModules()[1];
+ const field=rules.zones.find(z=>z.id==="field");
+ field.capacity=rules.setup.filter(c=>c.zone==="field").length;
+ let match=createMatch(rules);
+ assert.ok(!matchView(match,"a").activations.some(a=>a.effect==="channel-a"));
+ for(let step=0;step<160&&match.turn===1&&!match.result;step++){
+  const actor=decisionActor(match);
+  const action=chooseStrategicAction(match,actor,{difficulty:"easy"});
+  assert.ok(action);
+  match=applyMatchAction(match,actor,action).match;
+ }
+ assert.ok(match.turn>1||match.result,"computer seats must leave the opening turn");
+});

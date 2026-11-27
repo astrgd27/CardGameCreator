@@ -12,6 +12,17 @@ const $=id=>document.getElementById(id);
 let module=demoModule();
 if(new URLSearchParams(location.search).has("resume")){try{module=readPlaytest()??module;const id=new URLSearchParams(location.search).get("saved");if(id&&readLibrary().some(x=>x.id===id))savedId=id}catch{}}
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n};
+const productWorkshop=new URLSearchParams(location.search).has("workshop")&&savedId;
+const workshopUrl=productWorkshop&&"index.html?view=workshop&saved="+encodeURIComponent(savedId);
+if(productWorkshop){
+ const nav=document.querySelector("main");
+ nav.querySelector("a").href=workshopUrl;
+ nav.querySelector("a").textContent="Back to Workshop";
+ for(const url of ["module-home.html","evidence.html"])nav.querySelector('a[href="'+url+'"]').hidden=true;
+}
+function saveWorkshopDraft(){
+ localStorage.setItem("tcg-draft-"+productWorkshop,JSON.stringify(module));
+}
 function status(text){$("editor-status").textContent=text}
 function sync(){ $("source").value=JSON.stringify(module,null,2); }
 
@@ -265,7 +276,7 @@ function advancedPolicies(key,section){
 
 
 function deckEditor(section){
- section.append(actionButton("Open visual deck workshop",()=>{try{stagePlaytest(module);location.href="deck-workshop.html"+(savedId?"?saved="+encodeURIComponent(savedId):"")}catch(e){status(e.message)}}));
+ section.append(actionButton("Open visual deck workshop",()=>{try{stagePlaytest(module);location.href="deck-workshop.html"+(savedId?"?saved="+encodeURIComponent(savedId)+(productWorkshop?"&workshop=1":""):"")}catch(e){status(e.message)}}));
  module.deckRules??={min:1,max:40,copies:4};module.decks??=[];
  const rules=module.deckRules;
  field(section,"Minimum deck size",rules.min,"number",v=>rules.min=v);
@@ -491,10 +502,10 @@ function libraryRefresh(){
 }
 function libraryAction(fn){try{fn()}catch(e){status("Library error: "+e.message)}}
 $("loadSaved").onclick=()=>libraryAction(()=>{const item=readLibrary().find(x=>x.id===$("library").value);if(!item)throw Error("Choose a saved module");if(!confirm("Replace current draft with saved module?"))return;module=item.module;savedId=item.id;render();valid()});
-$("saveSaved").onclick=()=>libraryAction(()=>{if(!valid())return;savedId=saveLibraryModule(module,savedId);libraryRefresh();status("Module saved locally.")});
+$("saveSaved").onclick=()=>libraryAction(()=>{if(!valid())return;if(productWorkshop)saveWorkshopDraft();savedId=saveLibraryModule(module,savedId);libraryRefresh();status("Module saved locally.")});
 $("duplicateSaved").onclick=()=>libraryAction(()=>{if(!valid())return;savedId=saveLibraryModule(module);libraryRefresh();status("Module saved as copy.")});
 $("deleteSaved").onclick=()=>libraryAction(()=>{const id=$("library").value;if(!id||!confirm("Delete this saved module?"))return;deleteLibraryModule(id);if(savedId===id)savedId=null;libraryRefresh();status("Saved module deleted; current draft retained.")});
-$("playCustom").onclick=()=>libraryAction(()=>{if(!valid())return;stagePlaytest(module);location.href="duel.html?custom=1"});
+$("playCustom").onclick=()=>libraryAction(()=>{if(!valid())return;if(productWorkshop){saveWorkshopDraft();location.href=workshopUrl.replace("view=workshop","view=playtest");return}stagePlaytest(module);location.href="duel.html?custom=1"});
 libraryAction(libraryRefresh);
 
 render();

@@ -59,10 +59,14 @@ export function candidates(match,actor,v,cap=160){
   const gear=cards(attachment?.zones).filter(c=>c.controller===actor&&c.face==="up");
   for(const g of gear.filter(c=>attachment?.definitions.includes(c.definition)))for(const h of gear.filter(c=>c.id!==g.id&&!attachment.definitions.includes(c.definition)))add({type:"attach",id:g.id,host:h.id},2);
  }
- if(!v.windowClosed&&!v.queue.length)for(const a of v.activations??[]){
+ if(!v.windowClosed)for(const a of v.activations??[]){
   const e=match.rules.effects[a.effect];
   // Do not repeatedly queue the same source/effect while awaiting resolution.
   if(v.queue.some(q=>q.actor===actor&&q.effect===a.effect))continue;
+  const recent=match.uses?.[JSON.stringify([actor,a.effect,a.source??null])];
+  // Stop retrying an unresolved action indefinitely when the window remains open.
+  if(recent?.turn===v.turn&&recent.count>=2)continue;
+  if(v.queue.length&&!e.counterEffect&&!e.negateSummon&&!e.windows?.includes(match.rules.scheduler?.responseWindow??"response"))continue;
   if(!a.dynamic&&!a.source&&!e.limit&&!e.requiresCard&&!a.groups.length&&!e.costs?.some(c=>c.kind==="spend"&&c.amount>0)&&!e.alternatives?.find(p=>p.id===a.id)?.costs?.some(c=>c.kind==="spend"&&c.amount>0))continue;
   for(const action of paymentCandidates(a,Math.min(32,cap)))add(action,2);
  }
