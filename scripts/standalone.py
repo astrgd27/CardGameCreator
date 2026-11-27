@@ -5,6 +5,7 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 html = (root / "index.html").read_text()
+html = html.replace('<section id="reference-library" class="box" aria-label="Reference games"></section>\n      ', '').replace('\n    <script type="module" src="reference-home.js"></script>', '')
 style = (root / "style.css").read_text()
 help_page = (root / "help.html").read_text()
 import base64
