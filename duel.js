@@ -167,7 +167,7 @@ function render(schedule=true){
   const candidates=custom?view.state.zones.flatMap(z=>z.cards??[]):field.cards;
   const o=candidates.find(c=>c.id===selected);
   if(o&&o.controller===viewer&&view.active===viewer&&!view.queue.length&&!view.windowClosed){
-   for(const t of targets.filter(t=>t.action.type==="attack")){const target=candidates.find(c=>c.id===t.id);if(target)controls.append(button("Attack "+target.definition+" "+target.id,()=>act(viewer,t.action)))}
+   for(const t of targets.filter(t=>t.action.type==="attack")){const target=candidates.find(c=>c.id===t.id);if(target)controls.append(button("Attack "+target.definition+" "+target.id+(t.action.profile?" · "+t.action.profile:""),()=>act(viewer,t.action)))}
    for(const t of targets.filter(t=>t.action.type==="attach")){const target=candidates.find(c=>c.id===t.id);if(target)controls.append(button("Attach to "+target.definition+" "+target.id,()=>act(viewer,t.action)))}
   }
  }

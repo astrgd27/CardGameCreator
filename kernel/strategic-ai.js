@@ -53,7 +53,7 @@ export function candidates(match,actor,v,cap=160){
   for(const t of c.targets){for(const attacker of c.attackers.filter(id=>(c.targetsByAttacker?.[id]??c.targets).some(x=>x.kind===t.kind&&x.id===t.id)))add({type:"declareCombat",attacks:[{attacker,kind:t.kind,target:t.id}]},3);if(c.attackers.length)add({type:"declareCombat",attacks:c.attackers.filter(id=>(c.targetsByAttacker?.[id]??c.targets).some(x=>x.kind===t.kind&&x.id===t.id)).slice(0,c.max).map(attacker=>({attacker,kind:t.kind,target:t.id}))},4)}
  }else if(v.active===actor&&!v.queue.length&&!v.windowClosed){
   const units=cards(combat?.zones).filter(c=>combat?.stats?.[c.definition]&&!attachment?.definitions.includes(c.definition));
-  for(const a of units.filter(c=>c.controller===actor&&c.orientation==="ready"&&c.face==="up"))for(const d of units.filter(c=>c.controller!==actor&&c.face==="up"))add({type:"attack",attacker:a.id,defender:d.id},1);
+  for(const a of units.filter(c=>c.controller===actor&&c.orientation==="ready"&&c.face==="up"))for(const d of units.filter(c=>c.controller!==actor&&c.face==="up"))for(const p of (combat.attackProfiles?.[a.definition]?.length?combat.attackProfiles[a.definition]:[null]))add({type:"attack",attacker:a.id,defender:d.id,...(p?{profile:p.id}:{})},1);
  }
  if(v.active===actor&&!v.queue.length&&!v.windowClosed){
   const gear=cards(attachment?.zones).filter(c=>c.controller===actor&&c.face==="up");
