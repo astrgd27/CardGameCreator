@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {referenceModules} from "../reference-modules.js";
 import {createMatch,applyMatchAction} from "../kernel/runtime.js";
+import {combatOptions} from "../kernel/group-combat.js";
 import {generate} from "../kernel/dynamic-payments.js";
 test("moving into enemy battlefield opens showdown and resolves simultaneous Might",()=>{
  let m=createMatch(referenceModules()[4]);
@@ -10,6 +11,7 @@ test("moving into enemy battlefield opens showdown and resolves simultaneous Mig
  assert.equal(m.battle.showdown.zone,"ridge");assert.equal(m.battle.reactionActor,"a");
  m=applyMatchAction(m,"a",{type:"combatContinue"}).match;
  m=applyMatchAction(m,"b",{type:"combatContinue"}).match;
+ for(const p of ["a","b"]){const a=combatOptions(m,p).assignments[0];m=applyMatchAction(m,p,{type:"assignDamage",assignments:[{attacker:a.attacker,amounts:[a.power]}]}).match;}
  assert.equal(m.battle,null);assert.ok(m.state.zones["discard-a"].cards.includes("c1"));assert.ok(m.state.zones.ridge.cards.includes("c2"));
 });
 test("distinct rune definitions generate distinct power",()=>{
