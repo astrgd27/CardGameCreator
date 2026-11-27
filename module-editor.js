@@ -397,6 +397,7 @@ function compositeEditor(section){
   field(p,"Stack rule ID",r.id,"text",v=>r.id=v);field(p,"Host definition",r.hostDefinition,"definitions",v=>r.hostDefinition=v);field(p,"Material definition",r.materialDefinition,"definitions",v=>r.materialDefinition=v);
   field(p,"Result definition (blank = material)",r.resultDefinition??"",["",...module.definitions],v=>{if(v)r.resultDefinition=v;else delete r.resultDefinition});
   for(const [k,label] of [["hostZones","Host zones"],["materialZones","Material zones"]])field(p,label,r[k].join(","),"text",v=>r[k]=v.split(",").map(x=>x.trim()).filter(Boolean));
+  field(p,"Minimum evolution turn (blank = unrestricted)",r.minimumTurn??"","text",v=>{if(v==="")delete r.minimumTurn;else r.minimumTurn=Number(v)});
   field(p,"Inherit previous abilities",r.inherit?"yes":"no",["yes","no"],v=>r.inherit=v==="yes");
   for(const k of ["damage","counters","statuses","orientation","controller","attachments"])field(p,"Preserve "+k,(r.preserve??[]).includes(k)?"yes":"no",["yes","no"],v=>{r.preserve=(r.preserve??[]).filter(x=>x!==k);if(v==="yes")r.preserve.push(k)});
  },"stackRules");
