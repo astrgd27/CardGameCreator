@@ -117,3 +117,20 @@ test("summon response prevents deferred deployment",()=>{
  assert.ok(m.state.zones.field.cards.includes("c1"));
  assert.equal(m.timing.queue.length,0);
 });
+
+test("defense position blocks attacks and compares attack against defense",async()=>{
+ const {resolveCombat}=await import("../kernel/combat.js");
+ const m=createMatch(referenceModules()[2]),s=m.state;
+ const attacker=s.zones.field.cards.find(id=>s.objects[id].controller==="a"),defender=s.zones.field.cards.find(id=>s.objects[id].controller==="b");
+ const stats=structuredClone(m.rules.combat.stats);
+ stats[s.objects[attacker].definition]={attack:2,health:10};
+ stats[s.objects[defender].definition]={attack:2,health:10,defense:5};
+ s.objects[defender].position="defense";
+ const config={attacker,defender,stats,positions:true,defeatZones:{a:"discard-a",b:"discard-b"}};
+ const result=resolveCombat(s,config);
+ assert.equal(result.state.objects[attacker].damage,3);
+ assert.equal(result.state.objects[defender].damage,0);
+ assert.equal(s.objects[attacker].damage,0);
+ s.objects[attacker].position="defense";
+ assert.throws(()=>resolveCombat(s,config),/Defensive card/);
+});
