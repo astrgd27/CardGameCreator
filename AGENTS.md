@@ -18,3 +18,6 @@ Read docs/BENCHMARKS.md. Do not count a scenario as supported until an original 
 
 ## Minimize specialist-agent usage
 Management chat may implement focused changes directly. Work should inspect only the relevant issue, contracts and files, use existing CI results, avoid duplicate broad audits, and return concise evidence and blockers. Prefer deterministic scripts and tests over repeated AI reasoning.
+
+## Development batch execution
+User directive: maximize completed work per request. Deliver cohesive feature batches including runtime, visual authoring, playable integration, regression tests, documentation and CI validation. Diagnose and fix failures; do not stop after isolated commits or merely because CI is pending when independent non-overlapping work remains. Respect issue ownership and merge approval requirements. Maintain the GitHub Pages deployment from validated main. Report only meaningful milestones and genuine blockers; do not require repeated continuation prompts for routine steps.
