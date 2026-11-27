@@ -148,3 +148,28 @@ test("linked deployment works independently of scales and requires a friendly an
  assert.ok(option);
  assert.ok(payPlan(m.state,"a",plan,option.example).state.zones["discard-a"].cards.includes(option.example[0]));
 });
+
+test("negated summon retains irreversible sacrifice but does not deploy",()=>{
+ const r=referenceModules()[2];
+ r.effects.costSummon={summon:true,nonrefundableCosts:true,available:true,actors:["a"],cardCosts:[{kind:"sacrifice",from:"field",to:"discard-a",count:1}],program:[{type:"move",id:"c5",from:"hand-a",to:"field"}]};
+ r.effects.costNegate={negateSummon:true,available:true,actors:["b"],program:[]};
+ r.chain.speedByEffect.costSummon=1;r.chain.speedByEffect.costNegate=2;
+ let m=createMatch(r);
+ m=applyMatchAction(m,"a",{type:"activate",effect:"costSummon",cards:["c1"]}).match;
+ assert.ok(m.state.zones["discard-a"].cards.includes("c1"));
+ if(m.timing.priority==="a")m=applyMatchAction(m,"a",{type:"pass"}).match;
+ m=applyMatchAction(m,"b",{type:"activate",effect:"costNegate"}).match;
+ for(let i=0;i<8&&m.timing.queue.length;i++)m=applyMatchAction(m,m.timing.priority,{type:"pass"}).match;
+ assert.ok(m.state.zones["discard-a"].cards.includes("c1"));
+ assert.ok(!m.state.zones.field.cards.includes("c5"));
+});
+test("directional link deployment requires a matching arrow",()=>{
+ const m=createMatch(referenceModules()[2]);
+ const anchor=m.state.zones.field.cards.find(id=>m.state.objects[id].controller==="a");
+ const def=m.state.objects[anchor].definition;
+ m.state.attributes[def]={linkRating:2,linkDirections:"N,NE"};
+ const plan={id:"direction",cardCosts:[{kind:"deploy",from:"field",to:"discard-a",count:1,linkedZones:["field"],linkDirection:"S"}]};
+ assert.equal(paymentOptions(m.state,"a",plan),null);
+ plan.cardCosts[0].linkDirection="NE";
+ assert.ok(paymentOptions(m.state,"a",plan));
+});
