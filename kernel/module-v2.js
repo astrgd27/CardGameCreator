@@ -163,6 +163,7 @@ function validateModuleStructure(m){
  }
  if(m.combat?.damageCleanup!==undefined)require(["turn","persistent"].includes(m.combat.damageCleanup),"invalid damage cleanup");
  const expr=e=>{try{validateExpression(e);return true}catch{return false}};
+ for(const r of list(m.moveReplacements??[],"move replacements",100))require(record(r)&&players.includes(r.owner)&&zids.has(r.from)&&zids.has(r.to)&&zids.has(r.destination)&&r.from!==r.destination&&r.to!==r.destination&&Array.isArray(r.definitions)&&r.definitions.length>0&&r.definitions.every(d=>defs.includes(d)),"invalid move replacement");
  if(m.attributes!==undefined)require(record(m.attributes)&&Object.entries(m.attributes).every(([id,a])=>defs.includes(id)&&record(a)&&Object.entries(a).every(([k,v])=>key(k)&&(typeof v==="boolean"||typeof v==="string"&&v.length<=200||Number.isSafeInteger(v)))),"invalid typed attributes");
  for(const r of list(m.permissionRules??[],"permission rules",100))require(record(r)&&["cannotAttack","cannotBlock","cannotBeAttacked","cannotActivate","untargetable","damageImmune"].includes(r.rule)&&expr(r.when),"invalid conditional permission");
  for(const r of m.combat?.modifiers??[])require(r.auraDefinition===undefined||defs.includes(r.auraDefinition)&&Array.isArray(r.auraZones)&&r.auraZones.length>0&&r.auraZones.every(z=>zids.has(z))&&["self","any"].includes(r.auraController??"self"),"invalid continuous aura");
