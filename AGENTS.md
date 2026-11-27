@@ -21,3 +21,6 @@ Management chat may implement focused changes directly. Work should inspect only
 
 ## Development batch execution
 User directive: maximize completed work per request. Deliver cohesive feature batches including runtime, visual authoring, playable integration, regression tests, documentation and CI validation. Diagnose and fix failures; do not stop after isolated commits or merely because CI is pending when independent non-overlapping work remains. Respect issue ownership and merge approval requirements. Maintain the GitHub Pages deployment from validated main. Report only meaningful milestones and genuine blockers; do not require repeated continuation prompts for routine steps.
+
+## Published product acceptance
+User directive: the GitHub Pages website is the primary product and user testing surface. Every new gameplay or authoring feature must be accessible through the published homepage and its normal navigation, not merely implemented in kernel code, fixtures, or hidden preview pages. Include browser acceptance tests exercising the actual user-facing path on desktop and iPad. After approved merges, verify deployment and report the live URL and any unverified deployment status. Do not count inaccessible features as delivered.
