@@ -15,6 +15,13 @@ export function payPlan(state,actor,plan,ids=[]){
   check(chosen.every(id=>eligible.includes(id)&&materialEligible(next,id,cost)),"Invalid payment card");
   if(cost.totalLevel!==undefined)check(chosen.reduce((n,id)=>n+(next.attributes?.[next.objects[id].definition]?.level??0),0)===cost.totalLevel,"Incorrect material level total");
   if(cost.totalRating!==undefined){let sums=new Set([0]);for(const id of chosen){const rating=next.attributes?.[next.objects[id].definition]?.linkRating??1;sums=new Set([...sums].flatMap(n=>[n+1,n+rating]))}check(sums.has(cost.totalRating),"Incorrect material rating total")}
+  if(cost.kind==="material"&&cost.hostBinding==="source"){
+   const host=next.objects[cost.attachedTo];
+   check(host&&host.controller===actor,"Invalid material host");
+   const origin=Object.values(next.zones).find(z=>z.cards.includes(host.id));
+   check(origin,"Missing material host zone");
+   if(origin.id!==cost.to){const moved=moveWithAttachments(next,{id:host.id,from:origin.id,to:cost.to,face:"up"});next=moved.state;events.push(...moved.events)}
+  }
   for(const id of chosen){if(cost.kind==="detach"){const d=detachCard(next,id);next=d.state;events.push(...d.events)}const r=moveWithAttachments(next,{id,from:cost.from,to:cost.to,face:"up"});next=r.state;if(cost.kind==="material"){const host=next.objects[cost.attachedTo];check(host&&host.controller===actor&&next.zones[cost.to].cards.includes(host.id),"Invalid material host");const attached=attachCard(next,{id,host:host.id,onHostMove:"follow"});next=attached.state;events.push(...attached.events)}events.push(...r.events,{type:cost.kind==="detach"?"materialDetached":cost.kind==="discard"?"cardDiscarded":"cardSacrificed",id,actor})}
  }
  check(offset===ids.length,"Unexpected payment cards");return {state:next,events};
