@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Check browser entry point syntax
+        run: node --check module-editor.js && node --check duel.js && node --check app.js
       - run: npm test
       - run: node scripts/benchmark-report.mjs
       - run: python scripts/standalone.py /tmp/CardGameCreator.html
