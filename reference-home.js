@@ -10,7 +10,7 @@ for(const m of referenceModules()){
  const section=make("section");section.className="box";
  section.append(make("h3",m.name),make("p",m.referenceDescription??m.description));
  const actions=make("div");actions.className="pieces";
- for(const [label,url] of [["Play","duel.html?custom=1"],["Edit","module-editor.html?resume=1"]]){
+ for(const [label,url] of [["Play","play.html"],["Edit","module-editor.html?resume=1"]]){
   const b=make("button",label);b.setAttribute("aria-label",label+" "+m.name);
   b.onclick=()=>{try{stagePlaytest(m);location.href=url}catch(e){status.textContent=e.message}};actions.append(b);
  }
