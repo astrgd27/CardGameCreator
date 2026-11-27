@@ -23,6 +23,15 @@ jobs:
       - run: node scripts/benchmark-report.mjs
       - run: python scripts/standalone.py /tmp/CardGameCreator.html
       - run: cmp standalone/CardGameCreator.html /tmp/CardGameCreator.html
+      - name: Build and validate offline distribution
+        run: |
+          python scripts/offline_bundle.py /tmp/CardGameCreator-offline.zip
+          python -m zipfile -t /tmp/CardGameCreator-offline.zip
+          python -c "import zipfile; z=zipfile.ZipFile('/tmp/CardGameCreator-offline.zip'); assert {'index.html','duel.html','module-editor.html','kernel/runtime.js','launch.py'} <= set(z.namelist()); compile(z.read('launch.py'), 'launch.py', 'exec')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CardGameCreator-offline
+          path: /tmp/CardGameCreator-offline.zip
       - name: Install browser test runner
         run: npm install --no-save --package-lock=false @playwright/test@1.56.1
       - run: npx playwright install --with-deps chromium webkit
