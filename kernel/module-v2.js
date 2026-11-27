@@ -148,6 +148,7 @@ function validateModuleStructure(m){
  }}
  const stackIds=new Set();
  for(const r of list(m.stackRules??[],"stack rules",100)){
+  require(r.minimumTurn===undefined||integer(r.minimumTurn)&&r.minimumTurn>=1,"invalid evolution turn");
   require(record(r)&&key(r.id)&&!stackIds.has(r.id)&&defs.includes(r.hostDefinition)&&defs.includes(r.materialDefinition)&&(r.resultDefinition===undefined||defs.includes(r.resultDefinition))&&Array.isArray(r.hostZones)&&r.hostZones.length>0&&r.hostZones.every(z=>zids.has(z))&&Array.isArray(r.materialZones)&&r.materialZones.length>0&&r.materialZones.every(z=>zids.has(z))&&(r.inherit===undefined||typeof r.inherit==="boolean")&&(r.preserve===undefined||Array.isArray(r.preserve)&&r.preserve.every(x=>["damage","counters","statuses","orientation","controller","attachments"].includes(x))),"stack rule: invalid");if(record(r))stackIds.add(r.id);
  }
  const roleIds=new Set();
