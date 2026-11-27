@@ -44,3 +44,19 @@ test("accepting a private life trigger queues and resolves its configured effect
 
 test("detaching a material pays a cost without moving its host",()=>{let m=createMatch(referenceModules()[0]);m=applyMatchAction(m,"a",{type:"attach",id:"c3",host:"c1"}).match;const from=Object.values(m.state.zones).find(z=>z.cards.includes("c3")).id;const plan={id:"detach",cardCosts:[{kind:"detach",from,to:"discard-a",count:1,attachedTo:"c1"}]};assert.deepEqual(paymentOptions(m.state,"a",plan).example,["c3"]);const paid=payPlan(m.state,"a",plan,["c3"]);assert.ok(paid.state.zones[from].cards.includes("c1"));assert.ok(paid.state.zones["discard-a"].cards.includes("c3"));assert.equal(paid.state.attachments.c3,undefined)});
 test("Link rating costs reject an incorrect material total",()=>{const m=createMatch(referenceModules()[2]);const plan={id:"link",cardCosts:[{kind:"sacrifice",from:"field",to:"discard-a",count:2,totalRating:2}]};assert.ok(paymentOptions(m.state,"a",plan));assert.throws(()=>payPlan(m.state,"a",{...plan,cardCosts:[{...plan.cardCosts[0],totalRating:3}]},["c1","c3"]),/rating/)});
+
+test("source-relative detach binds to the activating instance and rejects missing source",async()=>{
+ const {commitDynamic,dynamicOptions}=await import("../kernel/dynamic-payments.js");
+ let m=createMatch(referenceModules()[0]);
+ m=applyMatchAction(m,"a",{type:"attach",id:"c3",host:"c1"}).match;
+ const from=Object.values(m.state.zones).find(z=>z.cards.includes("c3")).id;
+ const plan={id:"detach-source",cardCosts:[{kind:"detach",from,to:"discard-a",count:1,hostBinding:"source"}]};
+ assert.deepEqual(dynamicOptions(m,"a",{},"c1",plan).example,["c3"]);
+ assert.equal(dynamicOptions(m,"a",{},undefined,plan),null);
+ const before=JSON.stringify(m.state);
+ assert.throws(()=>commitDynamic(m,"a",{},"c2",plan,{cards:["c3"]}));
+ assert.equal(JSON.stringify(m.state),before);
+ const paid=commitDynamic(m,"a",{},"c1",plan,{cards:["c3"]});
+ assert.ok(paid.state.zones[from].cards.includes("c1"));
+ assert.ok(paid.state.zones["discard-a"].cards.includes("c3"));
+});
