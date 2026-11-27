@@ -57,8 +57,7 @@ test("custom module library survives reload and launches a playable match",async
 });
 test("workshop exposes generalized module editor",async({page})=>{
  await page.goto("/");
- await page.locator("#modes").getByRole("button",{name:"Play",exact:true}).click();
- await page.getByRole("link",{name:"Generalized module editor",exact:true}).click();
+ await page.getByRole("link",{name:"Create module",exact:true}).click();
  await expect(page.getByRole("heading",{name:"Generalized module editor"})).toBeVisible();
 });
 
