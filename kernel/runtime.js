@@ -45,6 +45,7 @@ function allows(m,type){return !phase(m)||phase(m).actions.includes(type)}
 function actionLimit(m,actor,type){const cap=m.rules.actionPolicy?.limits?.[type];return cap===undefined||(m.actionUses?.[actor]?.[type]??0)<cap}
 function countAction(m,actor,type){if(m.rules.actionPolicy?.limits?.[type]===undefined)return;m.actionUses??={};m.actionUses[actor]??={};m.actionUses[actor][type]=(m.actionUses[actor][type]??0)+1}
 function eligible(m,actor,id,e,source){
+ if(e.negateSummon&&!m.timing.queue.some(q=>q.actor!==actor&&m.rules.effects[q.effect]?.summon))return false;
  if(e.windows&&!e.windows.includes(m.timing.queue.length?(m.rules.scheduler?.responseWindow??"response"):(phase(m)?.window??"main")))return false;
  if(source&&hasRule(m.state,source,"cannotActivate"))return false;
  if(e.sourceDefinition){if(!source||!selectCards(m.state,actor,{zones:e.sourceZones,controller:"self",face:"up"}).filter(id=>inheritedDefinition(m.state.objects[id],e.sourceDefinition)).includes(source))return false}else if(source!==undefined)return false;
@@ -150,6 +151,7 @@ export function applyMatchAction(match,actor,action){
   m.windowClosed=events.some(e=>e.type==="windowClosed");
   if(m.timing.resolving){
    const e=effect(m,m.timing.resolving.effect);
+   if(e.negateSummon){const target=[...m.timing.queue].reverse().find(q=>q.actor!==m.timing.resolving.actor&&m.rules.effects[q.effect]?.summon);if(target){m.timing.queue=m.timing.queue.filter(q=>q.id!==target.id);events.push({type:"summonNegated",id:target.id,actor:m.timing.resolving.actor})}}
    let resolved;try{resolved=beginEffect(m.state,m.timing,e.program,(m.rules.triggers??[]).filter(t=>m.timing.players.includes(t.actor)))}catch(err){const finished=finishResolution(m.timing,m.timing.resolving.id);resolved={state:m.state,timing:finished.timing,pending:null,events:[{type:"effectFizzled",actor:m.timing.resolving.actor},...finished.events]}}events=[...events,...resolve(m,resolved)];
   }break;
  }
