@@ -99,5 +99,77 @@ test("Taste Dimension scale recycling and reserve redeployment",async()=>{
  const option=matchView(m,"a").activations.find(a=>a.effect==="scale-deploy-a"&&a.id==="reserve");
  assert.ok(option);
  m=applyMatchAction(m,"a",{type:"activate",effect:"scale-deploy-a",plan:"reserve",cards:[added.id]}).match;
+ assert.ok(m.state.zones["scale-reserve-a"].cards.includes(added.id));
+ for(let i=0;i<8&&m.timing.queue.length;i++)m=applyMatchAction(m,m.timing.priority,{type:"pass"}).match;
  assert.ok(m.state.zones.field.cards.includes(added.id));
+});
+
+test("summon response prevents deferred deployment",()=>{
+ const r=referenceModules()[2];
+ r.effects.summonTest={summon:true,available:true,actors:["a"],program:[{type:"move",id:"c1",from:"field",to:"discard-a"}]};
+ r.effects.negateTest={negateSummon:true,available:true,actors:["b"],program:[]};
+ r.chain.speedByEffect.summonTest=1;r.chain.speedByEffect.negateTest=2;
+ let m=createMatch(r);
+ m=applyMatchAction(m,"a",{type:"activate",effect:"summonTest"}).match;
+ if(m.timing.priority==="a")m=applyMatchAction(m,"a",{type:"pass"}).match;
+ m=applyMatchAction(m,"b",{type:"activate",effect:"negateTest"}).match;
+ for(let i=0;i<8&&m.timing.queue.length;i++)m=applyMatchAction(m,m.timing.priority,{type:"pass"}).match;
+ assert.ok(m.state.zones.field.cards.includes("c1"));
+ assert.equal(m.timing.queue.length,0);
+});
+
+test("defense position blocks attacks and compares attack against defense",async()=>{
+ const {resolveCombat}=await import("../kernel/combat.js");
+ const m=createMatch(referenceModules()[2]),s=m.state;
+ const attacker=s.zones.field.cards.find(id=>s.objects[id].controller==="a"),defender=s.zones.field.cards.find(id=>s.objects[id].controller==="b");
+ const stats=structuredClone(m.rules.combat.stats);
+ stats[s.objects[attacker].definition]={attack:2,health:10};
+ stats[s.objects[defender].definition]={attack:2,health:10,defense:5};
+ s.objects[defender].position="defense";
+ const config={attacker,defender,stats,positions:true,defeatZones:{a:"discard-a",b:"discard-b"}};
+ const result=resolveCombat(s,config);
+ assert.equal(result.state.objects[attacker].damage,3);
+ assert.equal(result.state.objects[defender].damage,0);
+ assert.equal(s.objects[attacker].damage,0);
+ s.objects[attacker].position="defense";
+ assert.throws(()=>resolveCombat(s,config),/Defensive card/);
+});
+
+test("linked deployment works independently of scales and requires a friendly anchor",()=>{
+ const r=referenceModules()[2];
+ r.effects.linkDeploy={available:true,actors:["a"],cardCosts:[{kind:"deploy",from:"field",to:"discard-a",count:1,linkedZones:["field"]}],program:[]};
+ r.chain.speedByEffect.linkDeploy=1;
+ const m=createMatch(r),plan={id:"default",cardCosts:r.effects.linkDeploy.cardCosts};
+ for(const id of m.state.zones.field.cards)m.state.attributes[m.state.objects[id].definition]={linkRating:0};
+ assert.equal(paymentOptions(m.state,"a",plan),null);
+ const anchor=m.state.zones.field.cards.find(id=>m.state.objects[id].controller==="a");
+ m.state.attributes[m.state.objects[anchor].definition].linkRating=1;
+ const option=paymentOptions(m.state,"a",plan);
+ assert.ok(option);
+ assert.ok(payPlan(m.state,"a",plan,option.example).state.zones["discard-a"].cards.includes(option.example[0]));
+});
+
+test("negated summon retains irreversible sacrifice but does not deploy",()=>{
+ const r=referenceModules()[2];
+ r.effects.costSummon={summon:true,nonrefundableCosts:true,available:true,actors:["a"],cardCosts:[{kind:"sacrifice",from:"field",to:"discard-a",count:1}],program:[{type:"move",id:"c5",from:"hand-a",to:"field"}]};
+ r.effects.costNegate={negateSummon:true,available:true,actors:["b"],program:[]};
+ r.chain.speedByEffect.costSummon=1;r.chain.speedByEffect.costNegate=2;
+ let m=createMatch(r);
+ m=applyMatchAction(m,"a",{type:"activate",effect:"costSummon",cards:["c1"]}).match;
+ assert.ok(m.state.zones["discard-a"].cards.includes("c1"));
+ if(m.timing.priority==="a")m=applyMatchAction(m,"a",{type:"pass"}).match;
+ m=applyMatchAction(m,"b",{type:"activate",effect:"costNegate"}).match;
+ for(let i=0;i<8&&m.timing.queue.length;i++)m=applyMatchAction(m,m.timing.priority,{type:"pass"}).match;
+ assert.ok(m.state.zones["discard-a"].cards.includes("c1"));
+ assert.ok(!m.state.zones.field.cards.includes("c5"));
+});
+test("directional link deployment requires a matching arrow",()=>{
+ const m=createMatch(referenceModules()[2]);
+ const anchor=m.state.zones.field.cards.find(id=>m.state.objects[id].controller==="a");
+ const def=m.state.objects[anchor].definition;
+ m.state.attributes[def]={linkRating:2,linkDirections:"N,NE"};
+ const plan={id:"direction",cardCosts:[{kind:"deploy",from:"field",to:"discard-a",count:1,linkedZones:["field"],linkDirection:"S"}]};
+ assert.equal(paymentOptions(m.state,"a",plan),null);
+ plan.cardCosts[0].linkDirection="NE";
+ assert.ok(paymentOptions(m.state,"a",plan));
 });

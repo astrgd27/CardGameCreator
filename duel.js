@@ -25,7 +25,7 @@ function inspect(o){
  if(!o.definition||inspector.open||preview)return;
  clearTimeout(timer);inspector.replaceChildren();
  const name=cardName(o),stats=match.rules.combat?.stats?.[o.definition];
- inspector.append(el("h2","",name),artwork(o,"inspect-symbol"),el("p","",presentation(o).type??""),el("p","",presentation(o).text??""),el("p","",stats?stats.attack+" attack · "+stats.health+" maximum health":"No combat statistics"),el("p","","Damage: "+o.damage+" · "+o.orientation),el("p","",match.rules.attachment?.definitions?.includes(o.definition)?"Equipment: select this card and a friendly host to attach.":"Unit: select this card and an enemy to attack."),button("Close inspection",()=>inspector.close()));
+ inspector.append(el("h2","",name),artwork(o,"inspect-symbol"),el("p","",presentation(o).type??""),el("p","",presentation(o).text??""),el("p","",stats?stats.attack+" attack · "+stats.health+" maximum health":"No combat statistics"),el("p","","Damage: "+o.damage+" · "+o.orientation+(o.position?" · "+o.position+" position":"")),el("p","",match.rules.attachment?.definitions?.includes(o.definition)?"Equipment: select this card and a friendly host to attach.":"Unit: select this card and an enemy to attack."),button("Close inspection",()=>inspector.close()));
  inspector.showModal();
 }
 inspector.addEventListener("close",()=>scheduleOpponent());
@@ -49,6 +49,7 @@ function card(o,viewer){
  if(stats)b.append(el("span","",stats.attack+" ATK · "+Math.max(0,stats.health-o.damage)+" HP"));
  const host=match.state.attachments?.[o.id]?.host;
  if(host)b.append(el("small","", "Attached to "+host));
+ if(o.position==="defense")b.append(el("small","","Defense position"));
  if(o.orientation==="resting"||o.orientation==="tapped")b.append(el("small","",o.orientation==="tapped"?"Tapped":"Rested"));
  if(o.definition){const badges=el("div","card-state-badges");if(o.token)badges.append(el("span","","Token"));if(o.components?.length){b.classList.add("composite-card");badges.append(el("span","","Stack ×"+(o.components.length+1)));for(const c of o.components)badges.append(el("span","",c.definition+(c.inherit?" · inherited":"")))}for(const k of o.keywords??[])if(!o.statuses?.includes(k))badges.append(el("span","",k));for(const [k,v] of Object.entries(o.counters??{}))badges.append(el("span","",k+" ×"+v));for(const status of o.statuses??[])badges.append(el("span","",status+(o.statusDurations?.[status]?" ("+o.statusDurations[status]+")":"")));if(o.controller!==o.owner)badges.append(el("span","","Controlled by "+o.controller));if(o.face==="down")badges.append(el("span","","Face down"));if(badges.childNodes.length)b.append(badges)}
  if(lastEvents.some(e=>e.id===o.id&&["cardFlipped","cardTransformed"].includes(e.type)))b.classList.add("flipping");

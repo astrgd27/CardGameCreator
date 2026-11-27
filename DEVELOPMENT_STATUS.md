@@ -17,3 +17,6 @@ Initial implementation on issue-1-ci-baseline: CI workflow (Node 22, Python 3.12
 
 ## 2026-11-26 compatibility review
 Verified main: PR #38 squash merge d852a5c45f001db18e12252346e1b0d3682cf616; exact pre-merge CI run 45831065108 succeeded. PR #39 original CI 45831322799 succeeded; reconciled head 719ed6bbd06d90b5d412f5b8c22dd1067a1bc89a requires fresh validation and is not merged. Static review of 25 physical TCGs recorded in docs/TCG_COMPATIBILITY_AUDIT.md; ROADMAP.md amended with priorities and acceptance gates. No new benchmark evidence or measured coverage claimed. Next: general action binding and dynamic payment contracts, then composite cards, authorized hidden decisions and scheduler. Portable v2 module verification remains a parallel foundational gate.
+
+### Specialized summoning and offline distribution (PR #65)
+Initial head b378754 passed full CI including browser tests. Subsequent authoring refinements separate scale and linked deployment requirements, expose summon response policies and defense statistics, and add linked deployment regression coverage. Exact-head validation pending. Remaining fidelity work: directional link geometry, nonrefundable cost separation, full reference-module integration and UI position presentation. Offline ZIP is built and uploaded by CI; Python launcher serves loopback only.

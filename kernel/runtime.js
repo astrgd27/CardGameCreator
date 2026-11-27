@@ -45,6 +45,7 @@ function allows(m,type){return !phase(m)||phase(m).actions.includes(type)}
 function actionLimit(m,actor,type){const cap=m.rules.actionPolicy?.limits?.[type];return cap===undefined||(m.actionUses?.[actor]?.[type]??0)<cap}
 function countAction(m,actor,type){if(m.rules.actionPolicy?.limits?.[type]===undefined)return;m.actionUses??={};m.actionUses[actor]??={};m.actionUses[actor][type]=(m.actionUses[actor][type]??0)+1}
 function eligible(m,actor,id,e,source){
+ if(e.negateSummon&&!m.timing.queue.some(q=>q.actor!==actor&&m.rules.effects[q.effect]?.summon))return false;
  if(e.windows&&!e.windows.includes(m.timing.queue.length?(m.rules.scheduler?.responseWindow??"response"):(phase(m)?.window??"main")))return false;
  if(source&&hasRule(m.state,source,"cannotActivate"))return false;
  if(e.sourceDefinition){if(!source||!selectCards(m.state,actor,{zones:e.sourceZones,controller:"self",face:"up"}).filter(id=>inheritedDefinition(m.state.objects[id],e.sourceDefinition)).includes(source))return false}else if(source!==undefined)return false;
@@ -140,17 +141,26 @@ export function applyMatchAction(match,actor,action){
   const plan=paymentPlans(e).find(p=>p.id===(action.plan??"default"));check(plan,"Unknown payment plan");
   const payment=commitDynamic(m,actor,e,action.source,plan,action);
   const useKey=JSON.stringify([actor,action.effect,action.source??null]);m.uses??={};const old=m.uses[useKey];m.uses[useKey]={turn:m.turn,count:(old?.turn===m.turn?old.count:0)+1,total:(old?.total??0)+1};
-  const entry={actor,effect:action.effect,choices:payment.choices};
+  const deferred=e.summon===true;
+  let immediate=payment,remaining=action.cards??[];
+  if(deferred&&e.nonrefundableCosts){
+   const paidGroups=[],pendingGroups=[],paidCards=[],pendingCards=[];let offset=0;
+   for(const c of plan.cardCosts??[]){const ids=remaining.slice(offset,offset+c.count);offset+=c.count;const later=c.kind==="deploy"||c.kind==="material";(later?pendingGroups:paidGroups).push(c);(later?pendingCards:paidCards).push(...ids)}
+   immediate=commitDynamic(m,actor,e,action.source,{...plan,cardCosts:paidGroups},{...action,cards:paidCards});
+   remaining=pendingCards;
+  }
+  const entry={actor,effect:action.effect,choices:payment.choices,...(deferred?{summonPayment:{source:action.source,plan:plan.id,cards:remaining,payment:action.payment}}:{})};
   const r=m.rules.chain?submitChainLink(m.timing,entry,m.rules.chain):submitEffect(m.timing,entry);
-  m.state=payment.state;m.timing=r.timing;m.windowClosed=false;
-  events=[...r.events,...enqueue(m,payment.events)];break;
+  if(!deferred||e.nonrefundableCosts)m.state=immediate.state;m.timing=r.timing;m.windowClosed=false;
+  events=[...r.events,...(deferred&&!e.nonrefundableCosts?[]:enqueue(m,immediate.events))];break;
  }
  case "pass":{
   const r=passPriority(m.timing,actor);m.timing=r.timing;events=r.events;
   m.windowClosed=events.some(e=>e.type==="windowClosed");
   if(m.timing.resolving){
    const e=effect(m,m.timing.resolving.effect);
-   let resolved;try{resolved=beginEffect(m.state,m.timing,e.program,(m.rules.triggers??[]).filter(t=>m.timing.players.includes(t.actor)))}catch(err){const finished=finishResolution(m.timing,m.timing.resolving.id);resolved={state:m.state,timing:finished.timing,pending:null,events:[{type:"effectFizzled",actor:m.timing.resolving.actor},...finished.events]}}events=[...events,...resolve(m,resolved)];
+   if(e.negateSummon){const target=[...m.timing.queue].reverse().find(q=>q.actor!==m.timing.resolving.actor&&m.rules.effects[q.effect]?.summon);if(target){m.timing.queue=m.timing.queue.filter(q=>q.id!==target.id);events.push({type:"summonNegated",id:target.id,actor:m.timing.resolving.actor})}}
+   let resolved;try{const deferred=m.timing.resolving.summonPayment;let state=m.state,paidEvents=[];if(deferred){const plan=paymentPlans(e).find(p=>p.id===deferred.plan);const paid=commitDynamic(m,m.timing.resolving.actor,e.nonrefundableCosts?{}:e,deferred.source,e.nonrefundableCosts?{...plan,costs:[],cardCosts:(plan.cardCosts??[]).filter(c=>c.kind==="deploy"||c.kind==="material")}:plan,deferred);state=paid.state;paidEvents=paid.events}resolved=beginEffect(state,m.timing,e.program,(m.rules.triggers??[]).filter(t=>m.timing.players.includes(t.actor)));resolved.events=[...paidEvents,...resolved.events]}catch(err){const finished=finishResolution(m.timing,m.timing.resolving.id);resolved={state:m.state,timing:finished.timing,pending:null,events:[{type:"effectFizzled",actor:m.timing.resolving.actor},...finished.events]}}events=[...events,...resolve(m,resolved)];
   }break;
  }
  case "declareCombat":{events=declareCombat(m,actor,action.attacks);break}

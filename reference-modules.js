@@ -101,6 +101,8 @@ function advanced(m,i){
  return m;
 }
 function scaleDeployment(m){
+ m.effects.ritual.summon=true;m.effects.ritual.nonrefundableCosts=true;
+ for(const p of m.players){const id="summon-counter-"+p;m.effects[id]={available:true,actors:[p],negateSummon:true,limit:{scope:"turn",count:1},program:[]};m.chain.speedByEffect[id]=2;}
  for(const p of m.players){
   const hand="hand-"+p,deck="deck-"+p,scales=["scale-low-"+p,"scale-high-"+p];
   for(const [i,z] of scales.entries()){
@@ -122,7 +124,7 @@ function scaleDeployment(m){
   for(const from of ["field",...scales])m.moveReplacements.push({owner:p,from,to:"discard-"+p,destination:extra,definitions:scales});
   m.attributes["recruit-"+p]={level:3};
   const id="scale-deploy-"+p;
-  m.effects[id]={available:true,actors:[p],limit:{scope:"turn",count:1},cardCosts:[{kind:"deploy",from:hand,to:"field",count:1,scaleZones:scales}],alternatives:[{id:"two",cardCosts:[{kind:"deploy",from:hand,to:"field",count:2,scaleZones:scales}]}],program:[]};
+  m.effects[id]={summon:true,available:true,actors:[p],limit:{scope:"turn",count:1},cardCosts:[{kind:"deploy",from:hand,to:"field",count:1,scaleZones:scales}],alternatives:[{id:"two",cardCosts:[{kind:"deploy",from:hand,to:"field",count:2,scaleZones:scales}]}],program:[]};
   m.effects[id].alternatives.push({id:"reserve",cardCosts:[{kind:"deploy",from:extra,to:"field",count:1,scaleZones:scales}]},{id:"mixed",cardCosts:[{kind:"deploy",from:hand,to:"field",count:1,scaleZones:scales},{kind:"deploy",from:extra,to:"field",count:1,scaleZones:scales}]});
   m.chain.speedByEffect[id]=1;
  }

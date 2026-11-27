@@ -11,7 +11,7 @@ export function createTiming(players,{order="lifo",active=players?.[0]}={}){
 function allocate(t,entry){
  requireValue(entry&&validId(entry.effect)&&t.players.includes(entry.actor),"Invalid effect entry");
  requireValue(Number.isSafeInteger(t.nextId)&&t.nextId<Number.MAX_SAFE_INTEGER,"Effect ID exhausted");
- return {id:"e"+t.nextId++,actor:entry.actor,effect:entry.effect,choices:structuredClone(entry.choices??{})};
+ return {id:"e"+t.nextId++,actor:entry.actor,effect:entry.effect,choices:structuredClone(entry.choices??{}),...(entry.summonPayment?{summonPayment:structuredClone(entry.summonPayment)}:{})};
 }
 export function submitEffect(t,entry){
  requireValue(t.resolving===null&&entry?.actor===t.priority,"No priority");
