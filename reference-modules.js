@@ -105,8 +105,8 @@ function retreatAndResponses(m,i){
   const active="active-"+p,bench="bench-"+p,def=p==="a"?"sentinel":"raider";
   if(!m.zones.some(z=>z.id===bench)){m.zones.push({id:bench,owner:p,visibility:"public",capacity:12});m.battlefield.zones.push({zone:bench,label:"Bench "+p,display:"cards",span:2});}
   const reserve=m.setup.filter(c=>c.zone===active&&c.definition===def).slice(1);for(const c of reserve)c.zone=bench;
-  m.attachment.zones.push(bench);
-  m.effects["retreat-"+p]={available:true,actors:[p],sourceDefinition:def,sourceZones:[active],limit:{scope:"turn",count:1},program:[{type:"target",name:"replacement",selector:{zones:[bench],controller:"self",definition:def,face:"up"}},{type:"exchange",first:"source",second:"replacement",from:active,to:bench}]};
+  if(!m.attachment.zones.includes(bench))m.attachment.zones=[...m.attachment.zones,bench];
+  m.effects["retreat-"+p]={available:true,actors:[p],sourceDefinition:def,sourceZones:[active],limit:{scope:"turn",count:1},cardCosts:[{kind:"detach",hostBinding:"source",from:active,to:"discard-"+p,count:1}],program:[{type:"target",name:"replacement",selector:{zones:[bench],controller:"self",definition:def,face:"up"}},{type:"exchange",first:"source",second:"replacement",from:active,to:bench}]};
  }
  if(i===1){
   m.chain={maxLinks:12,minimumResponseSpeed:1,escalate:false,speedByEffect:Object.fromEntries(Object.keys(m.effects).map(id=>[id,1]))};
