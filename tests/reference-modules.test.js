@@ -173,3 +173,17 @@ test("directional link deployment requires a matching arrow",()=>{
  plan.cardCosts[0].linkDirection="NE";
  assert.ok(paymentOptions(m.state,"a",plan));
 });
+
+test("atomic exchange preserves both cards and rejects hostile exchange",async()=>{
+ const {exchangeCards}=await import("../kernel/attachments.js");
+ const m=createMatch(referenceModules()[0]),s=m.state;
+ const a=s.zones["active-a"].cards[0],b=s.zones["bench-a"].cards[0];
+ assert.ok(a&&b);
+ s.objects[a].damage=1;
+ const r=exchangeCards(s,{first:a,second:b,from:"active-a",to:"bench-a",actor:"a"});
+ assert.ok(r.state.zones["active-a"].cards.includes(b));
+ assert.ok(r.state.zones["bench-a"].cards.includes(a));
+ assert.equal(r.state.objects[a].damage,1);
+ assert.ok(s.zones["active-a"].cards.includes(a));
+ assert.throws(()=>exchangeCards(s,{first:a,second:b,from:"active-a",to:"bench-a",actor:"b"}));
+});
