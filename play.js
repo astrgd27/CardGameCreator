@@ -291,7 +291,7 @@ function render(){
  const focused=document.activeElement;
  const focusCard=focused?.dataset.cardId;
  const focusText=focused instanceof HTMLButtonElement?focused.textContent:null;
- const scrollTop=root.querySelector("#table")?.scrollTop??0;
+ const scrollTop=root.querySelector(".board")?.scrollTop??0;
  const scrollRows=new Map(Array.from(root.querySelectorAll("[data-scroll-zone]"),row=>[row.dataset.scrollZone,row.scrollLeft]));
  root.replaceChildren();
  const actor=decisionActor(match),view=matchView(match,human);
@@ -430,7 +430,7 @@ function render(){
    },context.children.length?"":"primary"));
   }
  }
- table.scrollTop=scrollTop;
+ board.scrollTop=scrollTop;
  for(const row of table.querySelectorAll("[data-scroll-zone]"))row.scrollLeft=scrollRows.get(row.dataset.scrollZone)??0;
  if(focusCard)root.querySelectorAll("[data-card-id]").forEach(element=>{if(element.dataset.cardId===focusCard)element.focus({preventScroll:true})});
  else if(focusText)Array.from(root.querySelectorAll("button")).find(b=>b.textContent===focusText)?.focus({preventScroll:true});

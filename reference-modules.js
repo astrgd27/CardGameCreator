@@ -51,7 +51,7 @@ function buildDecks(m,i){
   const destination=i===0?"bench-"+p:"field",resource=i===1?(j===0?"azure":"ruby"):i===3?"momentum":i===4?"rune":"energy";
   for(const d of [id,...(i===0?[base]:[])])m.effects["recruit-"+d+"-"+p]={available:true,actors:[p],sourceDefinition:d,sourceZones:[hand],costs:[{kind:"spend",resource,amount:1}],program:[{type:"move",choice:"source",from:hand,to:destination}]};
   if(i===0){m.combat.attackerDefinitions.push(id);m.combat.defenderDefinitions.push(id);m.attachment.hostDefinitions.push(id);m.combat.attachedCosts[id]={[support]:1};m.attachment.zones.push(hand,"bench-"+p);m.effects["retreat"+p].dynamicPayment.targets[0].selector={zones:["bench-"+p],controller:"self",face:"up"};m.effects["retreat"+p].program[0].selector={zones:["bench-"+p],controller:"self",face:"up"}}
-  if(i===1){m.effects["channel-"+p]={available:true,actors:[p],sourceDefinition:support,sourceZones:[hand],program:[{type:"move",choice:"source",from:hand,to:"field"}]}}
+  if(i===1){m.effects["channel-"+p]={available:true,roomInZone:"field",actors:[p],sourceDefinition:support,sourceZones:[hand],program:[{type:"move",choice:"source",from:hand,to:"field"}]}}
   if(i===2){m.chain.speedByEffect["recruit-"+id+"-"+p]=1}
   if(i===3)m.attachment.hostDefinitions.push(id);
  }

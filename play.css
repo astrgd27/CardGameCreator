@@ -18,3 +18,11 @@ dialog label select,dialog label input{max-width:100%}dialog label{line-height:1
 .card[data-frame=verdant]{background:linear-gradient(145deg,#426448,#192f31);border-color:#84b68c}.card[data-frame=gold]{background:linear-gradient(145deg,#6e5b36,#352a28);border-color:#c6a269}.card[data-frame=arcane]{background:linear-gradient(145deg,#4b5490,#262b50);border-color:#a5ace5}.card[data-frame=crimson]{background:linear-gradient(145deg,#82474e,#422635);border-color:#d58d89}.card[data-frame=steel]{background:linear-gradient(145deg,#526778,#2b353f);border-color:#98b3c8}
 .card.damaged{animation:hit .4s ease-out}@keyframes hit{30%{filter:brightness(1.7);box-shadow:0 0 18px #ff836e}}
 .last-move{display:block;color:#bbc9c6;margin-top:2px}.zone .row{min-height:clamp(125px,16dvh,188px)}.zone:has(.row:empty){background:#101c2544}
+#table{overflow:hidden}
+.board{min-height:0;overflow:auto;align-content:safe center;scrollbar-gutter:stable}
+.zone:has(.row:empty) .row{min-height:52px}
+.zone .row{min-height:clamp(112px,15dvh,174px)}
+.card .art{position:relative;min-height:24px}
+.card .art img{position:absolute;inset:0;object-position:50% 62%}
+@media(max-height:860px){.card .rules{display:none}}
+@media(max-height:680px){.card{width:82px}.hand:not(.opponent) .card{width:87px}.card small{max-height:1.15em;overflow:hidden}}
