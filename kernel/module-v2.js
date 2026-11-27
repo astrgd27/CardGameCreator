@@ -87,6 +87,7 @@ function validateModuleStructure(m){
     require(ok,"effect: invalid state operation "+id);
    }
    else if(op.type==="draw")require(zids.has(op.from)&&zids.has(op.to)&&op.from!==op.to&&integer(op.count)&&op.count<=100,"effect: invalid draw "+id);
+   else if(op.type==="exchange")require(zids.has(op.from)&&zids.has(op.to)&&op.from!==op.to&&choices.has(op.first)&&choices.has(op.second),"effect: invalid exchange "+id);
    else if(op.type==="move")require(zids.has(op.from)&&zids.has(op.to)&&((key(op.id)&&op.choice===undefined)||(op.id===undefined&&choices.has(op.choice))),"effect: invalid move "+id);
    else if(op.type==="resource")require(resources.has(op.resource)&&Number.isSafeInteger(op.delta)&&(op.overflow===undefined||["reject","clamp"].includes(op.overflow)),"effect: invalid resource operation "+id);
    else errors.push("effect: unsupported operation "+id);
