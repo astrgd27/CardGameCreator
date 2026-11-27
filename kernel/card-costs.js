@@ -3,7 +3,15 @@ import {selectCards} from "./selectors.js";
 import {payResources} from "./resources.js";
 import {moveWithAttachments,detachCard,attachCard} from "./attachments.js";
 const check=(ok,msg)=>{if(!ok)throw Error(msg)};
-export function materialEligible(state,id,c){const a=state.attributes?.[state.objects[id].definition]??{};return (c.hostBinding!=="source"||!!c.attachedTo)&&id!==c.attachedTo&&(!c.definition||state.objects[id].definition===c.definition)&&(!c.attribute||a[c.attribute]===c.value)&&(c.kind==="material"||!c.attachedTo||state.attachments?.[id]?.host===c.attachedTo)&&(c.kind!=="detach"||!!state.attachments?.[id])}
+function scaleEligible(state,id,c){
+ if(c.kind!=="deploy")return true;
+ const scales=c.scaleZones.map(z=>state.zones[z]?.cards.filter(x=>state.objects[x].face==="up"&&state.objects[x].controller===state.objects[id].controller&&Number.isFinite(state.attributes?.[state.objects[x].definition]?.scale))??[]);
+ if(scales.some(a=>a.length!==1)||scales.some(a=>a.includes(id)))return false;
+ const [a,b]=scales.map(([x])=>state.attributes[state.objects[x].definition].scale);
+ const level=state.attributes?.[state.objects[id].definition]?.level;
+ return Number.isFinite(level)&&level>Math.min(a,b)&&level<Math.max(a,b);
+}
+export function materialEligible(state,id,c){const a=state.attributes?.[state.objects[id].definition]??{};return scaleEligible(state,id,c)&&(c.hostBinding!=="source"||!!c.attachedTo)&&id!==c.attachedTo&&(!c.definition||state.objects[id].definition===c.definition)&&(!c.attribute||a[c.attribute]===c.value)&&(c.kind==="material"||!c.attachedTo||state.attachments?.[id]?.host===c.attachedTo)&&(c.kind!=="detach"||!!state.attachments?.[id])}
 export function paymentPlans(effect){return [{id:"default",costs:effect.costs??[],cardCosts:effect.cardCosts??[]},...(effect.alternatives??[])]}
 export function payPlan(state,actor,plan,ids=[]){
  check(Array.isArray(ids)&&new Set(ids).size===ids.length,"Duplicate payment cards");
@@ -22,7 +30,7 @@ export function payPlan(state,actor,plan,ids=[]){
    check(origin,"Missing material host zone");
    if(origin.id!==cost.to){const moved=moveWithAttachments(next,{id:host.id,from:origin.id,to:cost.to,face:"up"});next=moved.state;events.push(...moved.events)}
   }
-  for(const id of chosen){if(cost.kind==="detach"){const d=detachCard(next,id);next=d.state;events.push(...d.events)}const r=moveWithAttachments(next,{id,from:cost.from,to:cost.to,face:"up"});next=r.state;if(cost.kind==="material"){const host=next.objects[cost.attachedTo];check(host&&host.controller===actor&&next.zones[cost.to].cards.includes(host.id),"Invalid material host");const attached=attachCard(next,{id,host:host.id,onHostMove:"follow"});next=attached.state;events.push(...attached.events)}events.push(...r.events,{type:cost.kind==="detach"?"materialDetached":cost.kind==="discard"?"cardDiscarded":"cardSacrificed",id,actor})}
+  for(const id of chosen){if(cost.kind==="detach"){const d=detachCard(next,id);next=d.state;events.push(...d.events)}const r=moveWithAttachments(next,{id,from:cost.from,to:cost.to,face:"up"});next=r.state;if(cost.kind==="material"){const host=next.objects[cost.attachedTo];check(host&&host.controller===actor&&next.zones[cost.to].cards.includes(host.id),"Invalid material host");const attached=attachCard(next,{id,host:host.id,onHostMove:"follow"});next=attached.state;events.push(...attached.events)}events.push(...r.events,{type:cost.kind==="detach"?"materialDetached":cost.kind==="discard"?"cardDiscarded":cost.kind==="deploy"?"cardDeployed":"cardSacrificed",id,actor})}
  }
  check(offset===ids.length,"Unexpected payment cards");return {state:next,events};
 }
