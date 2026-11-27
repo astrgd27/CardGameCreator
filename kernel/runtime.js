@@ -18,7 +18,7 @@ import {selectCards} from "./selectors.js";
 import {shuffleZone,drawCards} from "./draw.js";
 import {paymentPlans,payPlan,paymentOptions} from "./card-costs.js";
 import {expireStatuses,cleanupTokens} from "./card-state.js";
-import {combatOptions,declareCombat,advanceBattle,battleActor} from "./group-combat.js";
+import {combatOptions,declareCombat,advanceBattle,battleActor,startShowdown} from "./group-combat.js";
 import {dynamicOptions,commitDynamic,generate,generatorOptions} from "./dynamic-payments.js";
 import {assertModuleV2} from "./module-v2.js";
 const check=(ok,m)=>{if(!ok)throw Error(m)};
@@ -103,7 +103,7 @@ function settleSchedule(m,actor,action,events){
 export function applyMatchAction(match,actor,action){
  check(match.timing.players.includes(actor)&&!match.result&&action&&typeof action.type==="string","Action unavailable");
  const m=structuredClone(match);let events=[];
- const done=events=>{for(const e of events)if(e.type==="turnScheduled"){const s=scheduleState(m),map=s[e.kind];map[e.actor]=Math.min(100,(map[e.actor]??0)+e.count)}const first=finish(m,events);if(first.match.result||m.promotion||m.state.lifeDecisions?.length||!idle(m))return first;const scheduled=settleSchedule(m,actor,action,[]);return scheduled.length?(()=>{const second=finish(m,scheduled);return {match:m,events:[...first.events,...second.events]}})():first};
+ const done=events=>{for(const e of events)if(e.type==="turnScheduled"){const s=scheduleState(m),map=s[e.kind];map[e.actor]=Math.min(100,(map[e.actor]??0)+e.count)}if(events.some(e=>e.type==="windowClosed"||e.type==="combatResolved"))for(const r of m.rules.resources??[])if(r.expireOnWindow){for(const p of r.scope==="shared"?[actor]:m.state.players){const pool=m.state.resourcePools[r.scope==="shared"?"shared":"player-"+p],before=pool[r.id];if(before){pool[r.id]=0;events.push({type:"resourceChanged",actor:p,resource:r.id,before,after:0})}}}const first=finish(m,events);if(first.match.result||m.promotion||m.state.lifeDecisions?.length||!idle(m))return first;const scheduled=settleSchedule(m,actor,action,[]);return scheduled.length?(()=>{const second=finish(m,scheduled);return {match:m,events:[...first.events,...second.events]}})():first};
  if(m.state.lifeDecisions?.length&&!m.pending&&!m.battle&&!m.timing.resolving&&!m.timing.queue.length){const p=m.state.lifeDecisions[0];check(actor===p.actor&&action.type==="choose"&&["accept","decline"].includes(action.value),"Invalid life trigger decision");m.state.lifeDecisions.shift();if(action.value==="accept"){check(m.state.zones[p.zone].cards.includes(p.id),"Life trigger source unavailable");const r=enqueueTriggers(m.timing,[{actor,effect:p.effect,choices:{source:p.id}}]);m.timing=r.timing;return finish(m,r.events)}return finish(m,[{type:"lifeTriggerDeclined",actor}])}
  if(m.promotion){const p=m.promotion;check(actor===p.actor&&action.type==="choose"&&p.options.includes(action.value),"Invalid reserve replacement");const r=moveWithAttachments(m.state,{id:action.value,from:p.reserve,to:p.active});m.state=r.state;delete m.promotion;return finish(m,enqueue(m,[{type:"replacementPromoted",actor,id:action.value},...r.events]))}
  if(m.openingQueue?.length){
@@ -135,7 +135,7 @@ export function applyMatchAction(match,actor,action){
  switch(action.type){
  case "claimInitiative":{check(scheduleView(m,actor)?.canClaim,"Initiative unavailable");ss.initiative=actor;if(policy.mode==="alternate"){if(!ss.passed.includes(actor))ss.passed.push(actor);ss.handoff=true}events=[{type:"initiativeClaimed",actor}];break}
  case "passOut":{check(scheduleView(m,actor)?.canPassOut,"Pass out unavailable");if(!ss.passed.includes(actor))ss.passed.push(actor);ss.handoff=true;events=[{type:"playerPassedOut",actor}];break}
- case "moveSpatial":{const r=moveSpatial(m,actor,action);m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break}
+ case "moveSpatial":{const r=moveSpatial(m,actor,action);m.state=r.state;const showdown=startShowdown(m,actor,action.to);if(showdown.length){events=[...r.events,...showdown];m.combatEvents=events}else events=enqueue(m,r.events);m.timing.passes=0;break}
  case "stack":{const r=stackCard(m,actor,action);m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break}
  case "generate":{check(allows(m,"activate")&&!m.windowClosed,"Generation unavailable");const r=generate(m,actor,action);m.state=r.state;events=enqueue(m,r.events);m.timing.passes=0;break}
  case "activate":{
