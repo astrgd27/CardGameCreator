@@ -102,7 +102,7 @@ function validateModuleStructure(m){
   for(const e of Object.values(effects))if(e?.phases!==undefined)require(Array.isArray(e.phases)&&e.phases.every(id=>ids.has(id)),"effect: invalid phase restriction");
  }
  if(m.triggerOrder!==undefined)require(["fixed","player","owner"].includes(m.triggerOrder),"invalid trigger ordering");
- const generatorIds=new Set();for(const g of list(m.generators??[],"generators",100)){require(record(g)&&key(g.id)&&!generatorIds.has(g.id)&&defs.includes(g.definition)&&Array.isArray(g.zones)&&g.zones.length>0&&g.zones.every(z=>zids.has(z))&&resources.has(g.resource)&&integer(g.amount)&&g.amount>=1&&g.amount<=100,"invalid resource generator");if(record(g))generatorIds.add(g.id)}
+ const generatorIds=new Set();for(const g of list(m.generators??[],"generators",100)){require(record(g)&&key(g.id)&&!generatorIds.has(g.id)&&defs.includes(g.definition)&&Array.isArray(g.zones)&&g.zones.length>0&&g.zones.every(z=>zids.has(z))&&resources.has(g.resource)&&(g.recycleTo===undefined||zids.has(g.recycleTo)&&!g.zones.includes(g.recycleTo))&&integer(g.amount)&&g.amount>=1&&g.amount<=100,"invalid resource generator");if(record(g))generatorIds.add(g.id)}
  const triggers=new Set();
  for(const t of list(m.triggers??[],"triggers")){
   require(record(t)&&key(t.id)&&!triggers.has(t.id)&&key(t.event)&&Object.hasOwn(effects,t.effect)&&players.includes(t.actor),"trigger: invalid reference");
@@ -116,7 +116,7 @@ function validateModuleStructure(m){
  }
  if(record(m.attachment))require(Array.isArray(m.attachment.definitions)&&m.attachment.definitions.every(d=>defs.includes(d))&&["detach","follow","reject"].includes(m.attachment.onHostMove??"detach")&&integer(m.attachment.max??1),"attachment: invalid configuration");
  for(const p of list(m.replacementPolicies??[],"replacement policies",20)){require(record(p)&&players.includes(p.player)&&p.active!==p.reserve&&zones.some(z=>z.id===p.active&&z.owner===p.player)&&zones.some(z=>z.id===p.reserve&&z.owner===p.player)&&Array.isArray(p.definitions)&&p.definitions.length>0&&p.definitions.every(d=>defs.includes(d))&&(p.choose===undefined||typeof p.choose==="boolean"),"invalid replacement policy")}
- for(const p of list(m.resourceDrawPolicies??[],"resource draw policies",20)){const from=m.zones.find(z=>z.id===p.deck),to=m.zones.find(z=>z.id===p.pool);require(record(p)&&players.includes(p.player)&&from?.owner===p.player&&from?.visibility==="hidden"&&to?.owner===p.player&&to?.visibility==="public"&&integer(p.perTurn)&&p.perTurn<=10&&(p.returnAssigned===undefined||defs.includes(p.returnAssigned)),"invalid resource draw policy")}
+ for(const p of list(m.resourceDrawPolicies??[],"resource draw policies",20)){const from=m.zones.find(z=>z.id===p.deck),to=m.zones.find(z=>z.id===p.pool);require(record(p)&&players.includes(p.player)&&from?.owner===p.player&&from?.visibility==="hidden"&&to?.owner===p.player&&to?.visibility==="public"&&integer(p.perTurn)&&p.perTurn<=10&&[p.opening,p.secondSeatBonus].every(n=>n===undefined||integer(n)&&n>=0&&n<=10)&&(p.shuffle===undefined||typeof p.shuffle==="boolean")&&(p.recycleResting===undefined||typeof p.recycleResting==="boolean")&&(p.returnAssigned===undefined||defs.includes(p.returnAssigned)),"invalid resource draw policy")}
  const drawPlayers=new Set();
  for(const p of list(m.drawPolicies??[],"drawPolicies",8)){
   const deck=zones.find(z=>z?.id===p?.deck),hand=zones.find(z=>z?.id===p?.hand);
@@ -165,7 +165,7 @@ function validateModuleStructure(m){
  const g=m.combat?.group;
  if(g){require((g.comparison===undefined||["damage","power"].includes(g.comparison))&&(g.overflow===undefined||typeof g.overflow==="boolean")&&(g.intercept===undefined||["all","direct"].includes(g.intercept))&&(g.damageType===undefined||key(g.damageType)),"invalid extended combat policy");
  require(g.twoSidedReactions===undefined||typeof g.twoSidedReactions==="boolean","invalid two-sided reactions");
- const ids=new Set();for(const r of list(g.reactions??[],"combat reactions",20)){require(record(r)&&key(r.id)&&!ids.has(r.id)&&defs.includes(r.definition)&&Array.isArray(r.zones)&&r.zones.length>0&&r.zones.every(z=>zids.has(z))&&zids.has(r.destination)&&!r.zones.includes(r.destination)&&integer(r.amount)&&r.amount<=100,"invalid combat reaction");if(record(r))ids.add(r.id)}
+ const ids=new Set();for(const r of list(g.reactions??[],"combat reactions",20)){require(record(r)&&key(r.id)&&!ids.has(r.id)&&defs.includes(r.definition)&&Array.isArray(r.zones)&&r.zones.length>0&&r.zones.every(z=>zids.has(z))&&zids.has(r.destination)&&!r.zones.includes(r.destination)&&(r.side===undefined||["attacker","defender"].includes(r.side))&&(r.costs===undefined||Array.isArray(r.costs)&&r.costs.length<=10&&r.costs.every(c=>c.kind==="spend"&&resources.has(c.resource)&&integer(c.amount)&&c.amount>=0&&c.amount<=100))&&integer(r.amount)&&r.amount<=100,"invalid combat reaction");if(record(r))ids.add(r.id)}
  }
  if(m.combat?.damageCleanup!==undefined)require(["turn","persistent"].includes(m.combat.damageCleanup),"invalid damage cleanup");
  const expr=e=>{try{validateExpression(e);return true}catch{return false}};

@@ -1,4 +1,5 @@
 // Trusted declarative dynamic costs; clients submit only choices, never prices.
+import {moveWithAttachments} from "./attachments.js";
 import {hasRule} from "./keywords.js";
 import {selectCards} from "./selectors.js";
 import {payPlan,paymentOptions,materialEligible} from "./card-costs.js";
@@ -30,12 +31,13 @@ function structuralOptions(m,actor,e,source,plan){
  return {id:plan.id,groups,example,dynamic:{targets,modes,hybrid,xMin,xMax,generators}};
 }
 export function generatorOptions(m,actor){
- return (m.rules.generators??[]).flatMap(g=>selectCards(m.state,actor,{zones:g.zones,controller:"self",definition:g.definition,face:"up",orientation:"ready"}).filter(id=>!hasRule(m.state,id,"cannotActivate")).filter(id=>{const r=m.state.resourceRules[g.resource],pool=m.state.resourcePools[r.scope==="shared"?"shared":"player-"+actor];return pool[g.resource]+g.amount<=r.max}).map(id=>({id,generator:g.id,resource:g.resource,amount:g.amount})));
+ return (m.rules.generators??[]).flatMap(g=>selectCards(m.state,actor,{zones:g.zones,controller:"self",definition:g.definition,face:"up",...(g.recycleTo?{}:{orientation:"ready"})}).filter(id=>!hasRule(m.state,id,"cannotActivate")&&(!g.recycleTo||(m.state.zones[g.recycleTo].owner===actor&&m.state.zones[g.recycleTo].cards.length<m.state.zones[g.recycleTo].capacity))).filter(id=>{const r=m.state.resourceRules[g.resource],pool=m.state.resourcePools[r.scope==="shared"?"shared":"player-"+actor];return pool[g.resource]+g.amount<=r.max}).map(id=>({id,generator:g.id,resource:g.resource,amount:g.amount,recycleTo:g.recycleTo})));
 }
 export function generate(m,actor,selection){
  const g=generatorOptions(m,actor).find(x=>x.id===selection.id&&x.generator===selection.generator);
  check(g,"Invalid resource generator");
  const r=changeResource(m.state,actor,g.resource,g.amount,{overflow:"reject"});
+ if(g.recycleTo){const from=Object.values(r.state.zones).find(z=>z.cards.includes(g.id)).id;const moved=moveWithAttachments(r.state,{id:g.id,from,to:g.recycleTo,face:"down",reset:true});return {state:moved.state,events:[...r.events,...moved.events]}}
  r.state.objects[g.id].orientation="resting";
  return {state:r.state,events:[{type:"orientationChanged",id:g.id,orientation:"resting"},...r.events]};
 }
