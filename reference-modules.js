@@ -100,6 +100,20 @@ function advanced(m,i){
  for(const [id,c] of Object.entries(m.cardPresentation)){if(c.tags.includes("spore"))c.symbol="✿";else if(c.tags.includes("spark"))c.symbol="ϟ";else if(c.tags.includes("momentum"))c.symbol="★";else if(c.tags.includes("rune"))c.symbol="◇";}
  return m;
 }
+function retreatAndResponses(m,i){
+ if(i===0)for(const p of m.players){
+  const active="active-"+p,bench="bench-"+p,def=p==="a"?"sentinel":"raider";
+  if(!m.zones.some(z=>z.id===bench)){m.zones.push({id:bench,owner:p,visibility:"public",capacity:12});m.battlefield.zones.push({zone:bench,label:"Bench "+p,display:"cards",span:2});}
+  const reserve=m.setup.filter(c=>c.zone===active&&c.definition===def).slice(1);for(const c of reserve)c.zone=bench;
+  m.attachment.zones.push(bench);
+  m.effects["retreat-"+p]={available:true,actors:[p],sourceDefinition:def,sourceZones:[active],limit:{scope:"turn",count:1},program:[{type:"target",name:"replacement",selector:{zones:[bench],controller:"self",definition:def,face:"up"}},{type:"exchange",first:"source",second:"replacement",from:active,to:bench}]};
+ }
+ if(i===1){
+  m.chain={maxLinks:12,minimumResponseSpeed:1,escalate:false,speedByEffect:Object.fromEntries(Object.keys(m.effects).map(id=>[id,1]))};
+  for(const p of m.players){const id="crystal-response-"+p;m.effects[id]={available:true,actors:[p],costs:[{kind:"spend",resource:"energy",amount:1}],program:[{type:"resource",resource:"life",delta:1,overflow:"clamp"}]};m.chain.speedByEffect[id]=2;}
+ }
+ return m;
+}
 function scaleDeployment(m){
  m.effects.ritual.summon=true;m.effects.ritual.nonrefundableCosts=true;
  for(const p of m.players){const id="summon-counter-"+p;m.effects[id]={available:true,actors:[p],negateSummon:true,limit:{scope:"turn",count:1},program:[]};m.chain.speedByEffect[id]=2;}
@@ -130,5 +144,5 @@ function scaleDeployment(m){
  }
  return m;
 }
-export function referenceModules(){return [creatures(),spells(),chains(),crews(),domains()].map((m,i)=>{m.cardPresentation=structuredClone(skins[i]);const result=advanced(addTactics(buildDecks(expand(m,i),i),i),i);return i===2?scaleDeployment(result):result})}
+export function referenceModules(){return [creatures(),spells(),chains(),crews(),domains()].map((m,i)=>{m.cardPresentation=structuredClone(skins[i]);const result=advanced(addTactics(buildDecks(expand(m,i),i),i),i);return i===2?scaleDeployment(result):retreatAndResponses(result,i)})}
 
