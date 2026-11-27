@@ -91,13 +91,28 @@ function addTactics(m,i){
 function advanced(m,i){
  for(const [j,p] of m.players.entries()){
  const enemy=m.players[1-j],base=j===0?"sentinel":"raider",support=j===0?"blade":"ward",hand="hand-"+p,deck="deck-"+p,discard="discard-"+p;
- if(i===0){m.combat.attackProfiles??={};m.combat.attackProfiles[base]=[{id:"quick-strike",damage:m.combat.stats[base].attack,attachedCosts:{[support]:1}},{id:"charged-strike",damage:5,attachedCosts:{[support]:2}}];const prize="prize-"+p;m.replacementPolicies??=[];m.replacementPolicies.push({player:p,active:"active-"+p,reserve:"bench-"+p,choose:true,definitions:[base,"recruit-"+p,j===0?"puffbloom":"zibbolt"]});m.victory.push({type:"emptyZone",player:enemy,zone:prize});m.zones.push({id:prize,owner:p,visibility:"hidden",capacity:6});for(let k=0;k<6;k++)m.setup.push({definition:support,owner:p,zone:prize,face:"down"});m.effects["prize-"+p]={program:[{type:"draw",from:prize,to:hand,count:1}]};m.triggers.push({id:"prize-"+p,actor:p,event:"combatDefeat",where:{owner:enemy,from:"active-"+enemy},effect:"prize-"+p});}
+ if(i===0){m.combat.attackProfiles??={};m.combat.attackProfiles[base]=[{id:"quick-strike",damage:m.combat.stats[base].attack,attachedCosts:{[support]:1}},{id:"charged-strike",damage:5,attachedCosts:{[support]:2}}];const prize="prize-"+p;m.replacementPolicies??=[];m.replacementPolicies.push({player:p,active:"active-"+p,reserve:"bench-"+p,choose:true,definitions:[base,"recruit-"+p,j===0?"puffbloom":"zibbolt"]});m.victory.push({type:"emptyZone",player:enemy,zone:prize});m.zones.push({id:prize,owner:p,visibility:"hidden",capacity:6});for(let k=0;k<6;k++)m.setup.push({definition:support,owner:p,zone:prize,face:"down"});m.effects["prize-"+p]={program:[{type:"blindChoose",name:"prize",zone:prize},{type:"move",choice:"prize",from:prize,to:hand}]};m.triggers.push({id:"prize-"+p,actor:p,event:"combatDefeat",where:{owner:enemy,from:"active-"+enemy},effect:"prize-"+p});}
  if(i===1){m.combat.modifiers??=[];m.combat.modifiers.push({id:"crystal-aura-"+p,auraDefinition:support,auraZones:["field"],auraController:"self",stat:"attack",op:"add",value:1});m.effects["tactic-"+p].alternatives=[{id:"mixed-crystals",costs:[{kind:"spend",resource:"jade",amount:1},{kind:"spend",resource:"ivory",amount:1}]}];}
  if(i===2){const id="banquet-"+p;m.definitions.push(id);m.cardPresentation[id]=card(j===0?"Grand Banquet Colossus":"Volcanic Feast Dragon","Dish monster · Tribute","gold","Sacrifice a dish to summon this monster.",["monster","tribute"]);m.combat.stats[id]={attack:5,health:6};m.effects[id]={available:true,actors:[p],sourceDefinition:id,sourceZones:[hand],cardCosts:[{kind:"sacrifice",from:"field",to:discard,count:1,definition:base}],program:[{type:"move",choice:"source",from:hand,to:"field"}]};m.chain.speedByEffect[id]=1;const pile=m.setup.filter(c=>c.zone===deck&&c.definition===base);for(const c of pile.slice(0,3))c.definition=id;}
  if(i===3){m.combat.group.lifeCards[p].triggers={[support]:"life-trigger-"+p};m.effects["life-trigger-"+p]={sourceDefinition:support,sourceZones:[hand],program:[{type:"move",choice:"source",from:hand,to:discard},{type:"resource",resource:"momentum",delta:2,overflow:"clamp"}]};m.combat.group.unitDefinitions=["sentinel","raider","recruit-a","recruit-b"];m.effects["encore-"+p]={program:[{type:"resource",resource:"momentum",delta:1,overflow:"clamp"}]};m.triggers.push({id:"encore-"+p,actor:p,event:"combatDefeat",where:{owner:enemy},effect:"encore-"+p});}
  if(i===4){m.combat.group.twoSidedReactions=true;m.combat.group.unitDefinitions=["sentinel","raider","recruit-a","recruit-b"];m.combat.group.reactions??=[];m.combat.group.reactions.push({id:"showdown-"+p,definition:"tactic-"+p,zones:[hand],destination:discard,amount:1});m.effects["showdown-"+p]={available:true,actors:[p],sourceDefinition:base,sourceZones:["ridge","crossing"],costs:[{kind:"spend",resource:"rune",amount:1}],program:[{type:"orient",choice:"source",orientation:"ready"}]};}
  }
  for(const [id,c] of Object.entries(m.cardPresentation)){if(c.tags.includes("spore"))c.symbol="✿";else if(c.tags.includes("spark"))c.symbol="ϟ";else if(c.tags.includes("momentum"))c.symbol="★";else if(c.tags.includes("rune"))c.symbol="◇";}
+ return m;
+}
+function retreatAndResponses(m,i){
+ if(i===0)for(const p of m.players){
+  const active="active-"+p,bench="bench-"+p,def=p==="a"?"sentinel":"raider";
+  if(!m.zones.some(z=>z.id===bench)){m.zones.push({id:bench,owner:p,visibility:"public",capacity:12});m.battlefield.zones.push({zone:bench,label:"Bench "+p,display:"cards",span:2});}
+  const reserve=m.setup.filter(c=>c.zone===active&&c.definition===def).slice(1);for(const c of reserve)c.zone=bench;
+  for(const r of m.stackRules.filter(r=>r.id==="evolve-"+p)){r.minimumTurn=2;r.hostZones=[active,bench];}
+  if(!m.attachment.zones.includes(bench))m.attachment.zones=[...m.attachment.zones,bench];
+  m.effects["retreat-"+p]={available:true,actors:[p],sourceDefinition:def,sourceZones:[active],limit:{scope:"turn",count:1},cardCosts:[{kind:"detach",hostBinding:"source",from:active,to:"discard-"+p,count:1,definition:p==="a"?"blade":"ward"}],program:[{type:"target",name:"replacement",selector:{zones:[bench],controller:"self",definition:def,face:"up"}},{type:"exchange",first:"source",second:"replacement",from:active,to:bench}]};
+ }
+ if(i===1){
+  m.chain={maxLinks:12,minimumResponseSpeed:1,escalate:false,speedByEffect:Object.fromEntries(Object.keys(m.effects).map(id=>[id,1]))};
+  for(const p of m.players){const id="crystal-response-"+p;m.effects[id]={available:true,actors:[p],dynamicPayment:{hybrid:[{resources:["azure","ruby"],amount:1}]},counterEffect:{},program:[]};m.chain.speedByEffect[id]=2;}
+ }
  return m;
 }
 function scaleDeployment(m){
@@ -130,5 +145,5 @@ function scaleDeployment(m){
  }
  return m;
 }
-export function referenceModules(){return [creatures(),spells(),chains(),crews(),domains()].map((m,i)=>{m.cardPresentation=structuredClone(skins[i]);const result=advanced(addTactics(buildDecks(expand(m,i),i),i),i);return i===2?scaleDeployment(result):result})}
+export function referenceModules(){return [creatures(),spells(),chains(),crews(),domains()].map((m,i)=>{m.cardPresentation=structuredClone(skins[i]);const result=advanced(addTactics(buildDecks(expand(m,i),i),i),i);return i===2?scaleDeployment(result):retreatAndResponses(result,i)})}
 

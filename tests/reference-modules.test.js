@@ -173,3 +173,57 @@ test("directional link deployment requires a matching arrow",()=>{
  plan.cardCosts[0].linkDirection="NE";
  assert.ok(paymentOptions(m.state,"a",plan));
 });
+
+test("atomic exchange preserves both cards and rejects hostile exchange",async()=>{
+ const {exchangeCards}=await import("../kernel/attachments.js");
+ const m=createMatch(referenceModules()[0]),s=m.state;
+ const a=s.zones["active-a"].cards[0],b=s.zones["bench-a"].cards[0];
+ assert.ok(a&&b);
+ s.objects[a].damage=1;
+ const r=exchangeCards(s,{first:a,second:b,from:"active-a",to:"bench-a",actor:"a"});
+ assert.ok(r.state.zones["active-a"].cards.includes(b));
+ assert.ok(r.state.zones["bench-a"].cards.includes(a));
+ assert.equal(r.state.objects[a].damage,1);
+ assert.ok(s.zones["active-a"].cards.includes(a));
+ assert.throws(()=>exchangeCards(s,{first:a,second:b,from:"active-a",to:"bench-a",actor:"b"}));
+});
+
+test("evolution timing is enforced by stack options",async()=>{
+ const {stackOptions}=await import("../kernel/composites.js");
+ const m=createMatch(referenceModules()[0]);
+ assert.equal(stackOptions(m,"a").length,0);
+ m.turn=2;
+ assert.ok(stackOptions(m,"a").some(x=>x.rule==="evolve-a"));
+});
+test("retreat requires attached energy from the activating creature",()=>{
+ let m=createMatch(referenceModules()[0]);
+ assert.throws(()=>applyMatchAction(m,"a",{type:"activate",effect:"retreat-a",source:"c1",cards:[]}));
+ m=applyMatchAction(m,"a",{type:"attach",id:"c3",host:"c1"}).match;
+ m=applyMatchAction(m,"a",{type:"activate",effect:"retreat-a",source:"c1",cards:["c3"]}).match;
+ assert.ok(m.state.zones["discard-a"].cards.includes("c3"));
+});
+test("counterspell removes the bound opposing effect without refunding costs",()=>{
+ const r=referenceModules()[1];
+ r.effects.testSpell={available:true,actors:["a"],program:[{type:"resource",resource:"life",delta:-1}]};
+ r.effects.testCounter={available:true,actors:["b"],counterEffect:{effects:["testSpell"]},program:[]};
+ r.chain.speedByEffect.testSpell=1;r.chain.speedByEffect.testCounter=2;
+ let m=createMatch(r);
+ m=applyMatchAction(m,"a",{type:"activate",effect:"testSpell"}).match;
+ if(m.timing.priority==="a")m=applyMatchAction(m,"a",{type:"pass"}).match;
+ m=applyMatchAction(m,"b",{type:"activate",effect:"testCounter"}).match;
+ for(let i=0;i<8&&m.timing.queue.length;i++)m=applyMatchAction(m,m.timing.priority,{type:"pass"}).match;
+ assert.equal(m.timing.queue.length,0);
+ assert.equal(m.state.resourcePools["player-a"].life,8);
+});
+
+test("prize selection allows a non-top card without revealing its definition",()=>{
+ const r=referenceModules()[0];
+ r.effects["prize-a"].available=true;r.effects["prize-a"].actors=["a"];
+ let m=createMatch(r);
+ const ids=[...m.state.zones["prize-a"].cards];
+ m=applyMatchAction(m,"a",{type:"activate",effect:"prize-a"}).match;
+ for(let i=0;i<8&&!m.pending&&m.timing.queue.length;i++)m=applyMatchAction(m,m.timing.priority,{type:"pass"}).match;
+ assert.ok(m.pending);
+ assert.deepEqual(m.pending.options,ids);
+ assert.equal(m.pending.labels,undefined);
+});

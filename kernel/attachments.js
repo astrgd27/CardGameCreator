@@ -69,3 +69,15 @@ export function moveWithAttachments(s,action){
  };
  move(action);assertAttachments(next);return {state:next,events};
 }
+
+export function exchangeCards(s,{first,second,from,to,actor}){
+ assertAttachments(s);
+ if(from===to||first===second||!s.zones[from]?.cards.includes(first)||!s.zones[to]?.cards.includes(second))throw Error("Invalid exchange");
+ if([first,second].some(id=>s.objects[id].controller!==actor||s.attachments?.[id]))throw Error("Invalid exchange controller or host");
+ const tree=id=>[id,...Object.entries(s.attachments??{}).filter(([,l])=>l.host===id).flatMap(([child,l])=>{if(l.onHostMove!=="follow")throw Error("Exchange requires following attachments");return tree(child)})];
+ const a=tree(first),b=tree(second),next=structuredClone(s);
+ next.zones[from].cards=next.zones[from].cards.filter(id=>!a.includes(id)).concat(b);
+ next.zones[to].cards=next.zones[to].cards.filter(id=>!b.includes(id)).concat(a);
+ assertAttachments(next);
+ return {state:next,events:[...a.map(id=>({type:"cardMoved",id,from,to})),...b.map(id=>({type:"cardMoved",id,from:to,to:from})),{type:"cardsExchanged",first,second,actor}]};
+}

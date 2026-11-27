@@ -40,6 +40,7 @@ function validateModuleStructure(m){
   for(const c of list(e.costs??[],"costs "+id))require(record(c)&&resources.has(c.resource)&&integer(c.amount)&&["spend","threshold"].includes(c.kind),"effect: invalid cost "+id);
   require((e.summon===undefined||typeof e.summon==="boolean")&&(e.negateSummon===undefined||typeof e.negateSummon==="boolean")&&(!e.negateSummon||!e.summon),"invalid summon response policy");
   require(e.nonrefundableCosts===undefined||e.summon===true&&typeof e.nonrefundableCosts==="boolean","invalid summon cost policy");
+  require(e.counterEffect===undefined||record(e.counterEffect)&&(e.counterEffect.effects===undefined||Array.isArray(e.counterEffect.effects)&&e.counterEffect.effects.length>0&&e.counterEffect.effects.every(x=>Object.hasOwn(m.effects,x))),"invalid counter effect policy");
   if(e.sourceDefinition!==undefined)require(defs.includes(e.sourceDefinition)&&Array.isArray(e.sourceZones)&&e.sourceZones.length>0&&e.sourceZones.every(z=>zids.has(z)),"effect: invalid source definition "+id);
   if(e.limit!==undefined)require(record(e.limit)&&["turn","match"].includes(e.limit.scope)&&integer(e.limit.count)&&e.limit.count>=1&&e.limit.count<=100,"effect: invalid usage limit "+id);
   const validateCardCosts=costs=>{let total=0;for(const c of list(costs??[],"card costs "+id,10)){require(record(c)&&["discard","sacrifice","detach","material","deploy"].includes(c.kind)&&zids.has(c.from)&&zids.has(c.to)&&c.from!==c.to&&(c.scaleZones===undefined||c.kind==="deploy"&&Array.isArray(c.scaleZones)&&c.scaleZones.length===2&&new Set(c.scaleZones).size===2&&c.scaleZones.every(z=>zids.has(z)&&z!==c.from&&z!==c.to))&&(c.linkDirection===undefined||c.kind==="deploy"&&c.linkedZones?.length>0&&["N","NE","E","SE","S","SW","W","NW"].includes(c.linkDirection))&&(c.linkedZones===undefined||c.kind==="deploy"&&Array.isArray(c.linkedZones)&&c.linkedZones.length>0&&c.linkedZones.every(z=>zids.has(z)))&&integer(c.count)&&c.count>=1&&c.count<=10&&(c.definition===undefined||defs.includes(c.definition))&&(c.attribute===undefined||key(c.attribute)&&["string","number","boolean"].includes(typeof c.value))&&(c.totalLevel===undefined||integer(c.totalLevel)&&c.totalLevel<=1000)&&(c.totalRating===undefined||integer(c.totalRating)&&c.totalRating<=1000)&&(c.hostBinding===undefined||c.hostBinding==="source"&&["detach","material"].includes(c.kind)&&c.attachedTo===undefined)&&(!["detach","material"].includes(c.kind)||c.hostBinding==="source"||key(c.attachedTo)),"effect: invalid card cost "+id);total+=c?.count??0}require(total<=20,"effect: payment card limit "+id)};
@@ -71,6 +72,7 @@ function validateModuleStructure(m){
    else if(["skipUnlessExpr","eachCounter","resourceExpr"].includes(op.type)){try{validateExpression(op.expression)}catch(e){errors.push(e.message)}require(op.type==="skipUnlessExpr"?integer(op.skip)&&op.skip>=1&&op.skip<=64:op.type==="eachCounter"?record(op.selector)&&key(op.counter):resources.has(op.resource),"invalid expression operation")}
    else if(op.type==="scheduleTurn")require(["extra","skip"].includes(op.kind)&&(op.player==="self"||players.includes(op.player))&&integer(op.count)&&op.count>=1&&op.count<=10,"invalid scheduled turn");
    else if(["search","randomHidden"].includes(op.type)){require(key(op.name)&&!choices.has(op.name)&&zids.has(op.zone)&&(op.top===undefined||integer(op.top)&&op.top>=1&&op.top<=100)&&(op.definition===undefined||defs.includes(op.definition)),"invalid hidden selection");choices.add(op.name)}
+   else if(op.type==="blindChoose"){require(key(op.name)&&!choices.has(op.name)&&zids.has(op.zone),"invalid blind choice");choices.add(op.name)}
    else if(op.type==="optional"){require(key(op.name)&&!choices.has(op.name)&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"invalid optional choice");choices.add(op.name)}
    else if(op.type==="reveal")require(choices.has(op.choice)&&["self","all"].includes(op.audience),"invalid reveal");
    else if(op.type==="reorder")require(choices.has(op.choice)&&zids.has(op.zone)&&["top","bottom"].includes(op.position),"invalid reorder");
@@ -87,6 +89,7 @@ function validateModuleStructure(m){
     require(ok,"effect: invalid state operation "+id);
    }
    else if(op.type==="draw")require(zids.has(op.from)&&zids.has(op.to)&&op.from!==op.to&&integer(op.count)&&op.count<=100,"effect: invalid draw "+id);
+   else if(op.type==="exchange")require(zids.has(op.from)&&zids.has(op.to)&&op.from!==op.to&&choices.has(op.first)&&choices.has(op.second),"effect: invalid exchange "+id);
    else if(op.type==="move")require(zids.has(op.from)&&zids.has(op.to)&&((key(op.id)&&op.choice===undefined)||(op.id===undefined&&choices.has(op.choice))),"effect: invalid move "+id);
    else if(op.type==="resource")require(resources.has(op.resource)&&Number.isSafeInteger(op.delta)&&(op.overflow===undefined||["reject","clamp"].includes(op.overflow)),"effect: invalid resource operation "+id);
    else errors.push("effect: unsupported operation "+id);
@@ -147,6 +150,7 @@ function validateModuleStructure(m){
  }}
  const stackIds=new Set();
  for(const r of list(m.stackRules??[],"stack rules",100)){
+  require(r.minimumTurn===undefined||integer(r.minimumTurn)&&r.minimumTurn>=1,"invalid evolution turn");
   require(record(r)&&key(r.id)&&!stackIds.has(r.id)&&defs.includes(r.hostDefinition)&&defs.includes(r.materialDefinition)&&(r.resultDefinition===undefined||defs.includes(r.resultDefinition))&&Array.isArray(r.hostZones)&&r.hostZones.length>0&&r.hostZones.every(z=>zids.has(z))&&Array.isArray(r.materialZones)&&r.materialZones.length>0&&r.materialZones.every(z=>zids.has(z))&&(r.inherit===undefined||typeof r.inherit==="boolean")&&(r.preserve===undefined||Array.isArray(r.preserve)&&r.preserve.every(x=>["damage","counters","statuses","orientation","controller","attachments"].includes(x))),"stack rule: invalid");if(record(r))stackIds.add(r.id);
  }
  const roleIds=new Set();
