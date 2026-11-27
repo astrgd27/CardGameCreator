@@ -115,9 +115,15 @@ function scaleDeployment(m){
    m.effects[id]={available:true,actors:[p],sourceDefinition:id,sourceZones:[hand],program:[{type:"move",choice:"source",from:hand,to:z}]};
    m.chain.speedByEffect[id]=1;
   }
+  const extra="scale-reserve-"+p;
+  m.zones.push({id:extra,owner:p,visibility:"public",capacity:40});
+  m.battlefield.zones.push({zone:extra,label:"Face-up reserve "+p,display:"cards",span:1});
+  m.moveReplacements??=[];
+  for(const from of ["field",...scales])m.moveReplacements.push({owner:p,from,to:"discard-"+p,destination:extra,definitions:scales});
   m.attributes["recruit-"+p]={level:3};
   const id="scale-deploy-"+p;
   m.effects[id]={available:true,actors:[p],limit:{scope:"turn",count:1},cardCosts:[{kind:"deploy",from:hand,to:"field",count:1,scaleZones:scales}],alternatives:[{id:"two",cardCosts:[{kind:"deploy",from:hand,to:"field",count:2,scaleZones:scales}]}],program:[]};
+  m.effects[id].alternatives.push({id:"reserve",cardCosts:[{kind:"deploy",from:extra,to:"field",count:1,scaleZones:scales}]},{id:"mixed",cardCosts:[{kind:"deploy",from:hand,to:"field",count:1,scaleZones:scales},{kind:"deploy",from:extra,to:"field",count:1,scaleZones:scales}]});
   m.chain.speedByEffect[id]=1;
  }
  return m;
