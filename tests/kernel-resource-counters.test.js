@@ -27,7 +27,7 @@ test("runes channel two then three, exhaust independently and recycle voluntaril
  assert.equal(m.state.objects[id].orientation,"resting");
  m.state=generate(m,"a",{id,generator:alt?"power-alt-a":"power-a"}).state;
  assert.equal(m.state.zones["rune-deck-a"].cards.at(-1),id);
- assert.equal(m.state.resourcePools["player-a"]["power-a"],1);
+ assert.equal(m.state.resourcePools["player-a"][alt?"power-alt-a":"power-a"],1);
  m=nextTurn(m);assert.equal(m.state.zones["rune-pool-b"].cards.length,3);
 });
 test("assigned momentum returns to pool and loses attachment at owner turn",()=>{
