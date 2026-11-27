@@ -3,7 +3,7 @@ import {selectCards} from "./selectors.js";
 import {payResources} from "./resources.js";
 import {moveWithAttachments,detachCard,attachCard} from "./attachments.js";
 const check=(ok,msg)=>{if(!ok)throw Error(msg)};
-export function materialEligible(state,id,c){const a=state.attributes?.[state.objects[id].definition]??{};return (!c.definition||state.objects[id].definition===c.definition)&&(!c.attribute||a[c.attribute]===c.value)&&(c.kind==="material"||!c.attachedTo||state.attachments?.[id]?.host===c.attachedTo)&&(c.kind!=="detach"||!!state.attachments?.[id])}
+export function materialEligible(state,id,c){const a=state.attributes?.[state.objects[id].definition]??{};return (c.hostBinding!=="source"||!!c.attachedTo)&&id!==c.attachedTo&&(!c.definition||state.objects[id].definition===c.definition)&&(!c.attribute||a[c.attribute]===c.value)&&(c.kind==="material"||!c.attachedTo||state.attachments?.[id]?.host===c.attachedTo)&&(c.kind!=="detach"||!!state.attachments?.[id])}
 export function paymentPlans(effect){return [{id:"default",costs:effect.costs??[],cardCosts:effect.cardCosts??[]},...(effect.alternatives??[])]}
 export function payPlan(state,actor,plan,ids=[]){
  check(Array.isArray(ids)&&new Set(ids).size===ids.length,"Duplicate payment cards");
