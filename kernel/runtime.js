@@ -46,6 +46,8 @@ function allows(m,type){return !phase(m)||phase(m).actions.includes(type)}
 function actionLimit(m,actor,type){const cap=m.rules.actionPolicy?.limits?.[type];return cap===undefined||(m.actionUses?.[actor]?.[type]??0)<cap}
 function countAction(m,actor,type){if(m.rules.actionPolicy?.limits?.[type]===undefined)return;m.actionUses??={};m.actionUses[actor]??={};m.actionUses[actor][type]=(m.actionUses[actor][type]??0)+1}
 function eligible(m,actor,id,e,source){
+ if(e.activeOnly&&actor!==m.timing.active)return false;
+ if(e.roomInZone){const z=m.state.zones[e.roomInZone];if(z.cards.length>=z.capacity)return false;}
  if(e.counterEffect&&!m.timing.queue.some(q=>q.actor!==actor&&(!e.counterEffect.effects||e.counterEffect.effects.includes(q.effect))))return false;
  if(e.negateSummon&&!m.timing.queue.some(q=>q.actor!==actor&&m.rules.effects[q.effect]?.summon))return false;
  if(e.windows&&!e.windows.includes(m.timing.queue.length?(m.rules.scheduler?.responseWindow??"response"):(phase(m)?.window??"main")))return false;

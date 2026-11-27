@@ -2,11 +2,15 @@
 import {applyMatchAction,matchView} from "./runtime.js";
 export function legalCardTargets(match,actor,source){
  const v=matchView(match,actor),out=[];
- if(v.result||v.opening||v.priority!==actor&&!v.choice)return out;
+ if(v.result||v.opening||v.triggerOrder||v.combat&&v.combat.stage!=="declare"||v.priority!==actor&&!v.choice)return out;
  const cards=v.state.zones.flatMap(z=>z.cards??[]).filter(c=>c.id);
  if(v.choice){if(v.choice.actor!==actor)return out;for(const c of cards)if(v.choice.options?.includes(c.id))out.push({id:c.id,action:{type:"choose",value:c.id}});return out}
  if(!cards.some(c=>c.id===source))return out;
- for(const c of cards){if(c.id===source)continue;for(const action of [{type:"attack",attacker:source,defender:c.id},{type:"attach",id:source,host:c.id}]){
+ const origin=cards.find(c=>c.id===source);
+ const profiles=match.rules.combat?.attackProfiles?.[origin.definition]??[];
+ for(const c of cards){if(c.id===source)continue;
+ const attacks=profiles.length?profiles.map(p=>({type:"attack",attacker:source,defender:c.id,profile:p.id})):[{type:"attack",attacker:source,defender:c.id}];
+ for(const action of [...attacks,{type:"attach",id:source,host:c.id}]){
   try{applyMatchAction(match,actor,action);out.push({id:c.id,action})}catch{}
  }}
  return out;

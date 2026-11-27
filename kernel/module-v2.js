@@ -36,6 +36,7 @@ function validateModuleStructure(m){
  for(const [id,e] of Object.entries(effects)){
   if(!key(id)||!record(e)){errors.push("effect: invalid definition");continue}
   if(e.requiresCard!==undefined)require(record(e.requiresCard)&&key(e.requiresCard.id)&&zids.has(e.requiresCard.zone),"effect: invalid activation source "+id);
+  require((e.activeOnly===undefined||typeof e.activeOnly==="boolean")&&(e.roomInZone===undefined||zids.has(e.roomInZone)),"effect: invalid activation restriction "+id);
   if(e.actors!==undefined)require(Array.isArray(e.actors)&&e.actors.every(p=>players.includes(p)),"effect: invalid actors "+id);
   for(const c of list(e.costs??[],"costs "+id))require(record(c)&&resources.has(c.resource)&&integer(c.amount)&&["spend","threshold"].includes(c.kind),"effect: invalid cost "+id);
   require((e.summon===undefined||typeof e.summon==="boolean")&&(e.negateSummon===undefined||typeof e.negateSummon==="boolean")&&(!e.negateSummon||!e.summon),"invalid summon response policy");

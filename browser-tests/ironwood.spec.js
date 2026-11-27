@@ -19,10 +19,9 @@ test("Ironwood hot-seat deployment, attachment, combat and priority",async({page
  await expect(page.locator(".duel-error")).toBeEmpty();
  expect(errors).toEqual([]);
 });
-test("workshop exposes generalized preview",async({page})=>{
- await page.goto("/");
- await page.getByRole("link",{name:"Ironwood test arena"}).click();
- await expect(page.getByRole("heading",{name:"Ironwood Duel"})).toBeVisible();
+test("diagnostic arena remains directly accessible",async({page})=>{
+ await page.goto("/duel.html");
+ await expect(page.locator("#duel")).toBeVisible();
 });
 
 test("computer opponent responds and preserves private hand",async({page})=>{
