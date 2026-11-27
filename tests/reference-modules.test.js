@@ -187,3 +187,31 @@ test("atomic exchange preserves both cards and rejects hostile exchange",async()
  assert.ok(s.zones["active-a"].cards.includes(a));
  assert.throws(()=>exchangeCards(s,{first:a,second:b,from:"active-a",to:"bench-a",actor:"b"}));
 });
+
+test("evolution timing is enforced by stack options",async()=>{
+ const {stackOptions}=await import("../kernel/composites.js");
+ const m=createMatch(referenceModules()[0]);
+ assert.equal(stackOptions(m,"a").length,0);
+ m.turn=2;
+ assert.ok(stackOptions(m,"a").some(x=>x.rule==="evolve-a"));
+});
+test("retreat requires attached energy from the activating creature",()=>{
+ let m=createMatch(referenceModules()[0]);
+ assert.throws(()=>applyMatchAction(m,"a",{type:"activate",effect:"retreat-a",source:"c1",cards:[]}));
+ m=applyMatchAction(m,"a",{type:"attach",id:"c3",host:"c1"}).match;
+ m=applyMatchAction(m,"a",{type:"activate",effect:"retreat-a",source:"c1",cards:["c3"]}).match;
+ assert.ok(m.state.zones["discard-a"].cards.includes("c3"));
+});
+test("counterspell removes the bound opposing effect without refunding costs",()=>{
+ const r=referenceModules()[1];
+ r.effects.testSpell={available:true,actors:["a"],program:[{type:"resource",resource:"life",delta:-1}]};
+ r.effects.testCounter={available:true,actors:["b"],counterEffect:{effects:["testSpell"]},program:[]};
+ r.chain.speedByEffect.testSpell=1;r.chain.speedByEffect.testCounter=2;
+ let m=createMatch(r);
+ m=applyMatchAction(m,"a",{type:"activate",effect:"testSpell"}).match;
+ if(m.timing.priority==="a")m=applyMatchAction(m,"a",{type:"pass"}).match;
+ m=applyMatchAction(m,"b",{type:"activate",effect:"testCounter"}).match;
+ for(let i=0;i<8&&m.timing.queue.length;i++)m=applyMatchAction(m,m.timing.priority,{type:"pass"}).match;
+ assert.equal(m.timing.queue.length,0);
+ assert.equal(m.state.resourcePools["player-a"].life,8);
+});
