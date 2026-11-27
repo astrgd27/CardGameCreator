@@ -26,3 +26,6 @@ User directive: maximize completed work per request. Deliver cohesive feature ba
 User directive: the GitHub Pages website is the primary product and user testing surface. Every new gameplay or authoring feature must be accessible through the published homepage and its normal navigation, not merely implemented in kernel code, fixtures, or hidden preview pages. Include browser acceptance tests exercising the actual user-facing path on desktop and iPad. After approved merges, verify deployment and report the live URL and any unverified deployment status. Do not count inaccessible features as delivered.
 
 User decision: Lantern Duel and legacy engine compatibility are retired. Generalized modules are the sole supported product format.
+
+## Product rebuild directive — 2026-11-27
+User supersedes compatibility-first roadmap. Universal player-facing match experience is P0 for every module. Preserve useful engine primitives; old duel is a diagnostic surface only. No game-specific host forks. Suspend PRs #75/#77; retain branches. Acceptance: launch from library, meaningful card actions, automatic opponent, full match progression, desktop/tablet browser evidence. Do not count hidden diagnostic features as delivered.
