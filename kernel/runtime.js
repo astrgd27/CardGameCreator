@@ -45,6 +45,7 @@ function allows(m,type){return !phase(m)||phase(m).actions.includes(type)}
 function actionLimit(m,actor,type){const cap=m.rules.actionPolicy?.limits?.[type];return cap===undefined||(m.actionUses?.[actor]?.[type]??0)<cap}
 function countAction(m,actor,type){if(m.rules.actionPolicy?.limits?.[type]===undefined)return;m.actionUses??={};m.actionUses[actor]??={};m.actionUses[actor][type]=(m.actionUses[actor][type]??0)+1}
 function eligible(m,actor,id,e,source){
+ if(e.counterEffect&&!m.timing.queue.some(q=>q.actor!==actor&&(!e.counterEffect.effects||e.counterEffect.effects.includes(q.effect))))return false;
  if(e.negateSummon&&!m.timing.queue.some(q=>q.actor!==actor&&m.rules.effects[q.effect]?.summon))return false;
  if(e.windows&&!e.windows.includes(m.timing.queue.length?(m.rules.scheduler?.responseWindow??"response"):(phase(m)?.window??"main")))return false;
  if(source&&hasRule(m.state,source,"cannotActivate"))return false;
@@ -149,7 +150,7 @@ export function applyMatchAction(match,actor,action){
    immediate=commitDynamic(m,actor,e,action.source,{...plan,cardCosts:paidGroups},{...action,cards:paidCards});
    remaining=pendingCards;
   }
-  const entry={actor,effect:action.effect,choices:payment.choices,...(deferred?{summonPayment:{source:action.source,plan:plan.id,cards:remaining,payment:action.payment}}:{})};
+  const entry={actor,effect:action.effect,choices:{...payment.choices,...(e.counterEffect?{counterTarget:[...m.timing.queue].reverse().find(q=>q.actor!==actor&&(!e.counterEffect.effects||e.counterEffect.effects.includes(q.effect)))?.id}:{})},...(deferred?{summonPayment:{source:action.source,plan:plan.id,cards:remaining,payment:action.payment}}:{})};
   const r=m.rules.chain?submitChainLink(m.timing,entry,m.rules.chain):submitEffect(m.timing,entry);
   if(!deferred||e.nonrefundableCosts)m.state=immediate.state;m.timing=r.timing;m.windowClosed=false;
   events=[...r.events,...(deferred&&!e.nonrefundableCosts?[]:enqueue(m,immediate.events))];break;
@@ -159,6 +160,7 @@ export function applyMatchAction(match,actor,action){
   m.windowClosed=events.some(e=>e.type==="windowClosed");
   if(m.timing.resolving){
    const e=effect(m,m.timing.resolving.effect);
+   if(e.counterEffect){const id=m.timing.resolving.choices.counterTarget;const target=m.timing.queue.find(q=>q.id===id);if(target){m.timing.queue=m.timing.queue.filter(q=>q.id!==id);events.push({type:"effectCountered",id,actor:m.timing.resolving.actor})}}
    if(e.negateSummon){const target=[...m.timing.queue].reverse().find(q=>q.actor!==m.timing.resolving.actor&&m.rules.effects[q.effect]?.summon);if(target){m.timing.queue=m.timing.queue.filter(q=>q.id!==target.id);events.push({type:"summonNegated",id:target.id,actor:m.timing.resolving.actor})}}
    let resolved;try{const deferred=m.timing.resolving.summonPayment;let state=m.state,paidEvents=[];if(deferred){const plan=paymentPlans(e).find(p=>p.id===deferred.plan);const paid=commitDynamic(m,m.timing.resolving.actor,e.nonrefundableCosts?{}:e,deferred.source,e.nonrefundableCosts?{...plan,costs:[],cardCosts:(plan.cardCosts??[]).filter(c=>c.kind==="deploy"||c.kind==="material")}:plan,deferred);state=paid.state;paidEvents=paid.events}resolved=beginEffect(state,m.timing,e.program,(m.rules.triggers??[]).filter(t=>m.timing.players.includes(t.actor)));resolved.events=[...paidEvents,...resolved.events]}catch(err){const finished=finishResolution(m.timing,m.timing.resolving.id);resolved={state:m.state,timing:finished.timing,pending:null,events:[{type:"effectFizzled",actor:m.timing.resolving.actor},...finished.events]}}events=[...events,...resolve(m,resolved)];
   }break;
