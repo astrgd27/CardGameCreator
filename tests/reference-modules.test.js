@@ -86,3 +86,18 @@ test("source material payment deploys host and attaches material in one transact
  assert.equal(paid.state.attachments.c1.host,"c7");
  assert.ok(paid.state.zones["reserve-a"].cards.includes("c1"));
 });
+
+test("Taste Dimension scale recycling and reserve redeployment",async()=>{
+ const {moveWithAttachments}=await import("../kernel/attachments.js");
+ const {addCard}=await import("../kernel/objects.js");
+ let m=createMatch(referenceModules()[2]);
+ for(const z of ["scale-low-a","scale-high-a"])m.state=addCard(m.state,{definition:z,owner:"a",zone:z}).state;
+ const added=addCard(m.state,{definition:"scale-low-a",owner:"a",zone:"field"});
+ m.state=moveWithAttachments(added.state,{id:added.id,from:"field",to:"discard-a",reset:true}).state;
+ assert.ok(m.state.zones["scale-reserve-a"].cards.includes(added.id));
+ assert.equal(m.state.objects[added.id].face,"up");
+ const option=matchView(m,"a").activations.find(a=>a.effect==="scale-deploy-a"&&a.id==="reserve");
+ assert.ok(option);
+ m=applyMatchAction(m,"a",{type:"activate",effect:"scale-deploy-a",plan:"reserve",cards:[added.id]}).match;
+ assert.ok(m.state.zones.field.cards.includes(added.id));
+});
