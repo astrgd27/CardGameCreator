@@ -438,6 +438,7 @@ function declarativeEditor(section){
 function spatialEditor(section){
  if(!module.spatial){section.append(actionButton("Enable spatial battlefield",()=>{module.spatial={grid:true,slots:[],edges:[],maxSteps:1,attackRange:1};render("spatial") }));return}
  const p=module.spatial;
+ p.edges??=[];
  field(section,"Grid adjacency",p.grid?"yes":"no",["yes","no"],v=>{p.grid=v==="yes";render("spatial")});
  for(const [k,label] of [["maxSteps","Maximum movement steps"],["attackRange","Attack range"],["blockRange","Block range"],["costPerStep","Movement cost per step"]])field(section,label,p[k]??1,"number",v=>p[k]=v);
  field(section,"Movement resource",p.resource??"",["",...options("resourceIds")],v=>{if(v)p.resource=v;else delete p.resource});
