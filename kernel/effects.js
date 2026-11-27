@@ -13,7 +13,7 @@ const check=(ok,msg)=>{if(!ok)throw Error(msg)};
 function validateProgram(program){
  check(Array.isArray(program)&&program.length<=64,"Invalid effect program");
  for(const op of program){
-  check(op&&["choose","target","move","exchange","resource","draw","skipUnless","skipUnlessResource","skipUnlessChoice","token","counter","status","transform","flip","control","orient","position","search","randomHidden","reveal","reorder","lifeDamage","optional","scheduleTurn","skipUnlessExpr","eachCounter","resourceExpr","awardScore"].includes(op.type),"Unsupported effect operation");
+  check(op&&["choose","target","blindChoose","move","exchange","resource","draw","skipUnless","skipUnlessResource","skipUnlessChoice","token","counter","status","transform","flip","control","orient","position","search","randomHidden","reveal","reorder","lifeDamage","optional","scheduleTurn","skipUnlessExpr","eachCounter","resourceExpr","awardScore"].includes(op.type),"Unsupported effect operation");
   if(op.type==="choose")check(key(op.name)&&Array.isArray(op.options)&&op.options.length>0&&op.options.length<=100&&op.options.every(key)&&new Set(op.options).size===op.options.length,"Invalid choice");
   if(op.type==="skipUnless")check(op.selector&&typeof op.selector==="object"&&Number.isSafeInteger(op.minimum)&&op.minimum>=0&&op.minimum<=100&&Number.isSafeInteger(op.skip)&&op.skip>=1&&op.skip<=64,"Invalid conditional instruction");
   if(["skipUnlessExpr","eachCounter","resourceExpr"].includes(op.type))validateExpression(op.expression);
@@ -22,6 +22,7 @@ function validateProgram(program){
   if(op.type==="skipUnlessChoice")check(key(op.choice)&&key(op.value)&&Number.isSafeInteger(op.skip)&&op.skip>=1&&op.skip<=64,"Invalid choice condition");
   if(["counter","status","transform","flip","control","orient","position"].includes(op.type))check((key(op.id)&&op.choice===undefined)||(op.id===undefined&&key(op.choice)),"Invalid card state target");
   if(op.type==="target")check(key(op.name)&&op.selector&&typeof op.selector==="object","Invalid target selector");
+  if(op.type==="blindChoose")check(key(op.name)&&key(op.zone),"Invalid blind choice");
   if(op.type==="draw")check(key(op.from)&&key(op.to)&&Number.isSafeInteger(op.count)&&op.count>=0&&op.count<=100,"Invalid draw instruction");
   if(op.type==="exchange")check(key(op.from)&&key(op.to)&&op.from!==op.to&&key(op.first)&&key(op.second),"Invalid exchange instruction");
   if(op.type==="move")check(key(op.from)&&key(op.to)&&((key(op.id)&&op.choice===undefined)||(op.id===undefined&&key(op.choice))),"Invalid move instruction");
@@ -38,8 +39,8 @@ function advance(state,timing,program,triggerRules,frame){
   if(op.type==="skipUnlessResource"){const rule=next.resourceRules[op.resource];check(rule,"Unknown conditional resource");const value=next.resourcePools[rule.scope==="shared"?"shared":"player-"+actor][op.resource];const ok=op.comparison==="atLeast"?value>=op.amount:op.comparison==="atMost"?value<=op.amount:value===op.amount;if(!ok)pc+=op.skip;continue}
   if(op.type==="skipUnlessChoice"){if(!Object.hasOwn(choices,op.choice)||choices[op.choice]!==op.value)pc+=op.skip;continue}
   if(op.type==="skipUnless"){if(selectCards(next,actor,op.selector).length<op.minimum)pc+=op.skip;continue}
-  if(op.type==="search"||op.type==="optional"||op.type==="choose"||op.type==="target"){
-   const options=op.type==="search"?hiddenOptions(next,actor,op):op.type==="optional"?["accept","decline"]:op.type==="target"?selectCards(next,actor,{...op.selector,targetable:true}):op.options;
+  if(op.type==="blindChoose"||op.type==="search"||op.type==="optional"||op.type==="choose"||op.type==="target"){
+   const options=op.type==="blindChoose"?(next.zones[op.zone]?.owner===actor?[...next.zones[op.zone].cards]:[]):op.type==="search"?hiddenOptions(next,actor,op):op.type==="optional"?["accept","decline"]:op.type==="target"?selectCards(next,actor,{...op.selector,targetable:true}):op.options;
    // Precommitted targets are not chosen a second time; recheck legality on resolution.
    if(op.type==="target"&&Object.hasOwn(choices,op.name)){if(options.includes(choices[op.name]))continue;const finished=finishResolution(timing,timing.resolving.id);return {state,timing:finished.timing,pending:null,fizzled:true,events:[{type:"effectFizzled",actor},...finished.events]}}
    if(!options.length){const finished=finishResolution(timing,timing.resolving.id);return {state,timing:finished.timing,pending:null,fizzled:true,events:[{type:"effectFizzled",actor},...finished.events]}}
