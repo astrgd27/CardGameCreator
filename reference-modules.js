@@ -101,6 +101,8 @@ function advanced(m,i){
  return m;
 }
 function scaleDeployment(m){
+ m.effects.ritual.summon=true;m.effects.ritual.nonrefundableCosts=true;
+ for(const p of m.players){const id="summon-counter-"+p;m.effects[id]={available:true,actors:[p],negateSummon:true,limit:{scope:"turn",count:1},program:[]};m.chain.speedByEffect[id]=2;}
  for(const p of m.players){
   const hand="hand-"+p,deck="deck-"+p,scales=["scale-low-"+p,"scale-high-"+p];
   for(const [i,z] of scales.entries()){
