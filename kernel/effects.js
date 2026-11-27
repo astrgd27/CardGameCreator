@@ -4,7 +4,7 @@ import {hiddenOptions,randomHidden,revealCard,reorderCard,damageCards} from "./h
 import {createTokens,changeCardState} from "./card-state.js";
 import {selectCards} from "./selectors.js";
 import {drawCards} from "./draw.js";
-import {moveWithAttachments} from "./attachments.js";
+import {moveWithAttachments,exchangeCards} from "./attachments.js";
 import {changeResource} from "./resources.js";
 import {finishResolution} from "./timing.js";
 import {collectTriggers} from "./triggers.js";
@@ -13,7 +13,7 @@ const check=(ok,msg)=>{if(!ok)throw Error(msg)};
 function validateProgram(program){
  check(Array.isArray(program)&&program.length<=64,"Invalid effect program");
  for(const op of program){
-  check(op&&["choose","target","move","resource","draw","skipUnless","skipUnlessResource","skipUnlessChoice","token","counter","status","transform","flip","control","orient","position","search","randomHidden","reveal","reorder","lifeDamage","optional","scheduleTurn","skipUnlessExpr","eachCounter","resourceExpr","awardScore"].includes(op.type),"Unsupported effect operation");
+  check(op&&["choose","target","move","exchange","resource","draw","skipUnless","skipUnlessResource","skipUnlessChoice","token","counter","status","transform","flip","control","orient","position","search","randomHidden","reveal","reorder","lifeDamage","optional","scheduleTurn","skipUnlessExpr","eachCounter","resourceExpr","awardScore"].includes(op.type),"Unsupported effect operation");
   if(op.type==="choose")check(key(op.name)&&Array.isArray(op.options)&&op.options.length>0&&op.options.length<=100&&op.options.every(key)&&new Set(op.options).size===op.options.length,"Invalid choice");
   if(op.type==="skipUnless")check(op.selector&&typeof op.selector==="object"&&Number.isSafeInteger(op.minimum)&&op.minimum>=0&&op.minimum<=100&&Number.isSafeInteger(op.skip)&&op.skip>=1&&op.skip<=64,"Invalid conditional instruction");
   if(["skipUnlessExpr","eachCounter","resourceExpr"].includes(op.type))validateExpression(op.expression);
@@ -23,6 +23,7 @@ function validateProgram(program){
   if(["counter","status","transform","flip","control","orient","position"].includes(op.type))check((key(op.id)&&op.choice===undefined)||(op.id===undefined&&key(op.choice)),"Invalid card state target");
   if(op.type==="target")check(key(op.name)&&op.selector&&typeof op.selector==="object","Invalid target selector");
   if(op.type==="draw")check(key(op.from)&&key(op.to)&&Number.isSafeInteger(op.count)&&op.count>=0&&op.count<=100,"Invalid draw instruction");
+  if(op.type==="exchange")check(key(op.from)&&key(op.to)&&op.from!==op.to&&key(op.first)&&key(op.second),"Invalid exchange instruction");
   if(op.type==="move")check(key(op.from)&&key(op.to)&&((key(op.id)&&op.choice===undefined)||(op.id===undefined&&key(op.choice))),"Invalid move instruction");
   if(op.type==="resource")check(key(op.resource)&&Number.isSafeInteger(op.delta),"Invalid resource instruction");
  }
@@ -53,6 +54,7 @@ function advance(state,timing,program,triggerRules,frame){
   else if(op.type==="reveal")result=revealCard(next,actor,choices[op.choice],op);
   else if(op.type==="reorder")result=reorderCard(next,actor,choices[op.choice],op);
   else if(op.type==="lifeDamage")result=damageCards(next,op.player==="self"?actor:op.player,op,op.count);
+  else if(op.type==="exchange")result=exchangeCards(next,{first:choices[op.first],second:choices[op.second],from:op.from,to:op.to,actor});
   else if(op.type==="move"){
    const id=op.id??(Object.hasOwn(choices,op.choice)?choices[op.choice]:undefined);
    check(key(id)&&Object.hasOwn(next.objects,id)&&Object.hasOwn(next.zones,op.from)&&Object.hasOwn(next.zones,op.to),"Invalid move reference");
