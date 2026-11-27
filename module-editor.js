@@ -455,7 +455,7 @@ function spatialEditor(section){
 function objectiveEditor(section){
  if(!module.objectives){section.append(actionButton("Enable objectives",()=>{module.objectives={locations:[],tie:"draw"};render("objectives")}));return}
  const p=module.objectives;
- field(section,"Winning score (blank = none)",p.winScore??"","text",v=>{if(v==="")delete p.winScore;else p.winScore=Number(v)});
+ field(section,"Score each battlefield once per turn",p.oncePerTurn?"yes":"no",["no","yes"],v=>p.oncePerTurn=v==="yes");field(section,"Final point requires holding",p.finalPointHoldOnly?"yes":"no",["no","yes"],v=>p.finalPointHoldOnly=v==="yes");field(section,"Winning score (blank = none)",p.winScore??"","text",v=>{if(v==="")delete p.winScore;else p.winScore=Number(v)});
  field(section,"Score tie resolution",p.tie??"draw",["draw","highest"],v=>p.tie=v);
  p.locations??=[];listEditor(section,p.locations,"Location objective",()=>({zone:module.spatial?.slots[0]?.zone??"",capturePoints:1,holdPoints:1,persistent:true}),(r,o)=>{field(r,"Objective zone",o.zone,(module.spatial?.slots??[]).map(x=>x.zone),v=>o.zone=v);field(r,"Capture points",o.capturePoints??0,"number",v=>o.capturePoints=v);field(r,"Hold points",o.holdPoints??0,"number",v=>o.holdPoints=v);field(r,"Persistent capture",o.persistent?"yes":"no",["yes","no"],v=>o.persistent=v==="yes")},"objectives");
 }
