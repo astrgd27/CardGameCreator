@@ -11,12 +11,13 @@ function value(stats,s,id,name){
  check(Object.hasOwn(stats,def)&&integer(stats[def][name]),"Missing combat statistic");
  return stats[def][name];
 }
-export function resolveCombat(state,{attacker,defender,stats,retaliate=true,defeatZones,modifiers=[],replacements=[],turn=0,damageType="combat"}){
+export function resolveCombat(state,{attacker,defender,stats,retaliate=true,defeatZones,modifiers=[],replacements=[],turn=0,damageType="combat",positions=false}){
  check(attacker!==defender&&typeof retaliate==="boolean","Invalid combat");
  const a=unit(state,attacker),d=unit(state,defender);
  check(a.controller!==d.controller&&a.face==="up"&&d.face==="up"&&a.orientation==="ready","Ineligible combatants");
  const stat=(id,name)=>deriveStatistic(state,id,name,value(stats,state,id,name),modifiers,{turn}).value;
- const strike=stat(attacker,"attack"),counter=retaliate?stat(defender,"attack"):0;
+ check(!positions||a.position!=="defense","Defensive card cannot attack");
+ const strike=stat(attacker,"attack"),counter=retaliate&&(!positions||d.position!=="defense")?stat(defender,"attack"):0;
  const ah=stat(attacker,"health"),dh=stat(defender,"health");
  check(ah>0&&dh>0&&integer(a.damage)&&integer(d.damage)&&a.damage<ah&&d.damage<dh,"Invalid combat health");
  check(integer(a.damage+counter)&&integer(d.damage+strike),"Damage overflow");
