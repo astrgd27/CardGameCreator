@@ -35,6 +35,7 @@ test("blank Workshop creation, battle result, checkpoint and portable import",as
  await page.getByLabel("Animation speed").selectOption("reduced");
  await page.getByRole("button",{name:"Start match"}).click();
  await page.getByRole("button",{name:"Keep hand"}).click();
+ await expect(page.getByRole("button",{name:"End turn",exact:true})).toBeVisible();
  const hand=page.locator(".hand:not(.opponent)");
  await hand.getByRole("button",{name:"Orchard Warden"}).first().click();
  await page.getByRole("button",{name:"Deploy unit · 1 energy"}).click();

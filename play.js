@@ -76,7 +76,8 @@ function act(actor,action){
   history.push(...messages);
   if(history.length>200)history=history.slice(-200);
   if(messages.length)lastMove=messages.at(-1);
-  error="";selected=null;
+  error="";
+  if(actor===human)selected=null;
  }catch(e){
   error=e.message;
   endRequested=false;
@@ -296,6 +297,7 @@ function render(){
  root.replaceChildren();
  const actor=decisionActor(match),view=matchView(match,human);
  currentView=view;
+ if(selected&&!viewCards(view).some(card=>card.id===selected&&card.definition))selected=null;
  const can=actor===human&&!view.result;
  legalSources=new Set(can?[...view.activations.map(a=>a.source),...view.generators.map(a=>a.id),...view.stackOptions.map(a=>a.material),...view.combat?.attackers??[]]:[]);
  const targets=can&&(selected||view.choice)?legalCardTargets(match,human,selected):[];
