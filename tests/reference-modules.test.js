@@ -134,3 +134,17 @@ test("defense position blocks attacks and compares attack against defense",async
  s.objects[attacker].position="defense";
  assert.throws(()=>resolveCombat(s,config),/Defensive card/);
 });
+
+test("linked deployment works independently of scales and requires a friendly anchor",()=>{
+ const r=referenceModules()[2];
+ r.effects.linkDeploy={available:true,actors:["a"],cardCosts:[{kind:"deploy",from:"field",to:"discard-a",count:1,linkedZones:["field"]}],program:[]};
+ r.chain.speedByEffect.linkDeploy=1;
+ const m=createMatch(r),plan={id:"default",cardCosts:r.effects.linkDeploy.cardCosts};
+ for(const id of m.state.zones.field.cards)m.state.attributes[m.state.objects[id].definition]={linkRating:0};
+ assert.equal(paymentOptions(m.state,"a",plan),null);
+ const anchor=m.state.zones.field.cards.find(id=>m.state.objects[id].controller==="a");
+ m.state.attributes[m.state.objects[anchor].definition].linkRating=1;
+ const option=paymentOptions(m.state,"a",plan);
+ assert.ok(option);
+ assert.ok(payPlan(m.state,"a",plan,option.example).state.zones["discard-a"].cards.includes(option.example[0]));
+});
