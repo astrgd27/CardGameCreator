@@ -18,11 +18,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Check browser entry point syntax
-        run: node --check module-editor.js && node --check duel.js && node --check app.js
+        run: node --check module-editor.js && node --check duel.js && node --check reference-home.js && node --check module-home.js
       - run: npm test
       - run: node scripts/benchmark-report.mjs
-      - run: python scripts/standalone.py /tmp/CardGameCreator.html
-      - run: cmp standalone/CardGameCreator.html /tmp/CardGameCreator.html
       - name: Build and validate offline distribution
         run: |
           python scripts/offline_bundle.py /tmp/CardGameCreator-offline.zip

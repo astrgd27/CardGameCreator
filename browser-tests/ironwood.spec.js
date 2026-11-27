@@ -21,8 +21,7 @@ test("Ironwood hot-seat deployment, attachment, combat and priority",async({page
 });
 test("workshop exposes generalized preview",async({page})=>{
  await page.goto("/");
- await page.locator("#modes").getByRole("button",{name:"Play",exact:true}).click();
- await page.getByRole("link",{name:/Try Ironwood Duel/}).click();
+ await page.getByRole("link",{name:"Ironwood test arena"}).click();
  await expect(page.getByRole("heading",{name:"Ironwood Duel"})).toBeVisible();
 });
 

@@ -1,6 +1,6 @@
 # Product direction
 
-CardGameCreator is a browser-based creator and fully automated simulator for original trading card games using portable modules. Desktop and iPad are the target; phones are deferred. A module defines cards, rules, layouts, decks, art and eventually campaigns. Existing Lantern Duel is the compatibility fixture, not the universal rules model.
+CardGameCreator is a browser-based creator and fully automated simulator for original trading card games using portable modules. Desktop and iPad are the target; phones are deferred. A module defines cards, rules, layouts, decks, art and eventually campaigns. Lantern Duel is retired; generalized modules are the sole supported product format.
 
 ## Experience
 Module home separates Create, Decks and Play. Card art and rules are central: large cards in hand and on board, close inspection by right click and touch, clear targeting, action animations for play/set/attack/tap/flip and comprehensible opponent pacing. Preserve player control over reaction windows and step playback; animations must not change legal game state. Make use of available screen space rather than a narrow phone layout.
