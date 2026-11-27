@@ -8,7 +8,7 @@ import {hasRule,keywords} from "./keywords.js";
 // No client-provided effect programs, prices, statistics or replacement rules.
 import {createState,addCard,projectState,assertInvariants} from "./objects.js";
 import {initializeResources,payResources,refreshResources,quotePayment} from "./resources.js";
-import {attachCard,assertAttachments,moveWithAttachments} from "./attachments.js";
+import {attachCard,detachCard,assertAttachments,moveWithAttachments} from "./attachments.js";
 import {enqueueTriggers,createTiming,submitEffect,passPriority,changeActive,finishResolution} from "./timing.js";
 import {submitChainLink} from "./chains.js";
 import {collectTriggers} from "./triggers.js";
@@ -79,10 +79,11 @@ function resolve(m,r){
 }
 function startTurn(m,actor){let events=[];
   const next=nextSeat(m,actor);
-  const returned=[];for(const p of m.rules.resourceDrawPolicies??[])if(p.returnAssigned&&p.player===next){for(const id of Object.keys(m.state.attachments??{})){const o=m.state.objects[id];if(o.owner!==next||o.definition!==p.returnAssigned)continue;const from=Object.values(m.state.zones).find(z=>z.cards.includes(id)).id;if(from===p.pool||m.state.zones[p.pool].cards.length>=m.state.zones[p.pool].capacity)continue;const moved=moveWithAttachments(m.state,{id,from,to:p.pool});m.state=moved.state;returned.push(...moved.events)}}
+  const returned=[];for(const p of m.rules.resourceDrawPolicies??[])if(p.returnAssigned&&p.player===next){for(const id of Object.keys(m.state.attachments??{})){const o=m.state.objects[id];if(o.owner!==next||o.definition!==p.returnAssigned)continue;const from=Object.values(m.state.zones).find(z=>z.cards.includes(id)).id;if(from!==p.pool&&m.state.zones[p.pool].cards.length>=m.state.zones[p.pool].capacity)continue;const detached=detachCard(m.state,id);m.state=detached.state;returned.push(...detached.events);if(from===p.pool)continue;const moved=moveWithAttachments(m.state,{id,from,to:p.pool});m.state=moved.state;returned.push(...moved.events)}}
   const expired=expireStatuses(m.state);m.state=expired.state;
  if(m.rules.combat?.damageCleanup==="turn")for(const o of Object.values(m.state.objects))if(o.damage){expired.events.push({type:"damageCleared",id:o.id,amount:o.damage});o.damage=0}
   m.timing=changeActive(m.timing,next);const ss=scheduleState(m);ss.passed=[];ss.handoff=false;m.turn++;m.actionUses={};m.phaseIndex=0;m.windowClosed=false;
+  for(const p of m.rules.resourceDrawPolicies??[])if(p.player===next&&p.recycleResting){for(const id of [...m.state.zones[p.pool].cards]){if(m.state.objects[id].orientation!=="resting"||m.state.zones[p.deck].cards.length>=m.state.zones[p.deck].capacity)continue;const moved=moveWithAttachments(m.state,{id,from:p.pool,to:p.deck,face:"down",reset:true});m.state=moved.state;returned.push(...moved.events)}}
   for(const id of Object.values(m.state.zones).filter(z=>m.rules.combat?.zones.includes(z.id)||(m.rules.generators??[]).some(g=>g.zones.includes(z.id))).flatMap(z=>z.cards))if(m.state.objects[id].controller===next)m.state.objects[id].orientation="ready";
   const r=refreshResources(m.state,next,{includeShared:!!m.rules.refreshShared});
   m.state=r.state;events=[...returned,...expired.events,{type:"turnStarted",actor:next},...r.events];if(phase(m))events.push({type:"phaseStarted",actor:next,phase:phase(m).id});
