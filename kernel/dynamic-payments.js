@@ -4,7 +4,12 @@ import {selectCards} from "./selectors.js";
 import {payPlan,paymentOptions,materialEligible} from "./card-costs.js";
 import {changeResource,quotePayment} from "./resources.js";
 const check=(ok,msg)=>{if(!ok)throw Error(msg)};
+function bindMaterialHost(plan,source){
+ return {...plan,cardCosts:(plan.cardCosts??[]).map(c=>c.hostBinding==="source"?{...c,attachedTo:source}:c)};
+}
 function structuralOptions(m,actor,e,source,plan){
+ plan=bindMaterialHost(plan,source);
+ if(plan.cardCosts.some(c=>c.hostBinding==="source"&&!source))return null;
  const d=e.dynamicPayment;if(!d)return paymentOptions(m.state,actor,plan);
  const targets=(d.targets??[]).map(t=>({name:t.name,ids:selectCards(m.state,actor,{...t.selector,targetable:true})}));
  if(targets.some(t=>!t.ids.length))return null;
@@ -35,6 +40,8 @@ export function generate(m,actor,selection){
  return {state:r.state,events:[{type:"orientationChanged",id:g.id,orientation:"resting"},...r.events]};
 }
 export function commitDynamic(m,actor,e,source,plan,action){
+ plan=bindMaterialHost(plan,source);
+ check(!plan.cardCosts.some(c=>c.hostBinding==="source"&&!source),"Missing material source");
  const d=e.dynamicPayment;
  if(!d)return {...payPlan(m.state,actor,plan,action.cards??[]),choices:source?{source}:{}};
  const opt=structuralOptions(m,actor,e,source,plan)?.dynamic;check(opt,"No legal targets");
