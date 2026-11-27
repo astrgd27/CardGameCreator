@@ -16,3 +16,8 @@ h1{margin-bottom:.28em}.reference-grid{grid-template-columns:repeat(auto-fit,min
 .board-slot{min-width:0;border:1px dashed #839b92;border-radius:8px;padding:10px;background:#122128}
 .board-slot strong,.board-slot small{display:block}.board-slot[draggable=true]{border-style:solid}
 .board-slot button{font-size:13px;margin-top:6px}
+
+.rule-step{border:1px solid var(--line);border-radius:10px;padding:14px;margin:0 0 14px;min-width:0}
+.rule-step legend{color:var(--gold);font-weight:650;padding:0 6px}
+.rule-step .actions button{font-size:14px}
+.tabs button[aria-pressed=true],button[aria-pressed=true]{border-color:var(--gold);color:var(--gold)}

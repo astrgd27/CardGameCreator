@@ -19,7 +19,7 @@ jobs:
           python-version: '3.12'
       - name: Check browser entry point syntax
         run: |
-          for file in product.js basic-module.js play.js module-editor.js duel.js reference-home.js module-home.js; do
+          for file in product.js basic-module.js rule-composer.js play.js module-editor.js duel.js reference-home.js module-home.js; do
             node --check "$file" || exit 1
           done
       - run: npm test
@@ -28,7 +28,7 @@ jobs:
         run: |
           python scripts/offline_bundle.py /tmp/CardGameCreator-offline.zip
           python -m zipfile -t /tmp/CardGameCreator-offline.zip
-          python -c "import zipfile; z=zipfile.ZipFile('/tmp/CardGameCreator-offline.zip'); assert {'index.html','product.js','product.css','play.html','play.js','play.css','art/looboo.webp','duel.html','module-editor.html','kernel/runtime.js','launch.py'} <= set(z.namelist()); compile(z.read('launch.py'), 'launch.py', 'exec')"
+          python -c "import zipfile; z=zipfile.ZipFile('/tmp/CardGameCreator-offline.zip'); assert {'index.html','product.js','product.css','rule-composer.js','play.html','play.js','play.css','art/looboo.webp','duel.html','module-editor.html','kernel/runtime.js','launch.py'} <= set(z.namelist()); compile(z.read('launch.py'), 'launch.py', 'exec')"
       - uses: actions/upload-artifact@v4
         with:
           name: CardGameCreator-offline
