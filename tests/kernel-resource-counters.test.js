@@ -18,9 +18,17 @@ test("paid defender counter is unavailable without momentum and spends on use",(
  assert.ok(m.state.zones["discard-b"].cards.includes(a.id));
 });
 function nextTurn(m){for(let i=0;i<10;i++){if(m.windowClosed)return applyMatchAction(m,m.timing.active,{type:"endTurn"}).match;m=applyMatchAction(m,m.timing.priority,{type:"pass"}).match}throw Error("Turn did not close")}
-test("exhausted rune returns face down to resource deck at next owner turn",()=>{
- let m=createMatch(referenceModules()[4]);const id=m.state.zones["rune-pool-b"].cards[0];m.state.objects[id].orientation="resting";
- m=nextTurn(m);assert.ok(m.state.zones["rune-deck-b"].cards.includes(id));assert.equal(m.state.objects[id].face,"down");
+test("runes channel two then three, exhaust independently and recycle voluntarily",async()=>{
+ const {generate}=await import("../kernel/dynamic-payments.js");
+ let m=createMatch(referenceModules()[4]);assert.equal(m.state.zones["rune-pool-a"].cards.length,2);
+ assert.equal(m.state.zones["rune-pool-b"].cards.length,0);
+ const id=m.state.zones["rune-pool-a"].cards[0],alt=m.state.objects[id].definition!=="rune-card";
+ m.state=generate(m,"a",{id,generator:alt?"energy-alt-a":"rune-a"}).state;
+ assert.equal(m.state.objects[id].orientation,"resting");
+ m.state=generate(m,"a",{id,generator:alt?"power-alt-a":"power-a"}).state;
+ assert.equal(m.state.zones["rune-deck-a"].cards.at(-1),id);
+ assert.equal(m.state.resourcePools["player-a"]["power-a"],1);
+ m=nextTurn(m);assert.equal(m.state.zones["rune-pool-b"].cards.length,3);
 });
 test("assigned momentum returns to pool and loses attachment at owner turn",()=>{
  let m=createMatch(referenceModules()[3]);const id=m.state.zones["momentum-pool-a"].cards[0];
