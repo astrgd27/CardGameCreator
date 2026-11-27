@@ -9,7 +9,7 @@ import {replaceDamage} from "./replacements.js";
 import {moveWithAttachments} from "./attachments.js";
 import {changeResource} from "./resources.js";
 const check=(ok,msg)=>{if(!ok)throw Error(msg)};
-const units=(m,actor,side,ready=false)=>selectCards(m.state,actor,{zones:m.rules.combat.zones,controller:side,face:"up",...(ready?{orientation:"ready"}:{})}).filter(id=>m.rules.combat.stats[m.state.objects[id].definition]&&(!m.rules.combat.group.unitDefinitions||m.rules.combat.group.unitDefinitions.includes(m.state.objects[id].definition)));
+const units=(m,actor,side,ready=false)=>selectCards(m.state,actor,{zones:m.rules.combat.zones,controller:side,face:"up",...(ready?{orientation:"ready"}:{})}).filter(id=>(!ready||!m.rules.combat.positions||m.state.objects[id].position!=="defense")&&m.rules.combat.stats[m.state.objects[id].definition]&&(!m.rules.combat.group.unitDefinitions||m.rules.combat.group.unitDefinitions.includes(m.state.objects[id].definition)));
 const power=(m,id)=>deriveStatistic(m.state,id,"attack",m.rules.combat.stats[m.state.objects[id].definition].attack,m.rules.combat.modifiers??[],{turn:m.turn}).value+(m.battle?.boosts?.[id]??0);
 const health=(m,id)=>deriveStatistic(m.state,id,"health",m.rules.combat.stats[m.state.objects[id].definition].health,m.rules.combat.modifiers??[],{turn:m.turn}).value;
 export function battleActor(m){return m.battle?.stage==="react"?m.battle.reactionActor??m.battle.defender:m.battle?.stage==="assign"?m.battle.actor:m.battle?.defender??null}
