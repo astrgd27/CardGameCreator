@@ -1,7 +1,7 @@
 // Trusted declarative dynamic costs; clients submit only choices, never prices.
 import {hasRule} from "./keywords.js";
 import {selectCards} from "./selectors.js";
-import {payPlan,paymentOptions} from "./card-costs.js";
+import {payPlan,paymentOptions,materialEligible} from "./card-costs.js";
 import {changeResource,quotePayment} from "./resources.js";
 const check=(ok,msg)=>{if(!ok)throw Error(msg)};
 function structuralOptions(m,actor,e,source,plan){
@@ -11,7 +11,7 @@ function structuralOptions(m,actor,e,source,plan){
  const modes=d.modes??["default"],hybrid=(d.hybrid??[]).map(h=>({resources:h.resources,amount:h.amount}));
  const xMin=d.variable?.min??0,xMax=d.variable?.max??0;
  const generators=generatorOptions(m,actor);
- const groups=(plan.cardCosts??[]).map(c=>({kind:c.kind,count:c.count,ids:selectCards(m.state,actor,{zones:[c.from],controller:"self",...(c.kind==="discard"?{owner:"self"}:{face:"up"})})}));
+ const groups=(plan.cardCosts??[]).map(c=>({kind:c.kind,count:c.count,ids:selectCards(m.state,actor,{zones:[c.from],controller:"self",...(c.kind==="discard"?{owner:"self"}:{face:"up"})}).filter(id=>materialEligible(m.state,id,c))}));
  const slots=groups.flatMap(g=>Array.from({length:g.count},()=>g.ids)),assigned=new Map();
  function assign(i,seen){for(const id of slots[i]){if(seen.has(id))continue;seen.add(id);if(!assigned.has(id)||assign(assigned.get(id),seen)){assigned.set(id,i);return true}}return false}
  if(!slots.every((_,i)=>assign(i,new Set())))return null;

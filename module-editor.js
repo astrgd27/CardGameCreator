@@ -92,7 +92,7 @@ function advancedEditor(key,section){
    if(e.sourceDefinition)field(p,"Ability source zones",(e.sourceZones??[]).join(","),"text",v=>e.sourceZones=v.split(",").map(x=>x.trim()).filter(Boolean));
    field(p,"Usage limit",e.limit?.scope??"none",["none","turn","match"],v=>{if(v==="none")delete e.limit;else e.limit={scope:v,count:e.limit?.count??1};render(key)});
    if(e.limit)field(p,"Maximum uses",e.limit.count,"number",v=>e.limit.count=v);
-   function cardCosts(parent,plan){plan.cardCosts??=[];listEditor(parent,plan.cardCosts,"Card payment",()=>({kind:"sacrifice",from:first("zones"),to:options("zones")[1]??"",count:1}),(r,c)=>{field(r,"Payment kind",c.kind,["discard","sacrifice"],v=>c.kind=v);field(r,"Payment source",c.from,"zones",v=>c.from=v);field(r,"Payment destination",c.to,"zones",v=>c.to=v);field(r,"Payment quantity",c.count,"number",v=>c.count=v);field(r,"Required material",c.definition??"",["",...module.definitions],v=>{if(v)c.definition=v;else delete c.definition})},key)}
+   function cardCosts(parent,plan){plan.cardCosts??=[];listEditor(parent,plan.cardCosts,"Card payment",()=>({kind:"sacrifice",from:first("zones"),to:options("zones")[1]??"",count:1}),(r,c)=>{field(r,"Payment kind",c.kind,["discard","sacrifice","detach"],v=>c.kind=v);field(r,"Payment source",c.from,"zones",v=>c.from=v);field(r,"Payment destination",c.to,"zones",v=>c.to=v);field(r,"Payment quantity",c.count,"number",v=>c.count=v);field(r,"Attached material host instance",c.attachedTo??"","text",v=>{if(v)c.attachedTo=v;else delete c.attachedTo});field(r,"Exact material rating total",c.totalRating??"","text",v=>{if(v==="")delete c.totalRating;else c.totalRating=Number(v)});field(r,"Exact material level total",c.totalLevel??"","text",v=>{if(v==="")delete c.totalLevel;else c.totalLevel=Number(v)});field(r,"Material attribute",c.attribute??"","text",v=>{if(v){c.attribute=v;c.value??=""}else{delete c.attribute;delete c.value}});field(r,"Material attribute value",c.value??"","text",v=>c.value=v);field(r,"Required material",c.definition??"",["",...module.definitions],v=>{if(v)c.definition=v;else delete c.definition})},key)}
    p.append(actionButton(e.dynamicPayment?"Remove dynamic payment":"Configure dynamic payment",()=>{if(e.dynamicPayment)delete e.dynamicPayment;else e.dynamicPayment={modes:["default"],hybrid:[],targets:[],modifiers:[]};render(key)}));
    if(e.dynamicPayment){
     const d=e.dynamicPayment;
@@ -168,7 +168,7 @@ function advancedEditor(key,section){
    g.lifeCards??={};for(const player of module.players){
     const zones=module.zones.filter(z=>z.owner===player).map(z=>z.id);
     field(section,"Life card zone "+player,g.lifeCards[player]?.zone??"",["",...zones],v=>{if(v)g.lifeCards[player]={zone:v,destination:zones.find(z=>z!==v)??"",emptyLoss:true,perAttack:true};else delete g.lifeCards[player];render(key)});
-    if(g.lifeCards[player]){const p=g.lifeCards[player];field(section,"Life destination "+player,p.destination,zones,v=>p.destination=v);field(section,"Life damage per "+player,p.perAttack?"attack":"damage",["attack","damage"],v=>p.perAttack=v==="attack");field(section,"Lose on empty life "+player,p.emptyLoss!==false?"yes":"no",["yes","no"],v=>p.emptyLoss=v==="yes")}
+    if(g.lifeCards[player]){const p=g.lifeCards[player];p.triggers??={};for(const d of module.definitions)field(section,"Life trigger "+player+" / "+d,p.triggers[d]??"",["",...Object.keys(module.effects)],v=>{if(v)p.triggers[d]=v;else delete p.triggers[d]});field(section,"Life destination "+player,p.destination,zones,v=>p.destination=v);field(section,"Life damage per "+player,p.perAttack?"attack":"damage",["attack","damage"],v=>p.perAttack=v==="attack");field(section,"Lose on empty life "+player,p.emptyLoss!==false?"yes":"no",["yes","no"],v=>p.emptyLoss=v==="yes")}
    }
   }
   for(const d of module.definitions??[]){const p=panel(section,d),st=c.stats[d]??{attack:0,health:1};field(p,"Attack "+d,st.attack,"number",v=>{c.stats[d]??={...st};c.stats[d].attack=v});field(p,"Health "+d,st.health,"number",v=>{c.stats[d]??={...st};c.stats[d].health=v})}
@@ -240,6 +240,9 @@ function advancedPolicies(key,section){
     field(p,"Statistic",r.stat,["attack","health"],v=>r.stat=v);
     field(p,"Modifier operation",r.op,["set","add","multiply"],v=>r.op=v);
     field(p,"Modifier value",r.value,"signed",v=>r.value=v);field(p,"Modifier layer",r.layer??({set:0,add:1,multiply:2}[r.op]),"number",v=>r.layer=v);expressionField(p,"Modifier condition",r.when??true,v=>r.when=v);
+    field(p,"Aura source definition",r.auraDefinition??"",["",...module.definitions],v=>{if(v){r.auraDefinition=v;r.auraZones??=[first("zones")]}else{delete r.auraDefinition;delete r.auraZones;delete r.auraController}render(key)});
+    if(r.auraDefinition){field(p,"Aura source zones",r.auraZones.join(","),"text",v=>r.auraZones=csv(v));field(p,"Aura controller",r.auraController??"self",["self","any"],v=>r.auraController=v)}
+    field(p,"Attachment source definition",r.attachmentDefinition??"",["",...module.definitions],v=>{if(v)r.attachmentDefinition=v;else delete r.attachmentDefinition});
     field(p,"Source instance (optional)",r.source??"","text",v=>{if(v){r.source=v;r.sourceZones??=[]}else{delete r.source;delete r.sourceZones}});
     field(p,"Source zones",(r.sourceZones??[]).join(","),"text",v=>r.sourceZones=csv(v));
     field(p,"Expires before turn (blank = never)",r.expires??"","text",v=>{if(v==="")delete r.expires;else r.expires=Number(v)});

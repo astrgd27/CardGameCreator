@@ -32,6 +32,7 @@ export function damageCards(state,player,policy,count){
   const id=next.zones[from].cards[0];
   if(!id){next=structuredClone(next);next.ruleLosses??=[];if(policy.emptyLoss!==false&&!next.ruleLosses.includes(player))next.ruleLosses.push(player);events.push({type:"lifeExhausted",actor:player});break}
   const definition=next.objects[id].definition,r=moveWithAttachments(next,{id,from,to,face:"up"});next=r.state;
+  if(policy.triggers?.[definition]){next.lifeDecisions??=[];next.lifeDecisions.push({actor:player,id,definition,effect:policy.triggers[definition],zone:to})}
   events.push(...r.events,{type:"lifeCardTaken",actor:player,...(next.zones[to].visibility==="public"?{id,definition}:{})});
  }
  return {state:next,events};
