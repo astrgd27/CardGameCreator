@@ -44,3 +44,60 @@ test("accepting a private life trigger queues and resolves its configured effect
 
 test("detaching a material pays a cost without moving its host",()=>{let m=createMatch(referenceModules()[0]);m=applyMatchAction(m,"a",{type:"attach",id:"c3",host:"c1"}).match;const from=Object.values(m.state.zones).find(z=>z.cards.includes("c3")).id;const plan={id:"detach",cardCosts:[{kind:"detach",from,to:"discard-a",count:1,attachedTo:"c1"}]};assert.deepEqual(paymentOptions(m.state,"a",plan).example,["c3"]);const paid=payPlan(m.state,"a",plan,["c3"]);assert.ok(paid.state.zones[from].cards.includes("c1"));assert.ok(paid.state.zones["discard-a"].cards.includes("c3"));assert.equal(paid.state.attachments.c3,undefined)});
 test("Link rating costs reject an incorrect material total",()=>{const m=createMatch(referenceModules()[2]);const plan={id:"link",cardCosts:[{kind:"sacrifice",from:"field",to:"discard-a",count:2,totalRating:2}]};assert.ok(paymentOptions(m.state,"a",plan));assert.throws(()=>payPlan(m.state,"a",{...plan,cardCosts:[{...plan.cardCosts[0],totalRating:3}]},["c1","c3"]),/rating/)});
+
+test("source-relative detach binds to the activating instance and rejects missing source",async()=>{
+ const {commitDynamic,dynamicOptions}=await import("../kernel/dynamic-payments.js");
+ let m=createMatch(referenceModules()[0]);
+ m=applyMatchAction(m,"a",{type:"attach",id:"c3",host:"c1"}).match;
+ const from=Object.values(m.state.zones).find(z=>z.cards.includes("c3")).id;
+ const plan={id:"detach-source",cardCosts:[{kind:"detach",from,to:"discard-a",count:1,hostBinding:"source"}]};
+ assert.deepEqual(dynamicOptions(m,"a",{},"c1",plan).example,["c3"]);
+ assert.equal(dynamicOptions(m,"a",{},undefined,plan),null);
+ const before=JSON.stringify(m.state);
+ assert.throws(()=>commitDynamic(m,"a",{},"c2",plan,{cards:["c3"]}));
+ assert.equal(JSON.stringify(m.state),before);
+ const paid=commitDynamic(m,"a",{},"c1",plan,{cards:["c3"]});
+ assert.ok(paid.state.zones[from].cards.includes("c1"));
+ assert.ok(paid.state.zones["discard-a"].cards.includes("c3"));
+});
+
+test("scale deployment moves multiple cards atomically through match activation",()=>{
+ const r=referenceModules()[2];
+ r.zones.push({id:"scale-low",owner:"a",visibility:"public",capacity:1},{id:"scale-high",owner:"a",visibility:"public",capacity:1});
+ r.definitions.push("low-scale","high-scale");
+ r.attributes["low-scale"]={scale:1};r.attributes["high-scale"]={scale:8};
+ r.setup.push({definition:"low-scale",owner:"a",zone:"scale-low",face:"up"},{definition:"high-scale",owner:"a",zone:"scale-high",face:"up"});
+ r.effects.scaleDeploy={available:true,actors:["a"],cardCosts:[{kind:"deploy",from:"field",to:"discard-a",count:2,scaleZones:["scale-low","scale-high"]}],program:[]};
+ r.chain.speedByEffect.scaleDeploy=1;
+ const m=createMatch(r);
+ const opt=matchView(m,"a").activations.find(a=>a.effect==="scaleDeploy");
+ assert.ok(opt);
+ const before=JSON.stringify(m);
+ assert.throws(()=>applyMatchAction(m,"a",{type:"activate",effect:"scaleDeploy",cards:[opt.example[0],opt.example[0]]}));
+ assert.equal(JSON.stringify(m),before);
+ const next=applyMatchAction(m,"a",{type:"activate",effect:"scaleDeploy",cards:opt.example}).match;
+ for(const id of opt.example)assert.ok(next.state.zones["discard-a"].cards.includes(id));
+});
+test("source material payment deploys host and attaches material in one transaction",async()=>{
+ const {commitDynamic}=await import("../kernel/dynamic-payments.js");
+ const m=createMatch(referenceModules()[2]);
+ const plan={id:"summon",cardCosts:[{kind:"material",from:"field",to:"reserve-a",count:1,hostBinding:"source"}]};
+ const paid=commitDynamic(m,"a",{},"c7",plan,{cards:["c1"]});
+ assert.equal(paid.state.attachments.c1.host,"c7");
+ assert.ok(paid.state.zones["reserve-a"].cards.includes("c1"));
+});
+
+test("Taste Dimension scale recycling and reserve redeployment",async()=>{
+ const {moveWithAttachments}=await import("../kernel/attachments.js");
+ const {addCard}=await import("../kernel/objects.js");
+ let m=createMatch(referenceModules()[2]);
+ for(const z of ["scale-low-a","scale-high-a"])m.state=addCard(m.state,{definition:z,owner:"a",zone:z}).state;
+ const added=addCard(m.state,{definition:"scale-low-a",owner:"a",zone:"field"});
+ m.state=moveWithAttachments(added.state,{id:added.id,from:"field",to:"discard-a",reset:true}).state;
+ assert.ok(m.state.zones["scale-reserve-a"].cards.includes(added.id));
+ assert.equal(m.state.objects[added.id].face,"up");
+ const option=matchView(m,"a").activations.find(a=>a.effect==="scale-deploy-a"&&a.id==="reserve");
+ assert.ok(option);
+ m=applyMatchAction(m,"a",{type:"activate",effect:"scale-deploy-a",plan:"reserve",cards:[added.id]}).match;
+ assert.ok(m.state.zones.field.cards.includes(added.id));
+});
