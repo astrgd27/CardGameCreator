@@ -7,7 +7,7 @@ import {selectCards} from "./selectors.js";
 import {deriveStatistic} from "./modifiers.js";
 import {replaceDamage} from "./replacements.js";
 import {moveWithAttachments} from "./attachments.js";
-import {changeResource} from "./resources.js";
+import {quotePayment,changeResource} from "./resources.js";
 const check=(ok,msg)=>{if(!ok)throw Error(msg)};
 const units=(m,actor,side,ready=false)=>selectCards(m.state,actor,{zones:m.rules.combat.zones,controller:side,face:"up",...(ready?{orientation:"ready"}:{})}).filter(id=>(!ready||!m.rules.combat.positions||m.state.objects[id].position!=="defense")&&m.rules.combat.stats[m.state.objects[id].definition]&&(!m.rules.combat.group.unitDefinitions||m.rules.combat.group.unitDefinitions.includes(m.state.objects[id].definition)));
 const zoneOf=(m,id)=>Object.values(m.state.zones).find(z=>z.cards.includes(id))?.id;
@@ -16,7 +16,7 @@ const canAttack=(m,id)=>!hasRule(m.state,id,"cannotAttack")&&(!m.rules.combat.gr
 const power=(m,id)=>deriveStatistic(m.state,id,"attack",m.rules.combat.stats[m.state.objects[id].definition].attack,m.rules.combat.modifiers??[],{turn:m.turn}).value+(m.battle?.boosts?.[id]??0);
 const health=(m,id)=>deriveStatistic(m.state,id,"health",m.rules.combat.stats[m.state.objects[id].definition].health,m.rules.combat.modifiers??[],{turn:m.turn}).value;
 export function battleActor(m){return m.battle?.stage==="react"?m.battle.reactionActor??m.battle.defender:m.battle?.stage==="assign"?m.battle.actor:m.battle?.defender??null}
-function reactions(m,actor){const p=m.rules.combat.group,opts=[];for(const r of p.reactions??[])for(const id of selectCards(m.state,actor,{zones:r.zones,owner:"self",controller:"self",definition:r.definition,face:"up"}))if(!m.battle.used?.includes(id))opts.push({id,rule:r.id,amount:r.amount});return opts}
+function reactions(m,actor){const p=m.rules.combat.group,opts=[];for(const r of p.reactions??[])if((!r.side||r.side===(actor===m.battle.actor?"attacker":"defender"))&&quotePayment(m.state,actor,r.costs??[]).legal)for(const id of selectCards(m.state,actor,{zones:r.zones,owner:"self",controller:"self",definition:r.definition,face:"up"}))if(!m.battle.used?.includes(id))opts.push({id,rule:r.id,amount:r.amount});return opts}
 export function combatOptions(m,actor){
  const c=m.rules.combat?.group;if(!c||m.timing.players.length!==2)return null;
  const battle=m.battle,enemy=m.timing.players.find(p=>p!==actor);if(teamOf(m,enemy)===teamOf(m,actor))return null;
@@ -51,7 +51,7 @@ export function advanceBattle(m,actor,action){
    const rule=p.reactions.find(x=>x.id===r.rule),target=action.target;
    check(v.attackers.includes(target),"Invalid reaction target");
    const from=Object.values(m.state.zones).find(z=>z.cards.includes(r.id)).id;
-   const moved=moveWithAttachments(m.state,{id:r.id,from,to:rule.destination,face:"up",reset:true});m.state=moved.state;b.used.push(r.id);b.boosts[target]=(b.boosts[target]??0)+(p.twoSidedReactions&&actor===b.actor?r.amount:-r.amount);if(p.twoSidedReactions){b.reactionActor=actor===b.actor?b.defender:b.actor;b.reactionPasses=0}return [...moved.events,{type:"combatReaction",actor,amount:r.amount}];
+   let paid=m.state;const paymentEvents=[];for(const cost of rule.costs??[]){const result=changeResource(paid,actor,cost.resource,-cost.amount,{overflow:"reject"});paid=result.state;paymentEvents.push(...result.events)}const moved=moveWithAttachments(paid,{id:r.id,from,to:rule.destination,face:"up",reset:true});m.state=moved.state;b.used.push(r.id);b.boosts[target]=(b.boosts[target]??0)+(p.twoSidedReactions&&actor===b.actor?r.amount:-r.amount);if(p.twoSidedReactions){b.reactionActor=actor===b.actor?b.defender:b.actor;b.reactionPasses=0}return [...paymentEvents,...moved.events,{type:"combatReaction",actor,amount:r.amount}];
   }
   check(action.type==="combatContinue","Reaction decision required");if(p.twoSidedReactions&&++b.reactionPasses<2){b.reactionActor=actor===b.actor?b.defender:b.actor;return [{type:"combatReactionPassed",actor}]}
  }else if(b.stage==="assign"){
