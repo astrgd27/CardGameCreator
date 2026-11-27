@@ -6,6 +6,7 @@ const check=(ok,msg)=>{if(!ok)throw Error(msg)};
 function scaleEligible(state,id,c){
  if(c.kind!=="deploy")return true;
  if(c.linkedZones?.length&&!c.linkedZones.some(z=>state.zones[z]?.cards.some(x=>state.objects[x].controller===state.objects[id].controller&&state.objects[x].face==="up"&&state.attributes?.[state.objects[x].definition]?.linkRating>0)))return false;
+ if(c.linkedZones?.length&&c.linkDirection&&!c.linkedZones.some(z=>state.zones[z]?.cards.some(x=>{const o=state.objects[x],a=state.attributes?.[o.definition];return x!==id&&o.controller===state.objects[id].controller&&o.face==="up"&&a?.linkRating>0&&typeof a.linkDirections==="string"&&a.linkDirections.split(",").map(v=>v.trim()).includes(c.linkDirection)})))return false;
  if(!c.scaleZones)return true;
  const scales=c.scaleZones.map(z=>state.zones[z]?.cards.filter(x=>state.objects[x].face==="up"&&state.objects[x].controller===state.objects[id].controller&&Number.isFinite(state.attributes?.[state.objects[x].definition]?.scale))??[]);
  if(scales.some(a=>a.length!==1)||scales.some(a=>a.includes(id)))return false;
