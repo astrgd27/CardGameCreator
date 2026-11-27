@@ -111,7 +111,7 @@ function retreatAndResponses(m,i){
  }
  if(i===1){
   m.chain={maxLinks:12,minimumResponseSpeed:1,escalate:false,speedByEffect:Object.fromEntries(Object.keys(m.effects).map(id=>[id,1]))};
-  for(const p of m.players){const id="crystal-response-"+p;m.effects[id]={available:true,actors:[p],dynamicPayment:{hybrid:[{resources:["azure","ruby"],amount:1}]},program:[{type:"resource",resource:"life",delta:1,overflow:"clamp"}]};m.chain.speedByEffect[id]=2;}
+  for(const p of m.players){const id="crystal-response-"+p;m.effects[id]={available:true,actors:[p],dynamicPayment:{hybrid:[{resources:["azure","ruby"],amount:1}]},counterEffect:{},program:[]};m.chain.speedByEffect[id]=2;}
  }
  return m;
 }
