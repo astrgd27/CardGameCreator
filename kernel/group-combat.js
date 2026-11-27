@@ -23,10 +23,17 @@ export function combatOptions(m,actor){
  if(battle?.stage==="react")return (battle.reactionActor??battle.defender)===actor?{stage:"react",reactions:reactions(m,actor),attackers:battle.attacks.map(a=>a.attacker)}:null;
  if(battle?.stage==="assign")return battle.actor===actor?{stage:"assign",assignments:battle.attacks.filter(a=>battle.blocks.some(b=>b.attacker===a.attacker)).map(a=>({attacker:a.attacker,power:Math.max(0,power(m,a.attacker)),blockers:battle.blocks.filter(b=>b.attacker===a.attacker).map(b=>({id:b.blocker,lethal:Math.max(0,health(m,b.blocker)-m.state.objects[b.blocker].damage)}))})),overflow:!!c.overflow}:null;
  if(battle)return battle.stage==="block"&&battle.defender===actor?{stage:"block",attackers:battle.attacks.map(a=>a.attacker),blockers:units(m,actor,"self",c.readyBlockers!==false).filter(id=>!hasRule(m.state,id,"cannotBlock")).filter(id=>!c.guardStatus||m.state.objects[id].statuses?.includes(c.guardStatus)),attacks:battle.attacks,attackersByBlocker:Object.fromEntries(units(m,actor,"self",c.readyBlockers!==false).map(id=>[id,battle.attacks.filter(a=>canBlock(m,id,a)).map(a=>a.attacker)])),intercept:c.intercept??"all"}:null;
- if(m.result||m.promotion||m.openingQueue?.length||m.triggerOrderPending||m.timing.active!==actor||m.timing.priority!==actor||m.windowClosed||m.pending||m.timing.queue.length||m.timing.resolving||m.rules.phases&&!m.rules.phases[m.phaseIndex].actions.includes("attack")||m.combatUsed===m.turn)return null;
+ if(c.movementShowdown||m.result||m.promotion||m.openingQueue?.length||m.triggerOrderPending||m.timing.active!==actor||m.timing.priority!==actor||m.windowClosed||m.pending||m.timing.queue.length||m.timing.resolving||m.rules.phases&&!m.rules.phases[m.phaseIndex].actions.includes("attack")||m.combatUsed===m.turn)return null;
  const targets=units(m,actor,"opponent").filter(id=>m.timing.players.includes(m.state.objects[id].controller)&&teamOf(m,m.state.objects[id].controller)!==teamOf(m,actor)).filter(id=>!hasRule(m.state,id,"cannotBeAttacked")&&(!c.targetOrientation||m.state.objects[id].orientation===c.targetOrientation||c.alwaysTargetDefinitions?.includes(m.state.objects[id].definition))).map(id=>({kind:"card",id}));
  if(c.lifeResource||c.lifeCards?.[enemy])targets.push({kind:"player",id:enemy});
  return {stage:"declare",attackers:units(m,actor,"self",true).filter(id=>canAttack(m,id)),targets,targetsByAttacker:Object.fromEntries(units(m,actor,"self",true).filter(id=>canAttack(m,id)).map(id=>[id,targets.filter(t=>t.kind==="player"||inRange(m.state,id,t.id)&&(!c.sameBattlefield||c.sameBattlefield.includes(Object.values(m.state.zones).find(z=>z.cards.includes(id))?.id)&&Object.values(m.state.zones).some(z=>z.cards.includes(id)&&z.cards.includes(t.id))))])),max:c.maxAttackers??10};
+}
+export function startShowdown(m,actor,zone){
+ const p=m.rules.combat.group;if(!p?.movementShowdown||!p.sameBattlefield?.includes(zone))return [];
+ const defender=m.timing.players.find(x=>x!==actor),attackers=units(m,actor,"self").filter(id=>zoneOf(m,id)===zone),defenders=units(m,defender,"self").filter(id=>zoneOf(m,id)===zone);
+ if(!attackers.length||!defenders.length)return [];
+ m.battle={stage:"react",actor,defender,reactionActor:actor,reactionPasses:0,attacks:attackers.map(attacker=>({attacker,kind:"card",target:defenders[0]})),showdown:{zone,attackers,defenders},blocks:[],boosts:{},used:[]};
+ return [{type:"showdownStarted",actor,zone}];
 }
 export function declareCombat(m,actor,attacks){
  const options=combatOptions(m,actor);check(options?.stage==="declare","Cannot declare attacks");
@@ -73,7 +80,7 @@ export function resolveGroupCombat(m,actor,blocks,validated=false){
  const hitLife=(player,n)=>{if(n<=0)return;life.set(player,(life.get(player)??0)+n);lifeHits.set(player,(lifeHits.get(player)??0)+1)};
  const stat=(id,k)=>deriveStatistic(state,id,k,c.stats[state.objects[id].definition][k],c.modifiers??[],{turn:m.turn}).value;
  const hit=(id,amount)=>{const r=replaceDamage(state,{type:"damageDealt",id,amount,damageType:policy.damageType??"combat"},c.replacements??[]);for(const rule of r.applied)events.push({type:"damageReplaced",rule,id});if(r.event.amount){damage.set(r.event.id,(damage.get(r.event.id)??0)+r.event.amount);events.push(r.event)}};
- for(const a of b.attacks){
+ if(b.showdown){const {attackers,defenders}=b.showdown;for(const [sources,targets] of [[attackers,defenders],[defenders,attackers]]){let remaining=sources.reduce((n,id)=>n+Math.max(0,power(m,id)),0);for(const [i,id] of targets.entries()){const n=i===targets.length-1?remaining:Math.min(remaining,Math.max(0,power(m,id)-state.objects[id].damage));hit(id,n);remaining-=n}}}else for(const a of b.attacks){
   next.objects[a.attacker].orientation="resting";
   const guards=blocks.filter(x=>x.attacker===a.attacker).map(x=>x.blocker);
   if(guards.length){
@@ -86,7 +93,8 @@ export function resolveGroupCombat(m,actor,blocks,validated=false){
  let result=next;
  for(const [id,n] of damage){check(Number.isSafeInteger(n+result.objects[id].damage),"Damage overflow");result.objects[id].damage+=n}
  for(const [player,n] of life){const r=policy.lifeCards?.[player]?damageCards(result,player,policy.lifeCards[player],policy.lifeCards[player].perAttack?lifeHits.get(player):n):changeResource(result,player,policy.lifeResource,-n,{overflow:"clamp"});result=r.state;events.push(...r.events)}
- const defeated=[...damage.keys()].filter(id=>result.objects[id].damage>=stat(id,"health"));
+ const defeated=[...damage.keys()].filter(id=>result.objects[id].damage>=(b.showdown?Math.max(0,power(m,id)):stat(id,"health")));
  for(const id of defeated){const from=Object.values(result.zones).find(z=>z.cards.includes(id)).id,to=c.defeatZones[result.objects[id].owner];const r=moveWithAttachments(result,{id,from,to,reset:true});result=r.state;events.push({type:"combatDefeat",id,definition:state.objects[id].definition,owner:state.objects[id].owner,controller:state.objects[id].controller,from,damage:state.objects[id].damage+(damage.get(id)??0)},...r.events)}
+ if(b.showdown){for(const id of [...b.showdown.attackers,...b.showdown.defenders])if(result.zones[b.showdown.zone].cards.includes(id))result.objects[id].damage=0;const defenders=b.showdown.defenders.filter(id=>result.zones[b.showdown.zone].cards.includes(id));if(defenders.length)for(const id of b.showdown.attackers.filter(id=>result.zones[b.showdown.zone].cards.includes(id))){const to=policy.retreatZones?.[b.actor];if(to){const r=moveWithAttachments(result,{id,from:b.showdown.zone,to});result=r.state;events.push(...r.events)}}}
  m.state=result;m.battle=null;m.timing.passes=0;return [{type:"combatResolved",actor},...events];
 }
