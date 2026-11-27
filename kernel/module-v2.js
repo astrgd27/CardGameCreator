@@ -72,6 +72,7 @@ function validateModuleStructure(m){
    else if(["skipUnlessExpr","eachCounter","resourceExpr"].includes(op.type)){try{validateExpression(op.expression)}catch(e){errors.push(e.message)}require(op.type==="skipUnlessExpr"?integer(op.skip)&&op.skip>=1&&op.skip<=64:op.type==="eachCounter"?record(op.selector)&&key(op.counter):resources.has(op.resource),"invalid expression operation")}
    else if(op.type==="scheduleTurn")require(["extra","skip"].includes(op.kind)&&(op.player==="self"||players.includes(op.player))&&integer(op.count)&&op.count>=1&&op.count<=10,"invalid scheduled turn");
    else if(["search","randomHidden"].includes(op.type)){require(key(op.name)&&!choices.has(op.name)&&zids.has(op.zone)&&(op.top===undefined||integer(op.top)&&op.top>=1&&op.top<=100)&&(op.definition===undefined||defs.includes(op.definition)),"invalid hidden selection");choices.add(op.name)}
+   else if(op.type==="blindChoose"){require(key(op.name)&&!choices.has(op.name)&&zids.has(op.zone),"invalid blind choice");choices.add(op.name)}
    else if(op.type==="optional"){require(key(op.name)&&!choices.has(op.name)&&integer(op.skip)&&op.skip>=1&&op.skip<=64,"invalid optional choice");choices.add(op.name)}
    else if(op.type==="reveal")require(choices.has(op.choice)&&["self","all"].includes(op.audience),"invalid reveal");
    else if(op.type==="reorder")require(choices.has(op.choice)&&zids.has(op.zone)&&["top","bottom"].includes(op.position),"invalid reorder");
