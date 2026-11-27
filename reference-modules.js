@@ -100,5 +100,27 @@ function advanced(m,i){
  for(const [id,c] of Object.entries(m.cardPresentation)){if(c.tags.includes("spore"))c.symbol="✿";else if(c.tags.includes("spark"))c.symbol="ϟ";else if(c.tags.includes("momentum"))c.symbol="★";else if(c.tags.includes("rune"))c.symbol="◇";}
  return m;
 }
-export function referenceModules(){return [creatures(),spells(),chains(),crews(),domains()].map((m,i)=>{m.cardPresentation=structuredClone(skins[i]);return advanced(addTactics(buildDecks(expand(m,i),i),i),i)})}
+function scaleDeployment(m){
+ for(const p of m.players){
+  const hand="hand-"+p,deck="deck-"+p,scales=["scale-low-"+p,"scale-high-"+p];
+  for(const [i,z] of scales.entries()){
+   const id=z;
+   m.zones.push({id:z,owner:p,visibility:"public",capacity:1});
+   m.battlefield.zones.push({zone:z,label:(i?"High":"Low")+" scale "+p,display:"cards",span:1});
+   m.definitions.push(id);m.attributes[id]={scale:i?8:1,level:3};
+   m.cardPresentation[id]=card(i?"Blazing Wok":"Frosted Ladle","Dish monster · Scale "+(i?8:1),"arcane","Place in its scale zone to enable scale deployment.",["monster","scale"]);
+   m.combat.stats[id]={attack:2,health:3};
+   const pile=m.setup.filter(c=>c.zone===deck);
+   for(const c of pile.slice(4+i*2,6+i*2))c.definition=id;
+   m.effects[id]={available:true,actors:[p],sourceDefinition:id,sourceZones:[hand],program:[{type:"move",choice:"source",from:hand,to:z}]};
+   m.chain.speedByEffect[id]=1;
+  }
+  m.attributes["recruit-"+p]={level:3};
+  const id="scale-deploy-"+p;
+  m.effects[id]={available:true,actors:[p],limit:{scope:"turn",count:1},cardCosts:[{kind:"deploy",from:hand,to:"field",count:1,scaleZones:scales}],alternatives:[{id:"two",cardCosts:[{kind:"deploy",from:hand,to:"field",count:2,scaleZones:scales}]}],program:[]};
+  m.chain.speedByEffect[id]=1;
+ }
+ return m;
+}
+export function referenceModules(){return [creatures(),spells(),chains(),crews(),domains()].map((m,i)=>{m.cardPresentation=structuredClone(skins[i]);const result=advanced(addTactics(buildDecks(expand(m,i),i),i),i);return i===2?scaleDeployment(result):result})}
 
