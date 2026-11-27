@@ -49,6 +49,8 @@ export function moveWithAttachments(s,action){
  assertAttachments(s);
  let next=structuredClone(s);const events=[];
  const move=(a)=>{
+  const o=next.objects[a.id];const redirect=(next.moveReplacements??[]).find(r=>r.from===a.from&&r.to===a.to&&r.owner===o.owner&&r.definitions.includes(o.definition)&&!next.attachments?.[a.id]);
+  if(redirect)a={...a,to:redirect.destination,face:"up"};
   const children=Object.entries(next.attachments??{}).filter(([,link])=>link.host===a.id);
   if(a.from!==a.to){
    for(const [id,link] of children){
