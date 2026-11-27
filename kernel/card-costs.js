@@ -5,6 +5,7 @@ import {moveWithAttachments,detachCard,attachCard} from "./attachments.js";
 const check=(ok,msg)=>{if(!ok)throw Error(msg)};
 function scaleEligible(state,id,c){
  if(c.kind!=="deploy")return true;
+ if(c.linkedZones?.length&&!c.linkedZones.some(z=>state.zones[z]?.cards.some(x=>state.objects[x].controller===state.objects[id].controller&&state.objects[x].face==="up"&&state.attributes?.[state.objects[x].definition]?.linkRating>0)))return false;
  const scales=c.scaleZones.map(z=>state.zones[z]?.cards.filter(x=>state.objects[x].face==="up"&&state.objects[x].controller===state.objects[id].controller&&Number.isFinite(state.attributes?.[state.objects[x].definition]?.scale))??[]);
  if(scales.some(a=>a.length!==1)||scales.some(a=>a.includes(id)))return false;
  const [a,b]=scales.map(([x])=>state.attributes[state.objects[x].definition].scale);
