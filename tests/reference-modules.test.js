@@ -99,5 +99,21 @@ test("Taste Dimension scale recycling and reserve redeployment",async()=>{
  const option=matchView(m,"a").activations.find(a=>a.effect==="scale-deploy-a"&&a.id==="reserve");
  assert.ok(option);
  m=applyMatchAction(m,"a",{type:"activate",effect:"scale-deploy-a",plan:"reserve",cards:[added.id]}).match;
+ assert.ok(m.state.zones["scale-reserve-a"].cards.includes(added.id));
+ for(let i=0;i<8&&m.timing.queue.length;i++)m=applyMatchAction(m,m.timing.priority,{type:"pass"}).match;
  assert.ok(m.state.zones.field.cards.includes(added.id));
+});
+
+test("summon response prevents deferred deployment",()=>{
+ const r=referenceModules()[2];
+ r.effects.summonTest={summon:true,available:true,actors:["a"],program:[{type:"move",id:"c1",from:"field",to:"discard-a"}]};
+ r.effects.negateTest={negateSummon:true,available:true,actors:["b"],program:[]};
+ r.chain.speedByEffect.summonTest=1;r.chain.speedByEffect.negateTest=2;
+ let m=createMatch(r);
+ m=applyMatchAction(m,"a",{type:"activate",effect:"summonTest"}).match;
+ if(m.timing.priority==="a")m=applyMatchAction(m,"a",{type:"pass"}).match;
+ m=applyMatchAction(m,"b",{type:"activate",effect:"negateTest"}).match;
+ for(let i=0;i<8&&m.timing.queue.length;i++)m=applyMatchAction(m,m.timing.priority,{type:"pass"}).match;
+ assert.ok(m.state.zones.field.cards.includes("c1"));
+ assert.equal(m.timing.queue.length,0);
 });
