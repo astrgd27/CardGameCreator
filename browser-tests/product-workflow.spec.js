@@ -61,3 +61,30 @@ test("blank Workshop creation, battle result, checkpoint and portable import",as
  expect(page.url()).not.toBe(workshop);
  expect(errors).toEqual([]);
 });
+
+test("lane board edits survive playtest and apply to the tabletop",async({page},info)=>{
+ test.setTimeout(60000);
+ await page.goto("/index.html");
+ await page.getByRole("link",{name:"New module"}).click();
+ await page.getByLabel("Module name").fill("Harbor Lines");
+ await page.getByLabel("Starting layout").selectOption("lanes");
+ await page.getByRole("button",{name:"Open Workshop"}).click();
+ await page.getByRole("button",{name:"Board",exact:true}).click();
+ await page.getByLabel("Your west lane name").fill("Breakwater");
+ await page.getByLabel("Your east lane capacity").fill("2");
+ await page.getByRole("button",{name:"Move Breakwater later on your side"}).click();
+ await expect(page.locator(".board-row").last().locator(".board-slot strong").last()).toHaveText("Breakwater");
+ await page.getByLabel("Table perspective").selectOption("b");
+ await expect(page.locator(".board-row").first().locator(".board-slot strong").last()).toHaveText("Breakwater");
+ await page.getByRole("button",{name:"Rules",exact:true}).click();
+ await page.getByLabel("Victory condition").selectOption("deck");
+ await expect(page.getByText("Players lose when they cannot draw a required card.",{exact:false})).toBeVisible();
+ await page.getByRole("button",{name:"Playtest",exact:true}).click();
+ await page.getByLabel("Animation speed").selectOption("reduced");
+ await page.getByRole("button",{name:"Start match"}).click();
+ await expect(page.locator(".friendly .zone h2").last()).toHaveText("Breakwater");
+ await expect(page.getByRole("button",{name:"Keep hand"})).toBeVisible();
+ await page.screenshot({path:info.outputPath("lane-table.png")});
+ await page.getByRole("button",{name:"Workshop",exact:true}).click();
+ await expect(page.getByLabel("Victory condition")).toHaveValue("deck");
+});

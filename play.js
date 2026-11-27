@@ -291,6 +291,8 @@ function render(){
  const focused=document.activeElement;
  const focusCard=focused?.dataset.cardId;
  const focusText=focused instanceof HTMLButtonElement?focused.textContent:null;
+ const scrollTop=root.querySelector("#table")?.scrollTop??0;
+ const scrollRows=new Map(Array.from(root.querySelectorAll("[data-scroll-zone]"),row=>[row.dataset.scrollZone,row.scrollLeft]));
  root.replaceChildren();
  const actor=decisionActor(match),view=matchView(match,human);
  currentView=view;
@@ -320,6 +322,7 @@ function render(){
   for(const o of z.cards??[])row.append(card(o,human,targets));
   if(!z.cards)for(let i=0;i<Math.min(z.count,12);i++)row.append(el("div","card back"));
   row.setAttribute("aria-label",(z.owner===human?"Your ":"Opponent ")+label(z));
+  row.dataset.scrollZone=z.id;
   return row;
  };
  for(const p of rules.players.filter(p=>p!==human)){
@@ -358,7 +361,8 @@ function render(){
  root.append(table);
 
  const foot=el("footer");
- const message=error||(view.result?resultReason(view):view.opening&&can?"Keep or redraw your opening hand.":view.choice&&can?titleCase(view.choice.name):can?"Your decision":"Opponent thinking…");
+ const selectedName=selected&&displayName(view,selected);
+ const message=error||(view.result?resultReason(view):view.opening&&can?"Keep or redraw your opening hand.":view.choice&&can?titleCase(view.choice.name):can?(selectedName?"Selected · "+selectedName:"Your decision"):"Opponent thinking…");
  const status=el("div","status",message);status.setAttribute("role","status");
  if(lastMove&&!view.result&&!error)status.append(el("small","last-move",lastMove));
  if(error)status.classList.add("error");
@@ -426,6 +430,8 @@ function render(){
    },context.children.length?"":"primary"));
   }
  }
+ table.scrollTop=scrollTop;
+ for(const row of table.querySelectorAll("[data-scroll-zone]"))row.scrollLeft=scrollRows.get(row.dataset.scrollZone)??0;
  if(focusCard)root.querySelectorAll("[data-card-id]").forEach(element=>{if(element.dataset.cardId===focusCard)element.focus({preventScroll:true})});
  else if(focusText)Array.from(root.querySelectorAll("button")).find(b=>b.textContent===focusText)?.focus({preventScroll:true});
  arrivals.clear();damage.clear();
@@ -441,6 +447,11 @@ function effectLabel(id,otherwise){
  const effect=rules.effects[id];
  return effect?.label??otherwise??(effect?.sourceDefinition?rules.cardPresentation?.[effect.sourceDefinition]?.name:undefined)??titleCase(id??"Effect");
 }
+document.addEventListener("keydown",event=>{
+ if(event.key==="Escape"&&selected&&!document.querySelector("dialog[open]")){
+  selected=null;render();
+ }
+});
 try{
  rules=readPlaytest();
  if(!rules)throw Error("Choose a game from the library.");

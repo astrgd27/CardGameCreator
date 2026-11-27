@@ -20,3 +20,11 @@ Verified main: PR #38 squash merge d852a5c45f001db18e12252346e1b0d3682cf616; exa
 
 ### Specialized summoning and offline distribution (PR #65)
 Initial head b378754 passed full CI including browser tests. Subsequent authoring refinements separate scale and linked deployment requirements, expose summon response policies and defense statistics, and add linked deployment regression coverage. Exact-head validation pending. Remaining fidelity work: directional link geometry, nonrefundable cost separation, full reference-module integration and UI position presentation. Offline ZIP is built and uploaded by CI; Python launcher serves loopback only.
+
+## Master Guide product rebuild, 2026-11-27
+
+Main at `922b629` passed the Node baseline. Chromium opened the published Looboo module from the library and reached `duel.html?custom=1`. The locally served PR #79 head at `256e670` opened `play.html` directly from the library. Its browser tests checked launch and card selection. The product rebuild keeps the canonical runtime, projection, payment/combat rules, strategic opponent and portable ZIP format, and replaces the homepage and normal navigation.
+
+Draft PR #80 provides the library, module hubs, match setup, shared Card Battle and the guided Workshop. The first 27 focused browser journeys passed across desktop Chromium and both tablet WebKit viewport presets, including a blank Workshop creation through Victory, return to the draft, checkpoint reload and ZIP import recovery. Looboo attachment and attack, Crystal Circuit priority and resources, and Taste Dimension fusion payments were exercised. Those reference checks cover gameplay interactions, with full match completion still to verify across three reference games. The tablet runs use browser emulation.
+
+The guided workflow currently supports two-seat duels and lanes, card/deck editing, board and setup rules, and a small set of deployment effects. Advanced Workshop still uses the existing structured editor. Comprehensive visual rule composition, the bounded scripting interface and five complete reference games remain release work. The live site still serves main. CI and merge authorization are required before rollout.

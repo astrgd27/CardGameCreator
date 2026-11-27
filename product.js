@@ -95,7 +95,7 @@ function library(){
  };
  actions.append(link("New module",route("new",null),"button primary"),button("Import ZIP",()=>uploader.click()),uploader);
  title("Game library","Choose a game to play, or build an original card game in the Workshop.",actions);
- const grid=node("div",undefined,"grid");
+ const grid=node("div",undefined,"grid reference-grid");
  references.forEach((m,i)=>grid.append(moduleTile(m,"index.html?view=hub&game="+i,tones[i],"Playable · reference game",covers[i])));
  root.append(node("h2","Built-in games"),grid,node("h2","Your modules"));
  const userGrid=node("div",undefined,"grid");
@@ -360,27 +360,88 @@ function workshop(checkpoint){
  }
  function board(panel){
   const preview=node("div",undefined,"board-preview");
-  preview.style.gridTemplateColumns="repeat("+(draft.battlefield?.columns??1)+",1fr)";
-  for(const zone of draft.zones){
-   const presentation=draft.battlefield?.zones?.find(z=>z.zone===zone.id);
-   const name=presentation?.label??zone.id;
-   preview.append(node("div",name+" · "+(zone.owner===null?"Shared":zone.owner===draft.players[0]?"Your side":"Opponent side")));
+  const layout=draft.battlefield?.zones??[];
+  const order=[...layout.map(p=>draft.zones.find(z=>z.id===p.zone)).filter(Boolean),
+   ...draft.zones.filter(zone=>!layout.some(p=>p.zone===zone.id))];
+  const columns=draft.battlefield?.columns??1;
+  let perspective="a";
+  if(draft.players.length>1)field(panel,"Table perspective","a",{items:[["a","Player"],["b","Opponent"]],change:value=>{perspective=value;drawPreview()}});
+  function reorder(from,to){
+   if(from===to||!layout.some(z=>z.zone===from)||!layout.some(z=>z.zone===to))return;
+   edit(m=>{
+    const zones=m.battlefield.zones;
+    const index=zones.findIndex(z=>z.zone===from);
+    const target=zones.findIndex(z=>z.zone===to);
+    zones.splice(target,0,zones.splice(index,1)[0]);
+   });
   }
+  function drawPreview(){
+   preview.replaceChildren();
+   const perspectivePlayer=draft.players[perspective==="a"?0:1];
+   const bands=[["Opponent side",order.filter(z=>z.owner!==null&&z.owner!==perspectivePlayer)],
+    ["Shared table",order.filter(z=>z.owner===null)],["Your side",order.filter(z=>z.owner===perspectivePlayer)]];
+   for(const [side,zones] of bands){
+    if(!zones.length)continue;
+    preview.append(node("h3",side));
+    const row=node("section",undefined,"board-row");
+    row.style.setProperty("--columns",columns);
+    for(const [i,zone] of zones.entries()){
+     const presentation=layout.find(z=>z.zone===zone.id);
+     const tile=node("article",undefined,"board-slot");
+     const name=presentation?.label??zone.id;
+     tile.append(node("strong",name),node("small",zone.capacity+" card spaces"));
+     if(draft.basicDuel&&draft.combat.zones.includes(zone.id)){
+      tile.draggable=true;
+      tile.ondragstart=e=>e.dataTransfer.setData("text/plain",zone.id);
+      tile.ondragover=e=>e.preventDefault();
+      tile.ondrop=e=>{
+       e.preventDefault();
+       const from=e.dataTransfer.getData("text/plain");
+       if(zones.some(z=>z.id===from&&draft.combat.zones.includes(z.id)))reorder(from,zone.id);
+      };
+      const neighbors=[zones[i-1],zones[i+1]];
+      for(const [n,target] of neighbors.entries())if(target&&draft.combat.zones.includes(target.id)){
+       const move=button(n?"Move later":"Move earlier",()=>reorder(zone.id,target.id));
+       move.setAttribute("aria-label","Move "+name+" "+(n?"later":"earlier")+" on "+side.toLowerCase());
+       tile.append(move);
+      }
+     }
+     row.append(tile);
+    }
+    preview.append(row);
+   }
+  }
+  drawPreview();
   panel.append(preview);
   if(draft.basicDuel)for(const zone of draft.zones.filter(z=>draft.combat.zones.includes(z.id))){
-   const name=draft.battlefield.zones.find(z=>z.zone===zone.id)?.label;
-   number(panel,(zone.owner===draft.players[0]?"Your ":"Opponent ")+name.toLowerCase()+" capacity",zone.capacity,1,12,(m,v)=>m.zones.find(z=>z.id===zone.id).capacity=v);
+   const label=draft.battlefield.zones.find(z=>z.zone===zone.id)?.label;
+   const seat=zone.owner===draft.players[0]?"Your ":"Opponent ";
+   field(panel,seat+label.toLowerCase()+" name",label,{maxLength:40,change:v=>{
+    if(v.trim())edit(m=>m.battlefield.zones.find(z=>z.zone===zone.id).label=v.trim(),false);
+   }});
+   number(panel,seat+label.toLowerCase()+" capacity",zone.capacity,1,12,(m,v)=>m.zones.find(z=>z.id===zone.id).capacity=v);
   }
+  refreshDetails=drawPreview;
  }
  function rules(panel){
   if(!draft.basicDuel){panel.append(node("p","This module uses custom rules. Open Advanced Workshop to edit them."));return}
   const [life,energy]=draft.resources;
-  number(panel,"Starting life",life.initial,1,100,(m,v)=>m.resources[0].initial=m.resources[0].max=v);
+  const lifeWin=!!draft.victory?.length;
+  field(panel,"Victory condition",lifeWin?"life":"deck",{items:[["life","Run out of life or cards"],["deck","Run out of cards"]],change:value=>edit(m=>{
+   m.victory=value==="life"?m.players.map(player=>({type:"resourceAtMost",player,resource:"life",amount:0})):[];
+   if(value==="life")m.combat.group.lifeResource="life";else delete m.combat.group.lifeResource;
+  })});
+  if(lifeWin)number(panel,"Starting life",life.initial,1,100,(m,v)=>m.resources[0].initial=m.resources[0].max=v);
   number(panel,"Energy per turn",energy.refresh,0,10,(m,v)=>m.resources[1].initial=m.resources[1].refresh=v);
   number(panel,"Opening hand",draft.drawPolicies[0].opening,0,12,(m,v)=>m.drawPolicies.forEach(p=>p.opening=v));
   number(panel,"Cards drawn each turn",draft.drawPolicies[0].perTurn,1,3,(m,v)=>m.drawPolicies.forEach(p=>p.perTurn=v));
   number(panel,"Minimum deck size",draft.deckRules.min,1,60,(m,v)=>m.deckRules.min=v);
-  panel.append(node("p","Each player starts with "+life.initial+" life and draws "+draft.drawPolicies[0].perTurn+" cards per turn. Players lose when they run out of life or fail to draw a required card."));
+  const preview=node("p");panel.append(preview);
+  refreshDetails=()=>{
+   const limit=lifeWin?"Players lose when they run out of life or fail to draw a required card.":"Players lose when they cannot draw a required card.";
+   preview.textContent="Each player draws "+draft.drawPolicies[0].perTurn+" cards per turn. "+limit;
+  };
+  refreshDetails();
  }
  function render(){
   root.replaceChildren();
