@@ -15,12 +15,13 @@ const canBlock=(m,id,a)=>{const p=m.rules.combat.group;return inRange(m.state,id
 const canAttack=(m,id)=>!hasRule(m.state,id,"cannotAttack")&&(!m.rules.combat.group.attackerDefinitions||m.rules.combat.group.attackerDefinitions.includes(m.state.objects[id].definition));
 const power=(m,id)=>deriveStatistic(m.state,id,"attack",m.rules.combat.stats[m.state.objects[id].definition].attack,m.rules.combat.modifiers??[],{turn:m.turn}).value+(m.battle?.boosts?.[id]??0);
 const health=(m,id)=>deriveStatistic(m.state,id,"health",m.rules.combat.stats[m.state.objects[id].definition].health,m.rules.combat.modifiers??[],{turn:m.turn}).value;
-export function battleActor(m){return m.battle?.stage==="react"?m.battle.reactionActor??m.battle.defender:m.battle?.stage==="assign"?m.battle.actor:m.battle?.defender??null}
+export function battleActor(m){return m.battle?.stage==="react"?m.battle.reactionActor??m.battle.defender:m.battle?.stage==="assign"?m.battle.assignmentActor??m.battle.actor:m.battle?.defender??null}
 function reactions(m,actor){const p=m.rules.combat.group,opts=[];for(const r of p.reactions??[])if((!r.side||r.side===(actor===m.battle.actor?"attacker":"defender"))&&quotePayment(m.state,actor,r.costs??[]).legal)for(const id of selectCards(m.state,actor,{zones:r.zones,owner:"self",controller:"self",definition:r.definition,face:"up"}))if(!m.battle.used?.includes(id))opts.push({id,rule:r.id,amount:r.amount});return opts}
 export function combatOptions(m,actor){
  const c=m.rules.combat?.group;if(!c||m.timing.players.length!==2)return null;
  const battle=m.battle,enemy=m.timing.players.find(p=>p!==actor);if(teamOf(m,enemy)===teamOf(m,actor))return null;
  if(battle?.stage==="react")return (battle.reactionActor??battle.defender)===actor?{stage:"react",reactions:reactions(m,actor),attackers:battle.attacks.map(a=>a.attacker)}:null;
+ if(battle?.stage==="assign"&&battle.showdown){const side=battle.assignmentActor,own=side===battle.actor?battle.showdown.attackers:battle.showdown.defenders,enemy=side===battle.actor?battle.showdown.defenders:battle.showdown.attackers;return side===actor?{stage:"assign",assignments:[{attacker:own[0],power:own.reduce((n,id)=>n+Math.max(0,power(m,id)),0),blockers:enemy.map(id=>({id,lethal:Math.max(0,power(m,id)-m.state.objects[id].damage)}))}],overflow:false}:null}
  if(battle?.stage==="assign")return battle.actor===actor?{stage:"assign",assignments:battle.attacks.filter(a=>battle.blocks.some(b=>b.attacker===a.attacker)).map(a=>({attacker:a.attacker,power:Math.max(0,power(m,a.attacker)),blockers:battle.blocks.filter(b=>b.attacker===a.attacker).map(b=>({id:b.blocker,lethal:Math.max(0,health(m,b.blocker)-m.state.objects[b.blocker].damage)}))})),overflow:!!c.overflow}:null;
  if(battle)return battle.stage==="block"&&battle.defender===actor?{stage:"block",attackers:battle.attacks.map(a=>a.attacker),blockers:units(m,actor,"self",c.readyBlockers!==false).filter(id=>!hasRule(m.state,id,"cannotBlock")).filter(id=>!c.guardStatus||m.state.objects[id].statuses?.includes(c.guardStatus)),attacks:battle.attacks,attackersByBlocker:Object.fromEntries(units(m,actor,"self",c.readyBlockers!==false).map(id=>[id,battle.attacks.filter(a=>canBlock(m,id,a)).map(a=>a.attacker)])),intercept:c.intercept??"all"}:null;
  if(c.movementShowdown||m.result||m.promotion||m.openingQueue?.length||m.triggerOrderPending||m.timing.active!==actor||m.timing.priority!==actor||m.windowClosed||m.pending||m.timing.queue.length||m.timing.resolving||m.rules.phases&&!m.rules.phases[m.phaseIndex].actions.includes("attack")||m.combatUsed===m.turn)return null;
@@ -61,6 +62,7 @@ export function advanceBattle(m,actor,action){
    let paid=m.state;const paymentEvents=[];for(const cost of rule.costs??[]){const result=changeResource(paid,actor,cost.resource,-cost.amount,{overflow:"reject"});paid=result.state;paymentEvents.push(...result.events)}const moved=moveWithAttachments(paid,{id:r.id,from,to:rule.destination,face:"up",reset:true});m.state=moved.state;b.used.push(r.id);b.boosts[target]=(b.boosts[target]??0)+(p.twoSidedReactions&&actor===b.actor?r.amount:-r.amount);if(p.twoSidedReactions){b.reactionActor=actor===b.actor?b.defender:b.actor;b.reactionPasses=0}return [...paymentEvents,...moved.events,{type:"combatReaction",actor,amount:r.amount}];
   }
   check(action.type==="combatContinue","Reaction decision required");if(p.twoSidedReactions&&++b.reactionPasses<2){b.reactionActor=actor===b.actor?b.defender:b.actor;return [{type:"combatReactionPassed",actor}]}
+ }else if(b.stage==="assign"&&b.showdown){const row=action.assignments?.[0],a=v.assignments[0];check(action.type==="assignDamage"&&action.assignments.length===1&&row.attacker===a.attacker&&row.amounts?.length===a.blockers.length&&row.amounts.every(n=>Number.isSafeInteger(n)&&n>=0)&&row.amounts.reduce((n,x)=>n+x,0)===a.power,"Invalid Might assignment");check(!row.amounts.some((n,i)=>n>a.blockers[i].lethal)&&row.amounts.some((n,i)=>n<a.blockers[i].lethal)||row.amounts.every((n,i)=>n>=a.blockers[i].lethal)||row.amounts.every((n,i)=>n<=a.blockers[i].lethal),"Assign lethal before excess");b.showdown.assigned??={};b.showdown.assigned[actor]=row.amounts;if(actor===b.actor){b.assignmentActor=b.defender;return [{type:"damageAssigned",actor}]}return resolveGroupCombat(m,b.defender,[],true);
  }else if(b.stage==="assign"){
   check(action.type==="assignDamage"&&Array.isArray(action.assignments)&&action.assignments.length===v.assignments.length,"Invalid assignment");
   const seen=new Set();for(const row of action.assignments){
@@ -69,6 +71,7 @@ export function advanceBattle(m,actor,action){
    check(total<=available&&(total===available||p.overflow&&b.attacks.find(x=>x.attacker===row.attacker).kind==="player"&&row.amounts.every((x,i)=>x>=a.blockers[i].lethal)),"Damage must be assigned");
   }b.assignments=structuredClone(action.assignments);return resolveGroupCombat(m,b.defender,b.blocks,true);
  }
+ if(b.showdown&&p.assignment==="manual"){b.stage="assign";b.assignmentActor=b.actor;return [{type:"damageAssignmentStarted",actor:b.actor}]}
  if(p.assignment==="manual"&&b.blocks.length){b.stage="assign";return [{type:"damageAssignmentStarted",actor:b.actor}]}
  return resolveGroupCombat(m,b.defender,b.blocks,true);
 }
@@ -80,7 +83,7 @@ export function resolveGroupCombat(m,actor,blocks,validated=false){
  const hitLife=(player,n)=>{if(n<=0)return;life.set(player,(life.get(player)??0)+n);lifeHits.set(player,(lifeHits.get(player)??0)+1)};
  const stat=(id,k)=>deriveStatistic(state,id,k,c.stats[state.objects[id].definition][k],c.modifiers??[],{turn:m.turn}).value;
  const hit=(id,amount)=>{const r=replaceDamage(state,{type:"damageDealt",id,amount,damageType:policy.damageType??"combat"},c.replacements??[]);for(const rule of r.applied)events.push({type:"damageReplaced",rule,id});if(r.event.amount){damage.set(r.event.id,(damage.get(r.event.id)??0)+r.event.amount);events.push(r.event)}};
- if(b.showdown){const {attackers,defenders}=b.showdown;for(const [sources,targets] of [[attackers,defenders],[defenders,attackers]]){let remaining=sources.reduce((n,id)=>n+Math.max(0,power(m,id)),0);for(const [i,id] of targets.entries()){const n=i===targets.length-1?remaining:Math.min(remaining,Math.max(0,power(m,id)-state.objects[id].damage));hit(id,n);remaining-=n}}}else for(const a of b.attacks){
+ if(b.showdown){const {attackers,defenders}=b.showdown;for(const [sources,targets] of [[attackers,defenders],[defenders,attackers]]){let remaining=sources.reduce((n,id)=>n+Math.max(0,power(m,id)),0);for(const [i,id] of targets.entries()){const n=b.showdown.assigned?.[sources===attackers?b.actor:b.defender]?.[i]??(i===targets.length-1?remaining:Math.min(remaining,Math.max(0,power(m,id)-state.objects[id].damage)));hit(id,n);remaining-=n}}}else for(const a of b.attacks){
   next.objects[a.attacker].orientation="resting";
   const guards=blocks.filter(x=>x.attacker===a.attacker).map(x=>x.blocker);
   if(guards.length){
