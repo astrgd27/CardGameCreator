@@ -215,3 +215,15 @@ test("counterspell removes the bound opposing effect without refunding costs",()
  assert.equal(m.timing.queue.length,0);
  assert.equal(m.state.resourcePools["player-a"].life,8);
 });
+
+test("prize selection allows a non-top card without revealing its definition",()=>{
+ const r=referenceModules()[0];
+ r.effects["prize-a"].available=true;r.effects["prize-a"].actors=["a"];
+ let m=createMatch(r);
+ const ids=[...m.state.zones["prize-a"].cards];
+ m=applyMatchAction(m,"a",{type:"activate",effect:"prize-a"}).match;
+ for(let i=0;i<8&&!m.pending&&m.timing.queue.length;i++)m=applyMatchAction(m,m.timing.priority,{type:"pass"}).match;
+ assert.ok(m.pending);
+ assert.deepEqual(m.pending.options,ids);
+ assert.equal(m.pending.labels,undefined);
+});
