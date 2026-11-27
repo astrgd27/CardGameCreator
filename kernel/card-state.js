@@ -26,6 +26,7 @@ export function changeCardState(state,actor,id,op){
  case "transform":check(next.definitions.includes(op.definition),"Unknown transformation");event={type:"cardTransformed",id};o.definition=op.definition;if(next.reveals)delete next.reveals[id];break;
  case "flip":check(["up","down","toggle"].includes(op.face),"Invalid face");o.face=op.face==="toggle"?(o.face==="up"?"down":"up"):op.face;event={type:"cardFlipped",id,face:o.face};if(next.reveals)delete next.reveals[id];break;
  case "control":{const player=op.player==="self"?actor:op.player;check(next.players.includes(player),"Invalid controller");o.controller=player;event={type:"controlChanged",id,actor:player};break}
+ case "position":check(["attack","defense"].includes(op.position),"Invalid combat position");o.position=op.position;event={type:"positionChanged",id,position:o.position};break;
  case "orient":check(["ready","resting","tapped"].includes(op.orientation),"Invalid orientation");o.orientation=op.orientation;event={type:"orientationChanged",id,orientation:o.orientation};break;
  default:throw Error("Unsupported card-state operation");
  }
